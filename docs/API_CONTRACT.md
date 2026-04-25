@@ -47,20 +47,43 @@
 
 ## Optional Features
 
-| Variable | Description |
-|----------|-------------|
-| `OPENAI_API_KEY` | Enable AI features (JSON, extract, summary) |
-| `OLLAMA_BASE_URL` | Use Ollama instead of OpenAI |
-| `OPENAI_BASE_URL` | Custom OpenAI-compatible endpoint |
-| `MODEL_NAME` | Override default LLM |
-| `MODEL_EMBEDDING_NAME` | Override default embedding |
-| `PROXY_SERVER` | HTTP/SOCKS proxy for scraping |
-| `SEARXNG_ENDPOINT` | SearXNG instance for `/search` |
-| `SLACK_WEBHOOK_URL` | Post health alerts |
-| `LLAMAPARSE_API_KEY` | PDF parsing |
-| `GCS_BUCKET_NAME` | Store scrape results in GCS |
-| `SELF_HOSTED_WEBHOOK_URL` | Custom webhook endpoint |
-| `LOGGING_LEVEL` | TRACE/DEBUG/INFO/WARN/ERROR |
+| Variable | Description | Providers Supported |
+|----------|-------------|---------------------|
+| `OPENAI_API_KEY` | Enable AI features | OpenAI, LiteLLM, vLLM |
+| `OLLAMA_BASE_URL` | Use Ollama | Ollama |
+| `OPENAI_BASE_URL` | Custom OpenAI-compatible endpoint | Any OpenAI-compatible |
+| `MODEL_NAME` | Override default LLM | All |
+| `MODEL_RETRY_NAME` | Override fallback LLM | All |
+| `MODEL_EMBEDDING_NAME` | Override default embedding | All |
+| `ANTHROPIC_API_KEY` | Anthropic Claude | Anthropic |
+| `GROQ_API_KEY` | Groq inference | Groq |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google Gemini | Google |
+| `OPENROUTER_API_KEY` | OpenRouter | OpenRouter |
+| `FIREWORKS_API_KEY` | Fireworks AI | Fireworks |
+| `DEEPINFRA_API_KEY` | DeepInfra | DeepInfra |
+| `PROXY_SERVER` | HTTP/SOCKS proxy for scraping | — |
+| `SEARXNG_ENDPOINT` | SearXNG instance for `/search` | — |
+| `SLACK_WEBHOOK_URL` | Post health alerts | — |
+| `LLAMAPARSE_API_KEY` | PDF parsing | — |
+| `GCS_BUCKET_NAME` | Store scrape results in GCS | — |
+| `SELF_HOSTED_WEBHOOK_URL` | Custom webhook endpoint | — |
+| `LOGGING_LEVEL` | TRACE/DEBUG/INFO/WARN/ERROR | — |
+
+## Supported AI Providers
+
+| Provider | Library | API Endpoint | Default Models |
+|----------|---------|-------------|---------------|
+| OpenAI-compatible | `@ai-sdk/openai` | `/v1/chat/completions` | gpt-4o-mini, gpt-4.1 |
+| Ollama | `ollama-ai-provider` | Ollama API | llama3, mistral |
+| Anthropic | `@ai-sdk/anthropic` | Anthropic API | claude-3-opus |
+| Groq | `@ai-sdk/groq` | Groq API | llama-3.1-70b |
+| Google | `@ai-sdk/google` | Gemini API | gemini-2.5-pro |
+| OpenRouter | `@openrouter/ai-sdk-provider` | OpenRouter | openai/gpt-4o |
+| Fireworks | `@ai-sdk/fireworks` | Fireworks API | fireworks-ai/llama-3.1-70b |
+| DeepInfra | `@ai-sdk/deepinfra` | DeepInfra API | deepinfra/llama-3.1-70b |
+| Vertex | `@ai-sdk/google-vertex` | Google Cloud Vertex | gemini-2.5-pro |
+
+> **Note:** Using `OPENAI_BASE_URL` points to any OpenAI-compatible proxy (LiteLLM, vLLM, Ollama, etc.). All use `/v1/chat/completions` endpoint.
 
 ## API Endpoints
 

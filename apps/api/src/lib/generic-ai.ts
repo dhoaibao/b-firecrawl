@@ -53,15 +53,29 @@ const providerList: Record<Provider, any> = {
   }),
 };
 
+// Default models
+const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_RETRY_MODEL = "gpt-4.1";
+
+// Resolve model name - env takes priority, else use passed name, else default
+function resolveModelName(name?: string): string {
+  return config.MODEL_NAME || name || DEFAULT_MODEL;
+}
+
+// Resolve retry model name
+function resolveRetryModelName(name?: string): string {
+  return config.MODEL_RETRY_NAME || name || DEFAULT_RETRY_MODEL;
+}
+
 export function getModel(name: string, provider: Provider = defaultProvider) {
-  if (name === "gemini-2.5-pro") {
-    name = "gemini-2.5-pro";
+  const modelName = resolveModelName(name);
+
+  // Force Chat Completions for OpenAI-compatible providers (not Responses API)
+  if (provider === "openai" || provider === "ollama") {
+    return providerList[provider].chat(modelName);
   }
-  const modelName = config.MODEL_NAME || name;
-  // o3-mini returns empty text via the Responses API — force Chat Completions
-  if (provider === "openai" && modelName.startsWith("o3-mini")) {
-    return providerList.openai.chat(modelName);
-  }
+
+  // Anthropic and other providers use their own default method
   return providerList[provider](modelName);
 }
 
