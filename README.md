@@ -27,14 +27,4 @@ docker compose up -d
 curl http://localhost:3002/v0/health/liveness
 ```
 
-## AI Configuration
-
-Set `OPENAI_BASE_URL` and `MODEL_NAME` to use custom OpenAI-compatible providers:
-
-```bash
-OPENAI_BASE_URL=http://your-litelm:4000/v1
-MODEL_NAME=opencode-go/kimi-k2.5
-MODEL_RETRY_NAME=opencode-go/qwen3.5-plus
-```
-
 See `SELF_HOST.md` for full setup and `docs/API_CONTRACT.md` for all env vars.
