@@ -1,0 +1,76 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docker-compose.yaml"
+      - "apps/api/**"
+      - "apps/playwright-service-ts/**"
+      - "apps/nuq-postgres/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Firecrawl Self-Host
+    runs-on: ubuntu-latest
+    environment: Hetzner
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy via SSH
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} -p ${{ secrets.SSH_PORT }} << 'EOF'
+          set -e
+          cd ${{ vars.DEPLOY_PATH }}
+
+          # Update .env file with secrets - match .env.example structure
+          rm -rf .env
+          cat > .env << 'ENDFILE'
+          # Database
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+
+          # Security
+          BULL_AUTH_KEY=${{ secrets.BULL_AUTH_KEY }}
+
+          # Server
+          PORT=3002
+          HOST=0.0.0.0
+
+          # Auth (set to false for self-host)
+          USE_DB_AUTHENTICATION=false
+
+          # AI/ML (OpenAI-compatible)
+          OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          MODEL_NAME=${{ secrets.MODEL_NAME }}
+          MODEL_RETRY_NAME=${{ secrets.MODEL_RETRY_NAME }}
+          ENDFILE
+
+          git pull origin main
+          # Pull base images
+          docker compose pull
+          # Build app code
+          docker compose build
+          docker compose up -d --force-recreate --remove-orphans
+          docker image prune -f
+
+          echo "Deploy completed successfully"
+          EOF
