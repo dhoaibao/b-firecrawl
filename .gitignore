@@ -62,3 +62,4 @@ _local/
 
 apps/api/src/lib/scrape-interact/*.md
 .serena/
+.claude/
