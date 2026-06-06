@@ -1,19 +1,21 @@
-const {
+import type { Request, Response } from "express";
+import type { AuditStore } from "./audit-store";
+import type { GatewayConfig, ProxyResult, AuditEntry } from "./types";
+import {
   chooseInitialBackend,
   getRouteMode,
   hasSensitiveHeaders,
   isFallbackAllowed,
   isFallbackEligible,
   requestNeedsCloud,
-} = require("./policy");
-const {
+} from "./policy";
+import {
   collectTargetUrls,
   cryptoRandomId,
   hasPrivateTargetUrl,
   inspectBody,
   nowIso,
-  writeJson,
-} = require("./utils");
+} from "./utils";
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -28,15 +30,19 @@ const hopByHopHeaders = new Set([
   "content-length",
 ]);
 
-function sanitizeHeaders(headers, backend, config) {
-  const next = {};
+function sanitizeHeaders(
+  headers: Record<string, string | string[] | undefined>,
+  backend: string,
+  config: GatewayConfig,
+): Record<string, string> {
+  const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     const lower = key.toLowerCase();
     if (hopByHopHeaders.has(lower)) continue;
     if (lower === "x-firecrawl-route-mode") continue;
     if (lower === "x-firecrawl-allow-cloud-fallback") continue;
     if (value === undefined) continue;
-    next[key] = value;
+    next[key] = Array.isArray(value) ? value.join(", ") : value;
   }
 
   if (backend === "cloud" && config.cloudApiKey) {
@@ -46,14 +52,14 @@ function sanitizeHeaders(headers, backend, config) {
   return next;
 }
 
-async function readRequestBody(req, maxBodyBytes) {
-  const chunks = [];
+async function readRequestBody(req: Request, maxBodyBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of req) {
     total += chunk.length;
     if (total > maxBodyBytes) {
       const error = new Error("Request body is too large for gateway inspection");
-      error.statusCode = 413;
+      (error as Error & { statusCode: number }).statusCode = 413;
       throw error;
     }
     chunks.push(chunk);
@@ -61,7 +67,19 @@ async function readRequestBody(req, maxBodyBytes) {
   return Buffer.concat(chunks);
 }
 
-async function proxyToBackend({ backend, req, bodyBuffer, targetUrl, config }) {
+async function proxyToBackend({
+  backend,
+  req,
+  bodyBuffer,
+  targetUrl,
+  config,
+}: {
+  backend: string;
+  req: Request;
+  bodyBuffer: Buffer;
+  targetUrl: string;
+  config: GatewayConfig;
+}): Promise<ProxyResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
   const started = Date.now();
@@ -87,14 +105,14 @@ async function proxyToBackend({ backend, req, bodyBuffer, targetUrl, config }) {
     return {
       kind: "network-error",
       backend,
-      error,
+      error: error as Error,
       body: Buffer.from(
         JSON.stringify({
           success: false,
           error:
-            error.name === "AbortError"
+            (error as Error).name === "AbortError"
               ? "Gateway upstream timeout"
-              : error.message,
+              : (error as Error).message,
         }),
       ),
       durationMs: Date.now() - started,
@@ -104,14 +122,23 @@ async function proxyToBackend({ backend, req, bodyBuffer, targetUrl, config }) {
   }
 }
 
-function backendUrl(backend, originalUrl, config) {
-  const base = backend === "cloud" ? config.cloudBaseUrl : config.localBaseUrl;
+function backendUrl(
+  backend: string,
+  originalUrl: string,
+  config: GatewayConfig,
+): string {
+  const base =
+    backend === "cloud" ? config.cloudBaseUrl : config.localBaseUrl;
   return `${base}${originalUrl}`;
 }
 
-function sendProxyResponse(res, result, meta) {
+function sendProxyResponse(
+  res: Response,
+  result: ProxyResult,
+  meta: { fallbackUsed: boolean; fallbackReason: string },
+): void {
   if (result.kind === "network-error") {
-    res.writeHead(502, {
+    res.status(502).set({
       "content-type": "application/json; charset=utf-8",
       "x-hybrid-firecrawl-backend": result.backend,
       "x-hybrid-firecrawl-fallback": String(meta.fallbackUsed),
@@ -121,30 +148,42 @@ function sendProxyResponse(res, result, meta) {
     return;
   }
 
-  const headers = {};
-  for (const [key, value] of result.response.headers.entries()) {
-    const lower = key.toLowerCase();
-    if (hopByHopHeaders.has(lower)) continue;
-    if (lower === "content-encoding") continue;
-    headers[key] = value;
+  const headers: Record<string, string> = {};
+  if (result.response) {
+    result.response.headers.forEach((value, key) => {
+      const lower = key.toLowerCase();
+      if (hopByHopHeaders.has(lower)) return;
+      if (lower === "content-encoding") return;
+      headers[key] = value;
+    });
   }
   headers["x-hybrid-firecrawl-backend"] = result.backend;
   headers["x-hybrid-firecrawl-fallback"] = String(meta.fallbackUsed);
   if (meta.fallbackReason) {
     headers["x-hybrid-firecrawl-fallback-reason"] = meta.fallbackReason;
   }
-  headers["content-length"] = result.body.length;
+  headers["content-length"] = String(result.body.length);
 
-  res.writeHead(result.response.status, headers);
+  res.status(result.response?.status || 502).set(headers);
   res.end(result.body);
 }
 
-function createProxyHandler({ config, auditStore }) {
-  return async function handleProxy(req, res) {
+export function createProxyHandler({
+  config,
+  auditStore,
+}: {
+  config: GatewayConfig;
+  auditStore: AuditStore;
+}) {
+  return async function handleProxy(
+    req: Request,
+    res: Response,
+  ): Promise<void> {
     const started = Date.now();
-    const parsedUrl = new URL(req.url, "http://gateway.local");
+    const requestUrl = req.originalUrl || req.url;
+    const parsedUrl = new URL(requestUrl, "http://gateway.local");
     const routeMode = getRouteMode(
-      req.url,
+      requestUrl,
       req.headers,
       config.defaultRouteMode,
     );
@@ -161,7 +200,7 @@ function createProxyHandler({ config, auditStore }) {
 
     if (initialBackend === "reject") {
       const statusCode = 409;
-      await auditStore.appendAudit({
+      const auditEntry: AuditEntry = {
         id: cryptoRandomId(),
         created_at: nowIso(),
         method: req.method,
@@ -173,8 +212,9 @@ function createProxyHandler({ config, auditStore }) {
         status_code: statusCode,
         duration_ms: Date.now() - started,
         target_url: primaryTargetUrl,
-      });
-      writeJson(res, statusCode, {
+      };
+      await auditStore.appendAudit(auditEntry);
+      res.status(statusCode).json({
         success: false,
         error:
           "This request requires Firecrawl Cloud, but route mode is local-only.",
@@ -187,7 +227,7 @@ function createProxyHandler({ config, auditStore }) {
       backend: initialBackend,
       req,
       bodyBuffer,
-      targetUrl: backendUrl(initialBackend, req.url, config),
+      targetUrl: backendUrl(initialBackend, requestUrl, config),
       config,
     });
     let fallbackUsed = false;
@@ -202,19 +242,19 @@ function createProxyHandler({ config, auditStore }) {
       fallbackReason =
         result.kind === "network-error"
           ? result.error?.message || "local network error"
-          : `local returned ${result.response.status}`;
+          : `local returned ${result.response?.status}`;
       result = await proxyToBackend({
         backend: "cloud",
         req,
         bodyBuffer,
-        targetUrl: backendUrl("cloud", req.url, config),
+        targetUrl: backendUrl("cloud", requestUrl, config),
         config,
       });
     }
 
     const statusCode =
-      result.kind === "network-error" ? 502 : result.response.status;
-    await auditStore.appendAudit({
+      result.kind === "network-error" ? 502 : result.response?.status || 502;
+    const auditEntry: AuditEntry = {
       id: cryptoRandomId(),
       created_at: nowIso(),
       method: req.method,
@@ -226,10 +266,9 @@ function createProxyHandler({ config, auditStore }) {
       status_code: statusCode,
       duration_ms: Date.now() - started,
       target_url: primaryTargetUrl,
-    });
+    };
+    await auditStore.appendAudit(auditEntry);
 
     sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
   };
 }
-
-module.exports = { createProxyHandler };

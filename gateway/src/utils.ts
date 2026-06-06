@@ -1,8 +1,8 @@
-function nowIso() {
+export function nowIso(): string {
   return new Date().toISOString();
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value: string): string {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -11,17 +11,22 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function writeJson(res, statusCode, payload, extraHeaders = {}) {
+export function writeJson(
+  res: { writeHead: (status: number, headers: Record<string, string>) => void; end: (body: Buffer) => void },
+  statusCode: number,
+  payload: unknown,
+  extraHeaders: Record<string, string> = {},
+): void {
   const body = Buffer.from(JSON.stringify(payload));
   res.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
-    "content-length": body.length,
+    "content-length": String(body.length),
     ...extraHeaders,
   });
   res.end(body);
 }
 
-function walk(value, visit) {
+export function walk(value: unknown, visit: (value: unknown) => void): void {
   visit(value);
   if (Array.isArray(value)) {
     for (const item of value) walk(item, visit);
@@ -30,19 +35,22 @@ function walk(value, visit) {
   }
 }
 
-function findObjectsByKey(value, key) {
-  const found = [];
-  walk(value, current => {
+export function findObjectsByKey(value: unknown, key: string): unknown[] {
+  const found: unknown[] = [];
+  walk(value, (current: unknown) => {
     if (current && typeof current === "object" && !Array.isArray(current)) {
       if (Object.prototype.hasOwnProperty.call(current, key)) {
-        found.push(current[key]);
+        found.push((current as Record<string, unknown>)[key]);
       }
     }
   });
   return found;
 }
 
-function inspectBody(bodyBuffer, headers) {
+export function inspectBody(
+  bodyBuffer: Buffer,
+  headers: Record<string, string | string[] | undefined>,
+): { json: unknown | null; parseError: string | null } {
   const contentType = String(headers["content-type"] || "");
   if (!bodyBuffer.length || !contentType.includes("application/json")) {
     return { json: null, parseError: null };
@@ -51,20 +59,20 @@ function inspectBody(bodyBuffer, headers) {
   try {
     return { json: JSON.parse(bodyBuffer.toString("utf8")), parseError: null };
   } catch (error) {
-    return { json: null, parseError: error.message };
+    return { json: null, parseError: (error as Error).message };
   }
 }
 
-function collectTargetUrls(jsonBody) {
-  const urls = [];
-  walk(jsonBody, value => {
+export function collectTargetUrls(jsonBody: unknown): string[] {
+  const urls: string[] = [];
+  walk(jsonBody, (value: unknown) => {
     if (typeof value !== "string") return;
     if (/^https?:\/\//i.test(value)) urls.push(value);
   });
   return [...new Set(urls)];
 }
 
-function isPrivateHostname(hostname) {
+function isPrivateHostname(hostname: string): boolean {
   const host = hostname.toLowerCase();
   if (
     host === "localhost" ||
@@ -94,7 +102,7 @@ function isPrivateHostname(hostname) {
   );
 }
 
-function hasPrivateTargetUrl(urls) {
+export function hasPrivateTargetUrl(urls: string[]): boolean {
   for (const item of urls) {
     try {
       const parsed = new URL(item);
@@ -106,18 +114,6 @@ function hasPrivateTargetUrl(urls) {
   return false;
 }
 
-function cryptoRandomId() {
+export function cryptoRandomId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
-
-module.exports = {
-  collectTargetUrls,
-  cryptoRandomId,
-  escapeHtml,
-  findObjectsByKey,
-  hasPrivateTargetUrl,
-  inspectBody,
-  nowIso,
-  walk,
-  writeJson,
-};

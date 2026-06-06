@@ -1,3 +1,4 @@
-data
+data/
 *.log
 node_modules
+admin-ui/node_modules

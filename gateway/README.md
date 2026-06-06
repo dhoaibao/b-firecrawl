@@ -1,13 +1,21 @@
 # Hybrid Firecrawl Gateway
 
-Lightweight policy gateway for deployment-only Firecrawl self-hosting.
+Professional Express.js + TypeScript gateway for deployment-only Firecrawl self-hosting, with a React admin dashboard.
+
+## Stack
+
+- **Backend**: Express.js + TypeScript
+- **Admin UI**: React + Vite + Tailwind CSS
+- **Build**: Multi-stage Docker (Node 22 Alpine)
 
 ## Routes
 
-- `GET /healthz` health check
-- `GET /admin` request history UI
-- `GET /admin/logs` request history JSON
-- `/v1/*` and `/v2/*` proxied to local Firecrawl or Firecrawl Cloud
+- `GET /healthz` — health check
+- `GET /admin` — React admin dashboard SPA
+- `GET /admin/logs` — legacy request history JSON
+- `GET /admin/api/logs` — request history JSON
+- `GET /admin/api/data` — request history with totals
+- `/v1/*` and `/v2/*` — proxied to local Firecrawl or Firecrawl Cloud
 
 ## Routing Modes
 
@@ -35,3 +43,32 @@ The gateway writes JSONL audit entries to:
 ```
 
 The log stores metadata only, not full request or response bodies.
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run TypeScript compiler
+npm run build
+
+# Start server
+npm start
+
+# Admin UI (separate)
+cd admin-ui
+npm install
+npm run dev
+```
+
+## Docker
+
+The Dockerfile uses multi-stage build:
+1. **Builder stage**: builds the React admin UI
+2. **Gateway stage**: compiles the TypeScript gateway
+3. **Runtime stage**: copies built gateway + admin UI, installs production deps
+
+```bash
+docker build -t firecrawl-gateway .
+```

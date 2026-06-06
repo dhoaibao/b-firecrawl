@@ -1,4 +1,5 @@
-const { findObjectsByKey, walk } = require("./utils");
+import type { NeedsCloudResult } from "./types";
+import { findObjectsByKey, walk } from "./utils";
 
 const validRouteModes = new Set(["local-first", "local-only", "cloud-first"]);
 
@@ -17,7 +18,11 @@ const cloudOnlyFormatTypes = new Set([
   "changeTracking",
 ]);
 
-function getRouteMode(reqUrl, headers, defaultRouteMode) {
+export function getRouteMode(
+  reqUrl: string,
+  headers: Record<string, string | string[] | undefined>,
+  defaultRouteMode: string,
+): string {
   const headerMode = String(headers["x-firecrawl-route-mode"] || "").trim();
   if (validRouteModes.has(headerMode)) return headerMode;
 
@@ -28,13 +33,16 @@ function getRouteMode(reqUrl, headers, defaultRouteMode) {
   return validRouteModes.has(defaultRouteMode) ? defaultRouteMode : "local-first";
 }
 
-function hasSensitiveHeaders(headers, jsonBody) {
+export function hasSensitiveHeaders(
+  headers: Record<string, string | string[] | undefined>,
+  jsonBody: unknown,
+): boolean {
   if (headers.authorization || headers.cookie) return true;
 
   const bodyHeaders = findObjectsByKey(jsonBody, "headers");
   for (const item of bodyHeaders) {
     if (!item || typeof item !== "object") continue;
-    for (const key of Object.keys(item)) {
+    for (const key of Object.keys(item as Record<string, unknown>)) {
       const lower = key.toLowerCase();
       if (
         lower === "authorization" ||
@@ -50,7 +58,10 @@ function hasSensitiveHeaders(headers, jsonBody) {
   return false;
 }
 
-function requestNeedsCloud(pathname, jsonBody) {
+export function requestNeedsCloud(
+  pathname: string,
+  jsonBody: unknown,
+): NeedsCloudResult {
   for (const pattern of cloudOnlyPathPatterns) {
     if (pattern.test(pathname)) {
       return {
@@ -60,27 +71,29 @@ function requestNeedsCloud(pathname, jsonBody) {
     }
   }
 
-  let reason = null;
-  walk(jsonBody, value => {
+  let reason: string | null = null;
+  walk(jsonBody, (value: unknown) => {
     if (reason || !value || typeof value !== "object") return;
 
-    if (Array.isArray(value.actions) && value.actions.length > 0) {
+    if (Array.isArray((value as Record<string, unknown>).actions) && ((value as Record<string, unknown[]>).actions).length > 0) {
       reason = "actions require Fire-engine-backed Cloud behavior";
       return;
     }
 
-    if (value.agent) {
+    if ((value as Record<string, unknown>).agent) {
       reason = "agent extraction is Cloud-managed";
       return;
     }
 
-    const formats = Array.isArray(value.formats) ? value.formats : [];
+    const formats = Array.isArray((value as Record<string, unknown>).formats)
+      ? (value as Record<string, unknown[]>).formats
+      : [];
     for (const format of formats) {
       const type =
         typeof format === "string"
           ? format
           : format && typeof format === "object"
-            ? format.type
+            ? (format as Record<string, string>).type
             : "";
       if (cloudOnlyFormatTypes.has(type)) {
         reason = `${type} format is not supported by default self-host`;
@@ -88,34 +101,44 @@ function requestNeedsCloud(pathname, jsonBody) {
       }
     }
 
-    const proxy = value.proxy;
+    const proxy = (value as Record<string, unknown>).proxy;
     if (proxy === "stealth" || proxy === "enhanced") {
       reason = "stealth/enhanced proxy requires Cloud-managed behavior";
     }
   });
 
-  return { required: Boolean(reason), reason };
+  return { required: Boolean(reason), reason: reason || "" };
 }
 
-function chooseInitialBackend(routeMode, needsCloud) {
+export function chooseInitialBackend(
+  routeMode: string,
+  needsCloud: NeedsCloudResult,
+): string {
   if (routeMode === "cloud-first") return "cloud";
   if (routeMode === "local-only") return needsCloud.required ? "reject" : "local";
   return needsCloud.required ? "cloud" : "local";
 }
 
-function isFallbackAllowed(routeMode, privacy) {
+export function isFallbackAllowed(
+  routeMode: string,
+  privacy: { hasSensitiveHeaders: boolean; hasPrivateTargetUrl: boolean },
+): boolean {
   if (routeMode !== "local-first") return false;
   if (privacy.hasSensitiveHeaders) return false;
   if (privacy.hasPrivateTargetUrl) return false;
   return true;
 }
 
-function isFallbackEligible(result) {
+export function isFallbackEligible(result: {
+  kind: string;
+  response?: Response;
+  body?: Buffer;
+}): boolean {
   if (result.kind === "network-error") return true;
   if (!result.response) return false;
   if (result.response.status >= 500) return true;
 
-  const text = result.body.toString("utf8").toLowerCase();
+  const text = result.body?.toString("utf8").toLowerCase() || "";
   return (
     result.response.status >= 400 &&
     (text.includes("fire-engine") ||
@@ -127,12 +150,3 @@ function isFallbackEligible(result) {
       text.includes("branding"))
   );
 }
-
-module.exports = {
-  chooseInitialBackend,
-  getRouteMode,
-  hasSensitiveHeaders,
-  isFallbackAllowed,
-  isFallbackEligible,
-  requestNeedsCloud,
-};

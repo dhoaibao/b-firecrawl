@@ -1,8 +1,10 @@
-function stripTrailingSlash(value) {
+import type { GatewayConfig } from "./types";
+
+function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-const config = {
+export const config: GatewayConfig = {
   port: Number(process.env.PORT || 8080),
   localBaseUrl: stripTrailingSlash(
     process.env.LOCAL_FIRECRAWL_URL || "http://api:3002",
@@ -17,5 +19,3 @@ const config = {
     process.env.GATEWAY_LOG_FILE || "/data/hybrid-firecrawl-requests.jsonl",
   maxBodyBytes: Number(process.env.GATEWAY_MAX_BODY_BYTES || 5242880),
 };
-
-module.exports = { config };
