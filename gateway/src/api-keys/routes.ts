@@ -8,11 +8,7 @@ export function createApiKeysRouter() {
   router.get("/", async (req, res, next) => {
     try {
       const user = req.user as User;
-      const requestedUserId = req.query.user_id as string | undefined;
-      
-      // Only admins can query other users' keys
-      const userId = (requestedUserId && user.is_admin) ? requestedUserId : user.id;
-      const keys = await apiKeyService.listApiKeys(userId);
+      const keys = await apiKeyService.listApiKeys(user.id);
       res.json({ data: keys.map(sanitizeApiKey) });
     } catch (error) {
       next(error);
@@ -27,8 +23,8 @@ export function createApiKeysRouter() {
         res.status(404).json({ success: false, error: "API key not found" });
         return;
       }
-      // Only admins or key owner can view
-      if (!user.is_admin && key.user_id !== user.id) {
+      // Only the key owner can view
+      if (key.user_id !== user.id) {
         res.status(403).json({ success: false, error: "Forbidden" });
         return;
       }
@@ -41,16 +37,15 @@ export function createApiKeysRouter() {
   router.post("/", async (req, res, next) => {
     try {
       const user = req.user as User;
-      const { user_id, name } = req.body;
-      
+      const { name } = req.body;
+
       if (!name) {
         res.status(400).json({ success: false, error: "name is required" });
         return;
       }
 
-      // Only admins can create keys for other users
-      const targetUserId = user_id && user.is_admin ? user_id : user.id;
-      const created = await apiKeyService.createApiKey(targetUserId, name);
+      // Users can only create keys for themselves
+      const created = await apiKeyService.createApiKey(user.id, name);
       res.status(201).json({ data: created });
     } catch (error) {
       next(error);
@@ -65,8 +60,8 @@ export function createApiKeysRouter() {
         res.status(404).json({ success: false, error: "API key not found" });
         return;
       }
-      // Only admins or key owner can revoke
-      if (!user.is_admin && key.user_id !== user.id) {
+      // Only the key owner can revoke
+      if (key.user_id !== user.id) {
         res.status(403).json({ success: false, error: "Forbidden" });
         return;
       }
