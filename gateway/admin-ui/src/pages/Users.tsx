@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -32,6 +32,7 @@ export default function Users() {
   const [suspendDuration, setSuspendDuration] = useState(1);
   const [suspendUnit, setSuspendUnit] = useState<SuspendUnit>("days");
   const [suspending, setSuspending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -209,12 +210,21 @@ export default function Users() {
             <h1 className="text-lg font-semibold">Users</h1>
             <span className="text-sm text-muted-foreground">({users.length})</span>
           </div>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:bg-foreground/90"
-          >
-            <Plus className="size-4" /> Add user
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setRefreshing(true); void fetchUsers().then(() => setRefreshing(false)); }}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-3 px-3 py-2 text-sm text-foreground hover:bg-surface-4 disabled:opacity-50"
+            >
+              <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+            </button>
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:bg-foreground/90"
+            >
+              <Plus className="size-4" /> Add user
+            </button>
+          </div>
         </div>
 
         {error && (
