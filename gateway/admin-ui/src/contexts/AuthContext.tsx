@@ -5,6 +5,8 @@ export interface AuthUser {
   email: string;
   name: string;
   is_admin: boolean;
+  status: "active" | "suspended" | "blocked";
+  suspended_until: string | null;
   created_at: string;
   updated_at: string;
 }

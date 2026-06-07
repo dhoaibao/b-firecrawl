@@ -72,15 +72,6 @@ async function main() {
     app.use("/admin/api", adminRouter);
   }
 
-  app.get("/admin/logs", async (_req, res, next) => {
-    try {
-      const entries = await auditStore.readAuditEntries(500);
-      res.json({ data: entries });
-    } catch (error) {
-      next(error);
-    }
-  });
-
   // Serve static files from admin-ui dist
   const adminUiPath = path.join(__dirname, "../admin-ui/dist");
   app.use("/admin", express.static(adminUiPath));

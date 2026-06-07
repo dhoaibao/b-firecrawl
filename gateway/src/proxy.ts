@@ -209,12 +209,14 @@ export function createProxyHandler({
       }
 
       const keyOwner = await userService.getUserById(validKey.user_id);
-      if (keyOwner) {
-        const access = userService.checkUserAccess(keyOwner);
-        if (!access.allowed) {
-          res.status(403).json({ success: false, error: access.reason });
-          return;
-        }
+      if (!keyOwner) {
+        res.status(401).json({ success: false, error: "API key owner not found" });
+        return;
+      }
+      const access = userService.checkUserAccess(keyOwner);
+      if (!access.allowed) {
+        res.status(403).json({ success: false, error: access.reason });
+        return;
       }
 
       userId = validKey.user_id;
