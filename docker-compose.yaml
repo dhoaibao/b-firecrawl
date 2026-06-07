@@ -2,6 +2,7 @@ name: firecrawl
 
 x-common-service: &common-service
   image: ghcr.io/firecrawl/firecrawl
+  restart: unless-stopped
 
   ulimits:
     nofile:
@@ -56,6 +57,7 @@ x-common-env: &common-env
 services:
   gateway:
     build: gateway
+    restart: unless-stopped
     environment:
       PORT: 8080
       LOCAL_FIRECRAWL_URL: http://api:${INTERNAL_PORT:-3002}
@@ -82,6 +84,7 @@ services:
 
   playwright-service:
     image: ghcr.io/firecrawl/playwright-service:latest
+    restart: unless-stopped
     environment:
       PORT: 3000
       PROXY_SERVER: ${PROXY_SERVER}
@@ -135,6 +138,7 @@ services:
 
   redis:
     image: redis:alpine
+    restart: unless-stopped
 
     networks:
       - backend
@@ -148,6 +152,7 @@ services:
     
   rabbitmq:
     image: rabbitmq:3-management
+    restart: unless-stopped
     networks:
       - backend
     command: rabbitmq-server
@@ -166,6 +171,7 @@ services:
   
   nuq-postgres:
     image: ghcr.io/firecrawl/nuq-postgres:latest
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
