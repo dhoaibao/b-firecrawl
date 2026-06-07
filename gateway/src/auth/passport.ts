@@ -19,6 +19,11 @@ passport.use(
           return done(null, false, { message: "Invalid email or password" });
         }
 
+        const access = userService.checkUserAccess(user);
+        if (!access.allowed) {
+          return done(null, false, { message: access.reason });
+        }
+
         return done(null, user);
       } catch (error) {
         return done(error);

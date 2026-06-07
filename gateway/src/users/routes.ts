@@ -69,7 +69,7 @@ export function createUsersRouter() {
 
   router.patch("/:id", async (req, res, next) => {
     try {
-      const updates: { name?: string; email?: string; password_hash?: string; is_admin?: boolean } = {};
+      const updates: { name?: string; email?: string; password_hash?: string; is_admin?: boolean; status?: string; suspended_until?: string | null } = {};
       if (req.body.name !== undefined) updates.name = req.body.name;
       if (req.body.email !== undefined) updates.email = req.body.email;
       if (req.body.password !== undefined) {
@@ -80,8 +80,75 @@ export function createUsersRouter() {
         updates.password_hash = await bcrypt.hash(req.body.password, getBcryptRounds());
       }
       if (req.body.is_admin !== undefined) updates.is_admin = req.body.is_admin;
+      if (req.body.status !== undefined) updates.status = req.body.status;
+      if (req.body.suspended_until !== undefined) updates.suspended_until = req.body.suspended_until;
 
       const user = await userService.updateUser(req.params.id, updates);
+      if (!user) {
+        res.status(404).json({ success: false, error: "User not found" });
+        return;
+      }
+      res.json({ data: sanitizeUser(user) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/suspend", async (req, res, next) => {
+    try {
+      const { duration, unit } = req.body;
+      if (typeof duration !== "number" || duration <= 0) {
+        res.status(400).json({ success: false, error: "Duration must be a positive number" });
+        return;
+      }
+      const validUnits = ["hours", "days", "weeks"] as const;
+      if (!validUnits.includes(unit)) {
+        res.status(400).json({ success: false, error: "Unit must be: hours, days, or weeks" });
+        return;
+      }
+
+      const adminUser = req.user as User | undefined;
+      if (adminUser?.id === req.params.id) {
+        res.status(400).json({ success: false, error: "Cannot suspend yourself" });
+        return;
+      }
+
+      const msPerUnit: Record<typeof validUnits[number], number> = { hours: 60 * 60 * 1000, days: 24 * 60 * 60 * 1000, weeks: 7 * 24 * 60 * 60 * 1000 };
+      const durationMs = duration * msPerUnit[unit as typeof validUnits[number]];
+
+      const user = await userService.suspendUser(req.params.id, durationMs);
+      if (!user) {
+        res.status(404).json({ success: false, error: "User not found" });
+        return;
+      }
+      res.json({ data: sanitizeUser(user) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/block", async (req, res, next) => {
+    try {
+      const adminUser = req.user as User | undefined;
+      if (adminUser?.id === req.params.id) {
+        res.status(400).json({ success: false, error: "Cannot block yourself" });
+        return;
+      }
+
+      const user = await userService.blockUser(req.params.id);
+      if (!user) {
+        res.status(404).json({ success: false, error: "User not found" });
+        return;
+      }
+      res.json({ data: sanitizeUser(user) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:id/activate", async (req, res, next) => {
+    try {
+      const user = await userService.activateUser(req.params.id);
       if (!user) {
         res.status(404).json({ success: false, error: "User not found" });
         return;

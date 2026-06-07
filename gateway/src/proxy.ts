@@ -17,6 +17,7 @@ import {
   nowIso,
 } from "./utils";
 import * as apiKeyService from "./api-keys/service";
+import * as userService from "./users/service";
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -206,6 +207,16 @@ export function createProxyHandler({
         res.status(401).json({ success: false, error: "Invalid or revoked API key" });
         return;
       }
+
+      const keyOwner = await userService.getUserById(validKey.user_id);
+      if (keyOwner) {
+        const access = userService.checkUserAccess(keyOwner);
+        if (!access.allowed) {
+          res.status(403).json({ success: false, error: access.reason });
+          return;
+        }
+      }
+
       userId = validKey.user_id;
       void apiKeyService.touchApiKey(validKey.id);
     }

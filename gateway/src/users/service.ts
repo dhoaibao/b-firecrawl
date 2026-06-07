@@ -9,13 +9,31 @@ export async function createUser(
 ): Promise<User> {
   return withClient(async (client) => {
     const result = await client.query<User>(
-      `INSERT INTO users (id, email, name, password_hash, is_admin)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (id, email, name, password_hash, is_admin, status, suspended_until)
+       VALUES ($1, $2, $3, $4, $5, 'active', NULL)
        RETURNING *`,
       [crypto.randomUUID(), email, name, passwordHash, isAdmin],
     );
     return result.rows[0];
   });
+}
+
+async function maybeReactivate(
+  client: import("pg").PoolClient,
+  user: User | null,
+): Promise<User | null> {
+  if (!user) return null;
+  if (user.status === "suspended" && user.suspended_until) {
+    const until = new Date(user.suspended_until);
+    if (until.getTime() <= Date.now()) {
+      const result = await client.query<User>(
+        "UPDATE users SET status = 'active', suspended_until = NULL WHERE id = $1 RETURNING *",
+        [user.id],
+      );
+      return result.rows[0] || user;
+    }
+  }
+  return user;
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
@@ -24,7 +42,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       "SELECT * FROM users WHERE email = $1",
       [email],
     );
-    return result.rows[0] || null;
+    return maybeReactivate(client, result.rows[0] || null);
   });
 }
 
@@ -34,7 +52,7 @@ export async function getUserById(id: string): Promise<User | null> {
       "SELECT * FROM users WHERE id = $1",
       [id],
     );
-    return result.rows[0] || null;
+    return maybeReactivate(client, result.rows[0] || null);
   });
 }
 
@@ -43,13 +61,20 @@ export async function listUsers(): Promise<User[]> {
     const result = await client.query<User>(
       "SELECT * FROM users ORDER BY created_at DESC",
     );
-    return result.rows;
+    return Promise.all(result.rows.map((u) => maybeReactivate(client, u))) as Promise<User[]>;
   });
 }
 
 export async function updateUser(
   id: string,
-  updates: { name?: string; email?: string; password_hash?: string; is_admin?: boolean },
+  updates: {
+    name?: string;
+    email?: string;
+    password_hash?: string;
+    is_admin?: boolean;
+    status?: string;
+    suspended_until?: string | null;
+  },
 ): Promise<User | null> {
   return withClient(async (client) => {
     const fields: string[] = [];
@@ -72,6 +97,14 @@ export async function updateUser(
       fields.push(`is_admin = $${paramIndex++}`);
       values.push(updates.is_admin);
     }
+    if (updates.status !== undefined) {
+      fields.push(`status = $${paramIndex++}`);
+      values.push(updates.status);
+    }
+    if (updates.suspended_until !== undefined) {
+      fields.push(`suspended_until = $${paramIndex++}`);
+      values.push(updates.suspended_until);
+    }
 
     if (fields.length === 0) {
       return getUserById(id);
@@ -84,6 +117,57 @@ export async function updateUser(
     );
     return result.rows[0] || null;
   });
+}
+
+export async function suspendUser(id: string, durationMs: number): Promise<User | null> {
+  return withClient(async (client) => {
+    const result = await client.query<User>(
+      `UPDATE users SET status = 'suspended', suspended_until = NOW() + ($1 || ' milliseconds')::interval, updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
+      [String(durationMs), id],
+    );
+    return result.rows[0] || null;
+  });
+}
+
+export async function blockUser(id: string): Promise<User | null> {
+  return withClient(async (client) => {
+    const result = await client.query<User>(
+      `UPDATE users SET status = 'blocked', suspended_until = NULL, updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return result.rows[0] || null;
+  });
+}
+
+export async function activateUser(id: string): Promise<User | null> {
+  return withClient(async (client) => {
+    const result = await client.query<User>(
+      `UPDATE users SET status = 'active', suspended_until = NULL, updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return result.rows[0] || null;
+  });
+}
+
+export function checkUserAccess(user: User): { allowed: true } | { allowed: false; reason: string } {
+  if (user.status === "blocked") {
+    return { allowed: false, reason: "Account blocked" };
+  }
+  if (user.status === "suspended" && user.suspended_until) {
+    const until = new Date(user.suspended_until);
+    const now = Date.now();
+    if (until.getTime() > now) {
+      const diff = until.getTime() - now;
+      const hours = Math.ceil(diff / (1000 * 60 * 60));
+      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      const label = days > 1 ? `${days} day${days > 1 ? "s" : ""}` : `${hours} hour${hours > 1 ? "s" : ""}`;
+      return { allowed: false, reason: `Account suspended. Try again in ${label}.` };
+    }
+  }
+  return { allowed: true };
 }
 
 export async function deleteUser(id: string): Promise<boolean> {

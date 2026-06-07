@@ -56,6 +56,8 @@ declare global {
       name: string;
       password_hash: string;
       is_admin: boolean;
+      status: string;
+      suspended_until: string | null;
       created_at: string;
       updated_at: string;
     }
@@ -68,6 +70,8 @@ export interface User {
   name: string;
   password_hash: string;
   is_admin: boolean;
+  status: string;
+  suspended_until: string | null;
   created_at: string;
   updated_at: string;
 }
