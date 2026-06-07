@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { AuditStore } from "./audit-store";
+import * as usersService from "./users/service";
 
 export function createAdminRouter(auditStore: AuditStore) {
   const router = Router();
@@ -26,7 +27,13 @@ export function createAdminRouter(auditStore: AuditStore) {
       avgDuration,
     };
 
-    res.json({ data: entries, totals });
+    const users = await usersService.listUsers();
+    const sanitizedUsers = users.map((user) => {
+      const { password_hash, ...rest } = user;
+      return rest;
+    });
+
+    res.json({ data: entries, totals, users: sanitizedUsers });
   });
 
   return router;

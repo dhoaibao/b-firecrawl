@@ -192,6 +192,7 @@ export function createProxyHandler({
     );
 
     // Validate virtual API key when auth is enabled
+    let userId: string | undefined;
     if (config.authEnabled) {
       const authHeader = String(req.headers.authorization || "");
       const match = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -205,6 +206,7 @@ export function createProxyHandler({
         res.status(401).json({ success: false, error: "Invalid or revoked API key" });
         return;
       }
+      userId = validKey.user_id;
     }
 
     const bodyBuffer = await readRequestBody(req, config.maxBodyBytes);
@@ -232,6 +234,7 @@ export function createProxyHandler({
         status_code: statusCode,
         duration_ms: Date.now() - started,
         target_url: primaryTargetUrl,
+        user_id: userId,
       };
       await auditStore.appendAudit(auditEntry);
       res.status(statusCode).json({
@@ -286,6 +289,7 @@ export function createProxyHandler({
       status_code: statusCode,
       duration_ms: Date.now() - started,
       target_url: primaryTargetUrl,
+      user_id: userId,
     };
     await auditStore.appendAudit(auditEntry);
 

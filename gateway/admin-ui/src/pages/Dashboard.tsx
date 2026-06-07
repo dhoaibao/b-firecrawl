@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   BarChart3,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -15,7 +16,9 @@ import {
   RefreshCw,
   Search,
   Server,
+  SlidersHorizontal,
   User,
+  X,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +32,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { MetricCard } from "@/components/MetricCard"
 import { RequestVolumeChart } from "@/components/RequestVolumeChart"
@@ -47,26 +57,20 @@ interface AuditEntry {
   status_code: number
   duration_ms: number
   target_url: string
+  user_id?: string
 }
 
-interface Totals {
-  total: number
-  local: number
-  cloud: number
-  fallbacks: number
-  avgDuration: number
+interface UserData {
+  id: string
+  email: string
+  name: string
+  is_admin: boolean
+  created_at: string
+  updated_at: string
 }
 
 type BackendFilter = "" | "local" | "cloud"
 type StatusFilter = "" | "2xx" | "4xx" | "5xx"
-
-const emptyTotals: Totals = {
-  total: 0,
-  local: 0,
-  cloud: 0,
-  fallbacks: 0,
-  avgDuration: 0,
-}
 
 const backendFilters: Array<{ label: string; value: BackendFilter }> = [
   { label: "All", value: "" },
@@ -79,6 +83,15 @@ const statusFilters: Array<{ label: string; value: StatusFilter }> = [
   { label: "2xx", value: "2xx" },
   { label: "4xx", value: "4xx" },
   { label: "5xx", value: "5xx" },
+]
+
+type DateRange = "all" | "today" | "week" | "month" | "custom"
+
+const datePresets: Array<{ label: string; value: DateRange }> = [
+  { label: "All", value: "all" },
+  { label: "Today", value: "today" },
+  { label: "This Week", value: "week" },
+  { label: "This Month", value: "month" },
 ]
 
 const pageSizeOptions = [10, 25, 50, 100]
@@ -208,7 +221,7 @@ function TableSkeleton({ rowCount = 8 }: { rowCount?: number }) {
 /* ------------------------------------------------------------------ */
 export default function Dashboard() {
   const [entries, setEntries] = useState<AuditEntry[]>([])
-  const [totals, setTotals] = useState<Totals>(emptyTotals)
+  const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [live, setLive] = useState(true)
@@ -216,8 +229,115 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
   const [fallbackOnly, setFallbackOnly] = useState(false)
   const [search, setSearch] = useState("")
+  const [dateRange, setDateRange] = useState<
+    "all" | "today" | "week" | "month" | "custom"
+  >("all")
+  const [dayFilter, setDayFilter] = useState("all")
+  const [monthFilter, setMonthFilter] = useState("all")
+  const [yearFilter, setYearFilter] = useState("all")
+  const [userFilter, setUserFilter] = useState("all")
   const [pageSize, setPageSize] = useState(25)
   const [currentPage, setCurrentPage] = useState(1)
+
+  const activeFilters = useMemo(() => {
+    const filters: Array<{
+      key: string
+      label: string
+      clear: () => void
+    }> = []
+    if (dateRange !== "all") {
+      const preset = datePresets.find((p) => p.value === dateRange)
+      filters.push({
+        key: "dateRange",
+        label: preset?.label || "Custom",
+        clear: () => setDateRange("all"),
+      })
+    }
+    if (dayFilter !== "all" && dateRange === "custom") {
+      filters.push({
+        key: "day",
+        label: `Day: ${dayFilter}`,
+        clear: () => setDayFilter("all"),
+      })
+    }
+    if (monthFilter !== "all" && dateRange === "custom") {
+      filters.push({
+        key: "month",
+        label: `Month: ${monthFilter}`,
+        clear: () => setMonthFilter("all"),
+      })
+    }
+    if (yearFilter !== "all" && dateRange === "custom") {
+      filters.push({
+        key: "year",
+        label: `Year: ${yearFilter}`,
+        clear: () => setYearFilter("all"),
+      })
+    }
+    if (backendFilter) {
+      filters.push({
+        key: "backend",
+        label: `Backend: ${backendFilter.charAt(0).toUpperCase() + backendFilter.slice(1)}`,
+        clear: () => setBackendFilter(""),
+      })
+    }
+    if (fallbackOnly) {
+      filters.push({
+        key: "fallback",
+        label: "Fallback",
+        clear: () => setFallbackOnly(false),
+      })
+    }
+    if (statusFilter) {
+      const label =
+        statusFilters.find((f) => f.value === statusFilter)?.label || statusFilter
+      filters.push({
+        key: "status",
+        label: `Status: ${label}`,
+        clear: () => setStatusFilter(""),
+      })
+    }
+    if (userFilter !== "all") {
+      const u = users.find((usr) => usr.id === userFilter)
+      filters.push({
+        key: "user",
+        label: `User: ${u?.name || u?.email || userFilter.slice(0, 8)}`,
+        clear: () => setUserFilter("all"),
+      })
+    }
+    if (search.trim()) {
+      filters.push({
+        key: "search",
+        label: `Search: "${search.trim()}"`,
+        clear: () => setSearch(""),
+      })
+    }
+    return filters
+  }, [
+    dateRange,
+    dayFilter,
+    monthFilter,
+    yearFilter,
+    backendFilter,
+    fallbackOnly,
+    statusFilter,
+    userFilter,
+    search,
+    users,
+  ])
+
+  const clearAllFilters = useCallback(() => {
+    setDateRange("all")
+    setDayFilter("all")
+    setMonthFilter("all")
+    setYearFilter("all")
+    setBackendFilter("")
+    setFallbackOnly(false)
+    setStatusFilter("")
+    setUserFilter("all")
+    setSearch("")
+    setCurrentPage(1)
+  }, [])
 
   const { toasts, addToast, removeToast } = useToast()
   const { user, logout } = useAuth()
@@ -231,7 +351,7 @@ export default function Dashboard() {
       }
       const json = await res.json()
       setEntries(Array.isArray(json.data) ? json.data : [])
-      setTotals(json.totals || emptyTotals)
+      setUsers(Array.isArray(json.users) ? json.users : [])
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load audit data"
       addToast(msg, "error")
@@ -299,20 +419,84 @@ export default function Dashboard() {
       ) {
         return false
       }
+      // Date range filter
+      const entryDate = new Date(entry.created_at)
+      const now = new Date()
+      if (dateRange === "today") {
+        const entryDay = entryDate.getDate()
+        const entryMonth = entryDate.getMonth()
+        const entryYear = entryDate.getFullYear()
+        if (
+          entryDay !== now.getDate() ||
+          entryMonth !== now.getMonth() ||
+          entryYear !== now.getFullYear()
+        ) {
+          return false
+        }
+      } else if (dateRange === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        weekAgo.setHours(0, 0, 0, 0)
+        if (entryDate < weekAgo) return false
+      } else if (dateRange === "month") {
+        if (
+          entryDate.getMonth() !== now.getMonth() ||
+          entryDate.getFullYear() !== now.getFullYear()
+        ) {
+          return false
+        }
+      } else if (dateRange === "custom") {
+        if (dayFilter !== "all") {
+          const day = String(entryDate.getDate()).padStart(2, "0")
+          if (day !== dayFilter) return false
+        }
+        if (monthFilter !== "all") {
+          const month = String(entryDate.getMonth() + 1).padStart(2, "0")
+          if (month !== monthFilter) return false
+        }
+        if (yearFilter !== "all") {
+          const year = String(entryDate.getFullYear())
+          if (year !== yearFilter) return false
+        }
+      }
+      // User filter
+      if (userFilter !== "all" && entry.user_id !== userFilter) return false
       return true
     })
-  }, [backendFilter, entries, fallbackOnly, search, statusFilter])
+  }, [backendFilter, entries, fallbackOnly, search, statusFilter, dateRange, dayFilter, monthFilter, yearFilter, userFilter])
 
-  const cloudShare = totals.total ? (totals.cloud / totals.total) * 100 : 0
-  const fallbackShare = totals.total
-    ? (totals.fallbacks / totals.total) * 100
+  // Filtered metrics
+  const filteredTotal = filteredEntries.length
+  const filteredLocal = filteredEntries.filter(
+    (entry) => entry.backend_used === "local",
+  ).length
+  const filteredCloud = filteredEntries.filter(
+    (entry) => entry.backend_used === "cloud",
+  ).length
+  const filteredFallbacks = filteredEntries.filter(
+    (entry) => entry.fallback_used,
+  ).length
+  const filteredDurations = filteredEntries
+    .map((entry) => Number(entry.duration_ms))
+    .filter((value) => Number.isFinite(value))
+  const filteredAvgDuration = filteredDurations.length
+    ? Math.round(
+        filteredDurations.reduce((sum, value) => sum + value, 0) /
+          filteredDurations.length,
+      )
     : 0
-  const successCount = entries.filter(
+  const filteredSuccessCount = filteredEntries.filter(
     (entry) => entry.status_code >= 200 && entry.status_code < 300,
   ).length
-  const successShare = entries.length
-    ? (successCount / entries.length) * 100
+  const filteredSuccessShare = filteredTotal
+    ? (filteredSuccessCount / filteredTotal) * 100
     : 0
+  const filteredCloudShare = filteredTotal
+    ? (filteredCloud / filteredTotal) * 100
+    : 0
+  const filteredFallbackShare = filteredTotal
+    ? (filteredFallbacks / filteredTotal) * 100
+    : 0
+
   const pageCount = Math.max(1, Math.ceil(filteredEntries.length / pageSize))
   const visiblePage = Math.min(currentPage, pageCount)
   const pageStart = filteredEntries.length
@@ -320,51 +504,53 @@ export default function Dashboard() {
     : 0
   const pageEnd = Math.min(pageStart + pageSize, filteredEntries.length)
   const paginatedEntries = filteredEntries.slice(pageStart, pageEnd)
-  const requestBuckets = useMemo(() => buildRequestBuckets(entries), [entries])
+  const requestBuckets = useMemo(
+    () => buildRequestBuckets(filteredEntries),
+    [filteredEntries],
+  )
 
   const metrics = useMemo(
     () => [
       {
         label: "Total Requests",
-        value: totals.total,
-        detail: `${filteredEntries.length} visible`,
+        value: filteredTotal,
+        detail: `${filteredTotal} visible`,
         icon: Activity,
       },
       {
         label: "Success Rate",
-        value: formatPercent(successShare),
-        detail: `${successCount} successful`,
+        value: formatPercent(filteredSuccessShare),
+        detail: `${filteredSuccessCount} successful`,
         icon: Radio,
       },
       {
         label: "Local Requests",
-        value: totals.local,
+        value: filteredLocal,
         detail: "self-hosted traffic",
         icon: Server,
       },
       {
         label: "Cloud Traffic",
-        value: totals.cloud,
-        detail: `${formatPercent(cloudShare)} of traffic`,
+        value: filteredCloud,
+        detail: `${formatPercent(filteredCloudShare)} of traffic`,
         icon: Cloud,
       },
       {
         label: "Avg Latency",
-        value: formatLatency(totals.avgDuration),
-        detail: `${totals.fallbacks} fallbacks`,
+        value: formatLatency(filteredAvgDuration),
+        detail: `${filteredFallbacks} fallbacks`,
         icon: Clock,
       },
     ],
     [
-      totals.total,
-      totals.local,
-      totals.cloud,
-      totals.fallbacks,
-      totals.avgDuration,
-      filteredEntries.length,
-      successShare,
-      successCount,
-      cloudShare,
+      filteredTotal,
+      filteredLocal,
+      filteredCloud,
+      filteredFallbacks,
+      filteredAvgDuration,
+      filteredSuccessShare,
+      filteredSuccessCount,
+      filteredCloudShare,
     ],
   )
 
@@ -539,40 +725,198 @@ export default function Dashboard() {
 
           {/* Table header */}
           <CardHeader className="border-b border-white/[0.06] bg-surface-4 px-5 py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <Database className="size-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  Request History
-                </CardTitle>
-                <Badge
-                  variant="outline"
-                  className="border-white/[0.06] bg-white/[0.02] text-muted-foreground"
+            {/* Title + summary badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Database className="size-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-semibold text-foreground">
+                Request History
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-white/[0.06] bg-white/[0.02] text-muted-foreground"
+              >
+                {filteredEntries.length} visible
+              </Badge>
+              <Badge
+                variant="outline"
+                className="border-success-muted bg-success-muted text-success-fg"
+              >
+                Success {formatPercent(filteredSuccessShare)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="border-info-muted bg-info-muted text-info-fg"
+              >
+                Cloud {formatPercent(filteredCloudShare)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="border-warning-muted bg-warning-muted text-warning-fg"
+              >
+                Fallback {formatPercent(filteredFallbackShare)}
+              </Badge>
+            </div>
+
+            {/* Active filter chips */}
+            {activeFilters.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Active
+                </span>
+                {activeFilters.map((filter) => (
+                  <Badge
+                    key={filter.key}
+                    variant="secondary"
+                    className="cursor-pointer gap-1 border-white/[0.06] bg-white/[0.06] text-foreground transition-colors hover:bg-white/[0.12]"
+                    onClick={filter.clear}
+                  >
+                    {filter.label}
+                    <X className="size-3" />
+                  </Badge>
+                ))}
+                <button
+                  type="button"
+                  className="ml-auto text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={clearAllFilters}
                 >
-                  {filteredEntries.length} visible
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-success-muted bg-success-muted text-success-fg"
-                >
-                  Success {formatPercent(successShare)}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-info-muted bg-info-muted text-info-fg"
-                >
-                  Cloud {formatPercent(cloudShare)}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-warning-muted bg-warning-muted text-warning-fg"
-                >
-                  Fallback {formatPercent(fallbackShare)}
-                </Badge>
+                  Clear all
+                </button>
+              </div>
+            )}
+
+            {/* Filter grid */}
+            <div className="grid grid-cols-1 gap-5 border-t border-white/[0.06] pt-3 md:grid-cols-2 lg:grid-cols-4">
+              {/* Period */}
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <CalendarDays className="size-3" /> Period
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {datePresets.map((preset) => (
+                    <Button
+                      key={preset.value}
+                      variant={dateRange === preset.value ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
+                        dateRange === preset.value
+                          ? "bg-foreground text-background hover:bg-foreground/90"
+                          : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                      )}
+                      onClick={() => {
+                        setDateRange(preset.value)
+                        setCurrentPage(1)
+                      }}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                  <Button
+                    variant={dateRange === "custom" ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
+                      dateRange === "custom"
+                        ? "bg-foreground text-background hover:bg-foreground/90"
+                        : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                    )}
+                    onClick={() => {
+                      setDateRange((prev) => (prev === "custom" ? "all" : "custom"))
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <SlidersHorizontal className="size-2.5" />
+                    Custom
+                  </Button>
+                </div>
+                {dateRange === "custom" && (
+                  <div className="flex gap-1 pt-0.5">
+                    <Select
+                      value={dayFilter}
+                      onValueChange={(value) => {
+                        setDayFilter(value)
+                        setCurrentPage(1)
+                      }}
+                    >
+                      <SelectTrigger className="h-6 w-[4.5rem] text-[11px]">
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All days</SelectItem>
+                        {Array.from({ length: 31 }, (_, i) => {
+                          const d = String(i + 1).padStart(2, "0")
+                          return (
+                            <SelectItem key={d} value={d}>
+                              {d}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={monthFilter}
+                      onValueChange={(value) => {
+                        setMonthFilter(value)
+                        setCurrentPage(1)
+                      }}
+                    >
+                      <SelectTrigger className="h-6 w-[5.5rem] text-[11px]">
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All months</SelectItem>
+                        {[
+                          ["01", "Jan"],
+                          ["02", "Feb"],
+                          ["03", "Mar"],
+                          ["04", "Apr"],
+                          ["05", "May"],
+                          ["06", "Jun"],
+                          ["07", "Jul"],
+                          ["08", "Aug"],
+                          ["09", "Sep"],
+                          ["10", "Oct"],
+                          ["11", "Nov"],
+                          ["12", "Dec"],
+                        ].map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={yearFilter}
+                      onValueChange={(value) => {
+                        setYearFilter(value)
+                        setCurrentPage(1)
+                      }}
+                    >
+                      <SelectTrigger className="h-6 w-[4.5rem] text-[11px]">
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All years</SelectItem>
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const y = String(new Date().getFullYear() - i)
+                          return (
+                            <SelectItem key={y} value={y}>
+                              {y}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
-              <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end">
-                <div className="flex flex-wrap gap-1.5">
+              {/* Backend */}
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <Server className="size-3" /> Backend
+                </label>
+                <div className="flex flex-wrap gap-1">
                   {backendFilters.map((filter) => (
                     <Button
                       key={filter.label}
@@ -583,7 +927,7 @@ export default function Dashboard() {
                       }
                       size="sm"
                       className={cn(
-                        "border-white/[0.08] shadow-none transition-colors",
+                        "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
                         backendFilter === filter.value && !fallbackOnly
                           ? "bg-foreground text-background hover:bg-foreground/90"
                           : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
@@ -601,7 +945,7 @@ export default function Dashboard() {
                     variant={fallbackOnly ? "default" : "outline"}
                     size="sm"
                     className={cn(
-                      "border-white/[0.08] shadow-none transition-colors",
+                      "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
                       fallbackOnly
                         ? "bg-foreground text-background hover:bg-foreground/90"
                         : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
@@ -612,22 +956,28 @@ export default function Dashboard() {
                       setCurrentPage(1)
                     }}
                   >
-                    Fallback only
+                    Fallback
                   </Button>
                 </div>
+              </div>
 
-                <div className="flex flex-wrap gap-1.5">
+              {/* Status */}
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <Activity className="size-3" /> Status
+                </label>
+                <div className="flex flex-wrap gap-1">
                   {statusFilters.map((filter) => (
                     <Button
                       key={filter.label}
                       variant={
-                        statusFilter === filter.value ? "secondary" : "outline"
+                        statusFilter === filter.value ? "default" : "outline"
                       }
                       size="sm"
                       className={cn(
-                        "border-white/[0.08] shadow-none transition-colors",
+                        "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
                         statusFilter === filter.value
-                          ? "bg-white/[0.08] text-foreground"
+                          ? "bg-foreground text-background hover:bg-foreground/90"
                           : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
                       )}
                       onClick={() => {
@@ -640,6 +990,34 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
+
+              {/* User */}
+              {users.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <User className="size-3" /> User
+                  </label>
+                  <Select
+                    value={userFilter}
+                    onValueChange={(value) => {
+                      setUserFilter(value)
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="h-6 w-full text-[11px]">
+                      <SelectValue placeholder="All users" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All users</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </CardHeader>
 
@@ -678,6 +1056,9 @@ export default function Dashboard() {
                       <TableHead className="text-right text-xs font-semibold text-foreground">
                         Latency
                       </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        User
+                      </TableHead>
                       <TableHead className="pr-5 text-xs font-semibold text-foreground">
                         Target URL
                       </TableHead>
@@ -685,7 +1066,7 @@ export default function Dashboard() {
                   </TableHeader>
                   <TableBody>
                     {paginatedEntries.map((entry) => (
-                      <LogTableRow key={entry.id} entry={entry} />
+                      <LogTableRow key={entry.id} entry={entry} users={users} />
                     ))}
                   </TableBody>
                 </Table>

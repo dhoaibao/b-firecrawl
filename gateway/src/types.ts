@@ -10,6 +10,7 @@ export interface AuditEntry {
   status_code: number;
   duration_ms: number;
   target_url: string;
+  user_id?: string;
 }
 
 export interface ProxyResult {

@@ -15,6 +15,13 @@ interface AuditEntry {
   status_code: number
   duration_ms: number
   target_url: string
+  user_id?: string
+}
+
+interface UserData {
+  id: string
+  email: string
+  name: string
 }
 
 type BadgeVariant =
@@ -79,11 +86,14 @@ function statusBorderColor(status: number): string {
 
 interface LogTableRowProps {
   entry: AuditEntry
+  users?: UserData[]
 }
 
 export const LogTableRow = React.memo(function LogTableRow({
   entry,
+  users,
 }: LogTableRowProps) {
+  const user = users?.find((u) => u.id === entry.user_id)
   return (
     <TableRow className="group border-white/[0.04] bg-surface-1 transition-colors duration-150 hover:bg-surface-3">
       <TableCell className="relative pl-5 text-xs text-muted-foreground">
@@ -149,6 +159,15 @@ export const LogTableRow = React.memo(function LogTableRow({
       </TableCell>
       <TableCell className="text-right font-mono text-xs font-medium tabular-nums text-foreground">
         {entry.duration_ms ? formatLatency(entry.duration_ms) : "-"}
+      </TableCell>
+      <TableCell className="text-xs text-muted-foreground">
+        {user ? (
+          <span className="text-foreground">{user.name || user.email}</span>
+        ) : entry.user_id ? (
+          <span className="text-muted-foreground">{entry.user_id.slice(0, 8)}…</span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
       </TableCell>
       <TableCell className="max-w-[320px] whitespace-normal break-all pr-5 font-mono text-xs font-medium">
         {entry.target_url ? (
