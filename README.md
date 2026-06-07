@@ -22,7 +22,7 @@ Default endpoints:
 
 The included web dashboard provides real-time visibility into request routing, success rates, latency metrics, and traffic distribution between local and cloud backends. Access it at `http://localhost:8080/admin` after starting the services.
 
-![Admin UI Dashboard](assets/admin.png)
+![Admin UI Dashboard](assets/admin-ui.png)
 
 ## What Is Included
 
