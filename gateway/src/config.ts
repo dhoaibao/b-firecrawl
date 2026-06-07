@@ -18,4 +18,9 @@ export const config: GatewayConfig = {
   logFile:
     process.env.GATEWAY_LOG_FILE || "/data/hybrid-firecrawl-requests.jsonl",
   maxBodyBytes: Number(process.env.GATEWAY_MAX_BODY_BYTES || 5242880),
+  authEnabled: process.env.AUTH_ENABLED !== "false",
+  databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@nuq-postgres:5432/postgres",
+  sessionSecret: process.env.SESSION_SECRET || "",
+  adminEmail: process.env.ADMIN_EMAIL || "",
+  adminPassword: process.env.ADMIN_PASSWORD || "",
 };

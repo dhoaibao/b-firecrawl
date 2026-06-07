@@ -30,6 +30,11 @@ export interface GatewayConfig {
   requestTimeoutMs: number;
   logFile: string;
   maxBodyBytes: number;
+  authEnabled: boolean;
+  databaseUrl: string;
+  sessionSecret: string;
+  adminEmail: string;
+  adminPassword: string;
 }
 
 export interface PrivacyCheck {
@@ -40,4 +45,39 @@ export interface PrivacyCheck {
 export interface NeedsCloudResult {
   required: boolean;
   reason: string;
+}
+
+declare global {
+  namespace Express {
+    interface User {
+      id: string;
+      email: string;
+      name: string;
+      password_hash: string;
+      is_admin: boolean;
+      created_at: string;
+      updated_at: string;
+    }
+  }
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  password_hash: string;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiKey {
+  id: string;
+  user_id: string;
+  name: string;
+  key_hash: string;
+  key_prefix: string;
+  revoked: boolean;
+  created_at: string;
+  updated_at: string;
 }

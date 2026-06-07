@@ -16,6 +16,7 @@ import {
   inspectBody,
   nowIso,
 } from "./utils";
+import * as apiKeyService from "./api-keys/service";
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -41,6 +42,8 @@ function sanitizeHeaders(
     if (hopByHopHeaders.has(lower)) continue;
     if (lower === "x-firecrawl-route-mode") continue;
     if (lower === "x-firecrawl-allow-cloud-fallback") continue;
+    // Strip the virtual API key before forwarding; only send auth to cloud
+    if (lower === "authorization" && backend !== "cloud") continue;
     if (value === undefined) continue;
     next[key] = Array.isArray(value) ? value.join(", ") : value;
   }
@@ -187,6 +190,23 @@ export function createProxyHandler({
       req.headers,
       config.defaultRouteMode,
     );
+
+    // Validate virtual API key when auth is enabled
+    if (config.authEnabled) {
+      const authHeader = String(req.headers.authorization || "");
+      const match = authHeader.match(/^Bearer\s+(.+)$/i);
+      if (!match) {
+        res.status(401).json({ success: false, error: "Missing or invalid API key" });
+        return;
+      }
+      const apiKey = match[1];
+      const validKey = await apiKeyService.validateApiKey(apiKey);
+      if (!validKey) {
+        res.status(401).json({ success: false, error: "Invalid or revoked API key" });
+        return;
+      }
+    }
+
     const bodyBuffer = await readRequestBody(req, config.maxBodyBytes);
     const { json } = inspectBody(bodyBuffer, req.headers);
     const targetUrls = collectTargetUrls(json);

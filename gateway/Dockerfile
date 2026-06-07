@@ -30,6 +30,7 @@ RUN npm ci --only=production
 
 # Copy built gateway
 COPY --from=gateway-builder /app/dist/ ./dist/
+COPY --from=gateway-builder /app/src/db/schema.sql ./dist/db/schema.sql
 
 # Copy built admin UI
 COPY --from=admin-builder /app/admin-ui/dist/ ./admin-ui/dist/

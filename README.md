@@ -50,6 +50,9 @@ If `GATEWAY_PORT` or `PORT` is changed in `.env`, use those ports instead.
    ```env
    FIRECRAWL_API_KEY=fc-your-cloud-key
    BULL_AUTH_KEY=change-this-secret
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=changeme
+   SESSION_SECRET=change-me-to-a-long-random-string
    ```
 
    `FIRECRAWL_API_KEY` is required for Cloud fallback and `cloud-first` mode. It can be left empty if you only use local self-hosted Firecrawl.
@@ -60,13 +63,44 @@ If `GATEWAY_PORT` or `PORT` is changed in `.env`, use those ports instead.
    docker compose up -d --build
    ```
 
-4. Call the gateway:
+4. Log in to the admin UI at `http://localhost:8080/admin` with the admin credentials.
+
+5. Create a virtual API key in the admin UI, then call the gateway:
 
    ```bash
    curl -X POST http://localhost:8080/v2/scrape \
+     -H 'Authorization: Bearer YOUR_API_KEY' \
      -H 'Content-Type: application/json' \
      -d '{"url":"https://firecrawl.dev"}'
    ```
+
+## Authentication
+
+The gateway can operate in two modes:
+
+- **Auth enabled** (`AUTH_ENABLED=true`, default): All API requests must include a valid virtual API key in the `Authorization: Bearer <key>` header. The admin UI requires login.
+- **Auth disabled** (`AUTH_ENABLED=false`): The gateway behaves as a transparent proxy without authentication.
+
+### Admin User
+
+On first boot, if `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, an admin user is automatically created. Use these credentials to log in to the admin UI.
+
+### Virtual API Keys
+
+Users can create virtual API keys through the admin UI or the API:
+
+- `POST /admin/api/api-keys` — create a key (returns the plain key once)
+- `GET /admin/api/api-keys` — list your keys
+- `DELETE /admin/api/api-keys/:id` — revoke a key
+
+### User Management (Admin Only)
+
+Admins can manage users through the admin UI or the API:
+
+- `POST /admin/api/users` — create a user
+- `GET /admin/api/users` — list users
+- `PATCH /admin/api/users/:id` — update a user
+- `DELETE /admin/api/users/:id` — delete a user
 
 ## Routing Modes
 

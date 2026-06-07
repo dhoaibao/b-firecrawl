@@ -66,6 +66,11 @@ services:
       DEFAULT_ROUTE_MODE: ${DEFAULT_ROUTE_MODE:-local-first}
       GATEWAY_REQUEST_TIMEOUT_MS: ${GATEWAY_REQUEST_TIMEOUT_MS:-120000}
       GATEWAY_LOG_FILE: /data/hybrid-firecrawl-requests.jsonl
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@nuq-postgres:5432/postgres}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       api:
         condition: service_started
