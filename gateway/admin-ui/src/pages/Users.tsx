@@ -203,7 +203,7 @@ export default function Users() {
                         <span className="rounded-md bg-surface-4 px-2 py-0.5 text-xs text-muted-foreground">User</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleString("en-US", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
                     <td className="px-4 py-3 text-right">
                       {currentUser?.id !== u.id && (
                         <button

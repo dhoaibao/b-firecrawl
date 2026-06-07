@@ -17,6 +17,7 @@ import {
   Search,
   Server,
   SlidersHorizontal,
+  Trash2,
   User,
   X,
 } from "lucide-react"
@@ -238,6 +239,11 @@ export default function Dashboard() {
   const [userFilter, setUserFilter] = useState("all")
   const [pageSize, setPageSize] = useState(25)
   const [currentPage, setCurrentPage] = useState(1)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteFilter, setDeleteFilter] = useState<
+    "today" | "week" | "month" | "all"
+  >("today")
+  const [deleting, setDeleting] = useState(false)
 
   const activeFilters = useMemo(() => {
     const filters: Array<{
@@ -360,6 +366,34 @@ export default function Dashboard() {
       setRefreshing(false)
     }
   }, [addToast])
+
+  const handleDeleteHistory = useCallback(async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(
+        `/admin/api/logs?filter=${deleteFilter}`,
+        { method: "DELETE", credentials: "include" },
+      )
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({ error: "Delete failed" }))
+        throw new Error(json.error || "Delete failed")
+      }
+      const json = await res.json()
+      addToast(
+        json.deleted === -1
+          ? "All history deleted"
+          : `${json.deleted} entries deleted`,
+        "success",
+      )
+      setShowDeleteDialog(false)
+      void fetchData()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete history"
+      addToast(msg, "error")
+    } finally {
+      setDeleting(false)
+    }
+  }, [deleteFilter, addToast, fetchData])
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => {
@@ -726,35 +760,49 @@ export default function Dashboard() {
           {/* Table header */}
           <CardHeader className="border-b border-white/[0.06] bg-surface-4 px-5 py-4">
             {/* Title + summary badges */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Database className="size-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-semibold text-foreground">
-                Request History
-              </CardTitle>
-              <Badge
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Database className="size-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Request History
+                </CardTitle>
+                <Badge
+                  variant="outline"
+                  className="border-white/[0.06] bg-white/[0.02] text-muted-foreground"
+                >
+                  {filteredEntries.length} visible
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-success-muted bg-success-muted text-success-fg"
+                >
+                  Success {formatPercent(filteredSuccessShare)}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-info-muted bg-info-muted text-info-fg"
+                >
+                  Cloud {formatPercent(filteredCloudShare)}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="border-warning-muted bg-warning-muted text-warning-fg"
+                >
+                  Fallback {formatPercent(filteredFallbackShare)}
+                </Badge>
+              </div>
+              <Button
                 variant="outline"
-                className="border-white/[0.06] bg-white/[0.02] text-muted-foreground"
+                size="sm"
+                className="h-6 border-danger-muted/50 bg-danger-muted/20 text-danger-fg shadow-none transition-colors hover:bg-danger-muted/40"
+                onClick={() => {
+                  setDeleteFilter("today")
+                  setShowDeleteDialog(true)
+                }}
               >
-                {filteredEntries.length} visible
-              </Badge>
-              <Badge
-                variant="outline"
-                className="border-success-muted bg-success-muted text-success-fg"
-              >
-                Success {formatPercent(filteredSuccessShare)}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="border-info-muted bg-info-muted text-info-fg"
-              >
-                Cloud {formatPercent(filteredCloudShare)}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="border-warning-muted bg-warning-muted text-warning-fg"
-              >
-                Fallback {formatPercent(filteredFallbackShare)}
-              </Badge>
+                <Trash2 className="size-3" />
+                Delete History
+              </Button>
             </div>
 
             {/* Active filter chips */}
@@ -1153,6 +1201,87 @@ export default function Dashboard() {
           )}
         </Card>
       </section>
+
+      {/* Delete History Dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDeleteDialog(false)
+          }}
+        >
+          <div className="w-full max-w-sm rounded-lg border border-white/[0.06] bg-surface-2 p-6 shadow-xl animate-slide-up">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-full bg-danger-muted/50 p-2">
+                <Trash2 className="size-5 text-danger-fg" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">
+                  Delete History
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Choose a time range to delete
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              {[
+                { value: "today" as const, label: "Today" },
+                { value: "week" as const, label: "This Week" },
+                { value: "month" as const, label: "This Month" },
+                { value: "all" as const, label: "All History" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDeleteFilter(option.value)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                    deleteFilter === option.value
+                      ? "bg-white/[0.08] text-foreground"
+                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-4 rounded-full border-2",
+                      deleteFilter === option.value
+                        ? "border-foreground bg-foreground"
+                        : "border-white/20",
+                    )}
+                  >
+                    {deleteFilter === option.value && (
+                      <span className="block size-full rounded-full border-2 border-surface-2 bg-foreground" />
+                    )}
+                  </span>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/[0.08] bg-surface-3 text-foreground shadow-none hover:bg-surface-4"
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-danger-muted bg-danger-muted text-danger-fg shadow-none hover:bg-danger-muted/80"
+                onClick={() => void handleDeleteHistory()}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast stack */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">

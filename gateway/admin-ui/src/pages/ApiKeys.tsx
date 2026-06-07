@@ -11,6 +11,7 @@ interface ApiKeyData {
   revoked: boolean;
   created_at: string;
   updated_at: string;
+  last_used_at: string | null;
   key?: string; // shown only on creation
 }
 
@@ -198,6 +199,7 @@ export default function ApiKeys() {
                   <th className="px-4 py-3 text-left font-semibold">Prefix</th>
                   <th className="px-4 py-3 text-left font-semibold">Status</th>
                   <th className="px-4 py-3 text-left font-semibold">Created</th>
+                  <th className="px-4 py-3 text-left font-semibold">Last Used</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -213,7 +215,12 @@ export default function ApiKeys() {
                         <span className="rounded-md bg-success-muted px-2 py-0.5 text-xs text-success-fg">Active</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(k.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{new Date(k.created_at).toLocaleString("en-US", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {k.last_used_at
+                        ? new Date(k.last_used_at).toLocaleString("en-US", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                        : <span className="text-xs italic opacity-60">Never</span>}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {!k.revoked && (
                         <button
@@ -228,7 +235,7 @@ export default function ApiKeys() {
                 ))}
                 {keys.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                       No API keys found
                     </td>
                   </tr>

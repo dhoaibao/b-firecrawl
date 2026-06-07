@@ -75,6 +75,15 @@ export async function validateApiKey(key: string): Promise<ApiKey | null> {
   });
 }
 
+export async function touchApiKey(id: string): Promise<void> {
+  return withClient(async (client) => {
+    await client.query(
+      "UPDATE api_keys SET last_used_at = NOW() WHERE id = $1",
+      [id],
+    );
+  });
+}
+
 function generateApiKey(): string {
   const prefix = "fc_";
   const randomPart = crypto.randomBytes(32).toString("base64url");

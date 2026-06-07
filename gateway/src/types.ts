@@ -81,4 +81,5 @@ export interface ApiKey {
   revoked: boolean;
   created_at: string;
   updated_at: string;
+  last_used_at: string | null;
 }

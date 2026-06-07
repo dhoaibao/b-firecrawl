@@ -207,6 +207,7 @@ export function createProxyHandler({
         return;
       }
       userId = validKey.user_id;
+      void apiKeyService.touchApiKey(validKey.id);
     }
 
     const bodyBuffer = await readRequestBody(req, config.maxBodyBytes);
