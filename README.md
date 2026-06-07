@@ -1,6 +1,8 @@
 # Hybrid Firecrawl Self-host
 
-Deployment-only Firecrawl setup. Runs published Firecrawl images behind a lightweight Hybrid Gateway.
+Deployment-only Firecrawl stack that combines the control of self-hosting with the power of Firecrawl Cloud. This repository orchestrates official Firecrawl container images behind an intelligent Hybrid Gateway that routes requests between your local instance and Firecrawl Cloud based on feature availability and your configured policy.
+
+**Why Hybrid?** Basic scraping, crawling, and parsing run locally at no cost. Advanced features—actions, screenshots, agent extraction, browser sessions, monitoring, and more—are seamlessly forwarded to Firecrawl Cloud. You get the best of both worlds without managing two separate integrations.
 
 ## What Is Included
 
@@ -13,15 +15,16 @@ Deployment-only Firecrawl setup. Runs published Firecrawl images behind a lightw
 ## Architecture
 
 ```text
-Client
-  |
-  v
-Hybrid Gateway
-  |              |
-  | local-safe   | cloud-only or fallback
-  v              v
-Self-hosted     Firecrawl Cloud
-Firecrawl
+            Client
+              |
+              v
+        Hybrid Gateway
+       |              |
+       |              |
+ (local-safe)   (cloud-only or fallback)
+       |              |
+       v              v
+  Self-hosted    Firecrawl Cloud
 ```
 
 ## Quick Start
