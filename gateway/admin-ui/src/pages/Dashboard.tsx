@@ -43,10 +43,13 @@ import {
 import { cn } from "@/lib/utils"
 import { MetricCard } from "@/components/MetricCard"
 import { RequestVolumeChart } from "@/components/RequestVolumeChart"
+import { StatusCodeChart } from "@/components/StatusCodeChart"
+import { TopEndpointsChart } from "@/components/TopEndpointsChart"
+import { LatencyDistributionChart } from "@/components/LatencyDistributionChart"
 import { LogTableRow } from "@/components/LogTableRow"
 import { useAuth } from "@/contexts/AuthContext"
 
-interface AuditEntry {
+export interface AuditEntry {
   id: string
   created_at: string
   method: string
@@ -729,33 +732,84 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* Main content */}
+      {/* Charts grid */}
       <section className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
-        <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
-          {/* Chart header */}
-          <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Request Volume */}
+          <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
+            <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="size-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-semibold text-foreground">
+                      Gateway Request Volume
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                      <span className="size-2 rounded-full bg-success" />
+                      Success
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                      <span className="size-2 rounded-full bg-danger" />
+                      Error
+                    </span>
+                  </div>
+                </div>
+                <RequestVolumeChart buckets={requestBuckets} />
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Status Code Distribution */}
+          <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
+            <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
+              <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="size-4 text-muted-foreground" />
+                  <Activity className="size-4 text-muted-foreground" />
                   <CardTitle className="text-sm font-semibold text-foreground">
-                    Gateway Request Volume
+                    Status Code Distribution
                   </CardTitle>
                 </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                    <span className="size-2 rounded-full bg-success" />
-                    Success
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                    <span className="size-2 rounded-full bg-danger" />
-                    Error
-                  </span>
-                </div>
+                <StatusCodeChart entries={filteredEntries} />
               </div>
-              <RequestVolumeChart buckets={requestBuckets} />
-            </div>
-          </CardHeader>
+            </CardHeader>
+          </Card>
+
+          {/* Top Endpoints */}
+          <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
+            <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <Server className="size-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-semibold text-foreground">
+                    Top Endpoints
+                  </CardTitle>
+                </div>
+                <TopEndpointsChart entries={filteredEntries} />
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Latency Distribution */}
+          <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
+            <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="size-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-semibold text-foreground">
+                    Latency Distribution
+                  </CardTitle>
+                </div>
+                <LatencyDistributionChart entries={filteredEntries} />
+              </div>
+            </CardHeader>
+          </Card>
+        </div>
+
+        {/* Request History table */}
+        <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
 
           {/* Table header */}
           <CardHeader className="border-b border-white/[0.06] bg-surface-4 px-5 py-4">
