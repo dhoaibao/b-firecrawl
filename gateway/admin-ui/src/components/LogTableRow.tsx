@@ -1,0 +1,169 @@
+import React from "react"
+import { Badge } from "@/components/ui/badge"
+import { TableCell, TableRow } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
+
+interface AuditEntry {
+  id: string
+  created_at: string
+  method: string
+  path: string
+  route_mode: string
+  backend_used: string
+  fallback_used: boolean
+  fallback_reason: string
+  status_code: number
+  duration_ms: number
+  target_url: string
+}
+
+type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline"
+  | "success"
+  | "warning"
+  | "info"
+
+function formatTime(value: string): string {
+  if (!value) return "unknown"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+}
+
+function statusVariant(status: number): BadgeVariant {
+  if (!Number.isFinite(status)) return "outline"
+  if (status < 300) return "success"
+  if (status < 500) return "warning"
+  return "destructive"
+}
+
+function backendVariant(backend: string): BadgeVariant {
+  if (backend === "local") return "success"
+  if (backend === "cloud") return "info"
+  return "outline"
+}
+
+function methodClassName(method: string): string {
+  switch (method) {
+    case "GET":
+      return "border-success-muted bg-success-muted text-success-fg"
+    case "POST":
+      return "border-info-muted bg-info-muted text-info-fg"
+    case "DELETE":
+      return "border-danger-muted bg-danger-muted text-danger-fg"
+    default:
+      return "border-white/10 bg-white/[0.03] text-slate-200"
+  }
+}
+
+function formatLatency(value: number): string {
+  if (!Number.isFinite(value)) return "0ms"
+  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`
+  return `${Math.round(value)}ms`
+}
+
+function statusBorderColor(status: number): string {
+  if (status >= 200 && status < 400) return "bg-success"
+  if (status >= 400 && status < 500) return "bg-warning"
+  return "bg-danger"
+}
+
+interface LogTableRowProps {
+  entry: AuditEntry
+}
+
+export const LogTableRow = React.memo(function LogTableRow({
+  entry,
+}: LogTableRowProps) {
+  return (
+    <TableRow className="group border-white/[0.04] bg-surface-1 transition-colors duration-150 hover:bg-surface-3">
+      <TableCell className="relative pl-5 text-xs text-muted-foreground">
+        <span
+          className={cn(
+            "absolute left-0 top-3.5 h-5 w-[3px] rounded-r-full",
+            statusBorderColor(entry.status_code),
+          )}
+        />
+        {formatTime(entry.created_at)}
+      </TableCell>
+      <TableCell>
+        <span
+          className={cn(
+            "inline-flex min-w-14 justify-center rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium",
+            methodClassName(entry.method),
+          )}
+        >
+          {entry.method}
+        </span>
+      </TableCell>
+      <TableCell className="max-w-[280px] whitespace-normal break-all font-mono text-xs font-medium text-foreground">
+        {entry.path}
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant="outline"
+          className="border-white/[0.06] bg-white/[0.02] font-mono text-[11px] text-muted-foreground"
+        >
+          {entry.route_mode}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant={backendVariant(entry.backend_used)}
+          className="border-white/[0.06]"
+        >
+          {entry.backend_used || "none"}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        {entry.fallback_used ? (
+          <Badge
+            variant="warning"
+            className="border-warning-muted bg-warning-muted text-warning-fg"
+          >
+            fallback
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">no</span>
+        )}
+      </TableCell>
+      <TableCell className="max-w-[280px] whitespace-normal break-words text-xs text-muted-foreground">
+        {entry.fallback_reason || "-"}
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant={statusVariant(entry.status_code)}
+          className="font-mono text-[11px]"
+        >
+          {entry.status_code}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right font-mono text-xs font-medium tabular-nums text-foreground">
+        {entry.duration_ms ? formatLatency(entry.duration_ms) : "-"}
+      </TableCell>
+      <TableCell className="max-w-[320px] whitespace-normal break-all pr-5 font-mono text-xs font-medium">
+        {entry.target_url ? (
+          <a
+            href={entry.target_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-foreground underline-offset-4 transition-colors hover:text-white hover:underline"
+          >
+            {entry.target_url}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">none</span>
+        )}
+      </TableCell>
+    </TableRow>
+  )
+})

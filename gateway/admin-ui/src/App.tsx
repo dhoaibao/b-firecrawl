@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { ComponentProps } from "react"
 import {
   Activity,
   AlertCircle,
@@ -10,7 +9,6 @@ import {
   Clock,
   Cloud,
   Database,
-  MoreVertical,
   Radio,
   RefreshCw,
   Search,
@@ -19,16 +17,19 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { MetricCard } from "@/components/MetricCard"
+import { RequestVolumeChart } from "@/components/RequestVolumeChart"
+import { LogTableRow } from "@/components/LogTableRow"
 
 interface AuditEntry {
   id: string
@@ -51,8 +52,6 @@ interface Totals {
   fallbacks: number
   avgDuration: number
 }
-
-type BadgeVariant = NonNullable<ComponentProps<typeof Badge>["variant"]>
 
 type BackendFilter = "" | "local" | "cloud"
 type StatusFilter = "" | "2xx" | "4xx" | "5xx"
@@ -80,45 +79,6 @@ const statusFilters: Array<{ label: string; value: StatusFilter }> = [
 
 const pageSizeOptions = [10, 25, 50, 100]
 const bucketCount = 24
-
-function formatTime(value: string): string {
-  if (!value) return "unknown"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  })
-}
-
-function statusVariant(status: number): BadgeVariant {
-  if (!Number.isFinite(status)) return "outline"
-  if (status < 300) return "success"
-  if (status < 500) return "warning"
-  return "destructive"
-}
-
-function backendVariant(backend: string): BadgeVariant {
-  if (backend === "local") return "success"
-  if (backend === "cloud") return "info"
-  return "outline"
-}
-
-function methodClassName(method: string): string {
-  switch (method) {
-    case "GET":
-      return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-    case "POST":
-      return "border-sky-400/30 bg-sky-400/10 text-sky-200"
-    case "DELETE":
-      return "border-rose-400/30 bg-rose-400/10 text-rose-200"
-    default:
-      return "border-white/10 bg-white/[0.03] text-slate-200"
-  }
-}
 
 function formatPercent(value: number): string {
   if (!Number.isFinite(value)) return "0%"
@@ -151,18 +111,111 @@ function buildRequestBuckets(entries: AuditEntry[]) {
   return buckets
 }
 
+/* ------------------------------------------------------------------ */
+/*  Simple toast system                                                */
+/* ------------------------------------------------------------------ */
+interface Toast {
+  id: number
+  message: string
+  type: "error" | "success"
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  const addToast = useCallback((message: string, type: Toast["type"] = "error") => {
+    const id = Date.now() + Math.random()
+    setToasts((prev) => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 4000)
+  }, [])
+
+  const removeToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  return { toasts, addToast, removeToast }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Skeleton loaders                                                   */
+/* ------------------------------------------------------------------ */
+function MetricsSkeleton() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-surface-2 p-5"
+        >
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-6 w-6 rounded-md" />
+          </div>
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-2.5 w-32" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TableSkeleton({ rowCount = 8 }: { rowCount?: number }) {
+  return (
+    <>
+      <div className="min-w-[1220px]">
+        {/* Header skeleton */}
+        <div className="flex h-10 items-center gap-4 border-b border-white/[0.06] bg-surface-3 px-5">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Skeleton key={i} className="h-3 flex-1" style={{ minWidth: i === 0 ? 140 : 80 }} />
+          ))}
+        </div>
+        {/* Row skeletons */}
+        {Array.from({ length: rowCount }).map((_, rowIdx) => (
+          <div
+            key={rowIdx}
+            className="flex h-12 items-center gap-4 border-b border-white/[0.04] bg-surface-1 px-5"
+          >
+            {Array.from({ length: 10 }).map((__, colIdx) => (
+              <Skeleton
+                key={colIdx}
+                className="h-3 flex-1"
+                style={{ minWidth: colIdx === 0 ? 140 : 80 }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between border-t border-white/[0.06] bg-surface-1 px-5 py-3">
+        <Skeleton className="h-3 w-40" />
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main App                                                           */
+/* ------------------------------------------------------------------ */
 export default function App() {
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [totals, setTotals] = useState<Totals>(emptyTotals)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState("")
+  const [live, setLive] = useState(true)
   const [backendFilter, setBackendFilter] = useState<BackendFilter>("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
   const [fallbackOnly, setFallbackOnly] = useState(false)
   const [search, setSearch] = useState("")
   const [pageSize, setPageSize] = useState(25)
   const [currentPage, setCurrentPage] = useState(1)
+
+  const { toasts, addToast, removeToast } = useToast()
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
@@ -174,27 +227,32 @@ export default function App() {
       const json = await res.json()
       setEntries(Array.isArray(json.data) ? json.data : [])
       setTotals(json.totals || emptyTotals)
-      setError("")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load audit data")
+      const msg = err instanceof Error ? err.message : "Failed to load audit data"
+      addToast(msg, "error")
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [addToast])
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => {
       void fetchData()
     }, 0)
-    const interval = window.setInterval(() => {
-      void fetchData()
-    }, 5000)
+
+    let interval: number | undefined
+    if (live) {
+      interval = window.setInterval(() => {
+        void fetchData()
+      }, 5000)
+    }
+
     return () => {
       window.clearTimeout(initialLoad)
-      window.clearInterval(interval)
+      if (interval) window.clearInterval(interval)
     }
-  }, [fetchData])
+  }, [fetchData, live])
 
   const filteredEntries = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -258,55 +316,66 @@ export default function App() {
   const pageEnd = Math.min(pageStart + pageSize, filteredEntries.length)
   const paginatedEntries = filteredEntries.slice(pageStart, pageEnd)
   const requestBuckets = useMemo(() => buildRequestBuckets(entries), [entries])
-  const maxBucketValue = Math.max(
-    1,
-    ...requestBuckets.map((bucket) => bucket.success + bucket.error),
+
+  const metrics = useMemo(
+    () => [
+      {
+        label: "Total Requests",
+        value: totals.total,
+        detail: `${filteredEntries.length} visible`,
+        icon: Activity,
+      },
+      {
+        label: "Success Rate",
+        value: formatPercent(successShare),
+        detail: `${successCount} successful`,
+        icon: Radio,
+      },
+      {
+        label: "Local Requests",
+        value: totals.local,
+        detail: "self-hosted traffic",
+        icon: Server,
+      },
+      {
+        label: "Cloud Traffic",
+        value: totals.cloud,
+        detail: `${formatPercent(cloudShare)} of traffic`,
+        icon: Cloud,
+      },
+      {
+        label: "Avg Latency",
+        value: formatLatency(totals.avgDuration),
+        detail: `${totals.fallbacks} fallbacks`,
+        icon: Clock,
+      },
+    ],
+    [
+      totals.total,
+      totals.local,
+      totals.cloud,
+      totals.fallbacks,
+      totals.avgDuration,
+      filteredEntries.length,
+      successShare,
+      successCount,
+      cloudShare,
+    ],
   )
 
-  const metrics = [
-    {
-      label: "Total Requests",
-      value: totals.total,
-      detail: `${filteredEntries.length} visible`,
-      icon: Activity,
-    },
-    {
-      label: "Success Rate",
-      value: formatPercent(successShare),
-      detail: `${successCount} successful`,
-      icon: Radio,
-    },
-    {
-      label: "Local Requests",
-      value: totals.local,
-      detail: "self-hosted traffic",
-      icon: Server,
-    },
-    {
-      label: "Cloud Traffic",
-      value: totals.cloud,
-      detail: `${formatPercent(cloudShare)} of traffic`,
-      icon: Cloud,
-    },
-    {
-      label: "Avg Latency",
-      value: formatLatency(totals.avgDuration),
-      detail: `${totals.fallbacks} fallbacks`,
-      icon: Clock,
-    },
-  ]
-
   return (
-    <main className="min-h-screen bg-[#111216] text-slate-100">
-      <section className="sticky top-0 z-20 border-b border-white/10 bg-[#14151a]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1680px] flex-col gap-3 px-4 py-3 lg:px-5">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+    <main className="min-h-screen bg-background text-foreground">
+      {/* Sticky header */}
+      <section className="sticky top-0 z-20 border-b border-white/[0.06] bg-surface-2/90 backdrop-blur">
+        <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+            {/* Left: Refresh + Live */}
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 className={cn(
-                  "group relative overflow-hidden border-white/10 bg-[#202127] text-slate-100 shadow-none hover:-translate-y-px hover:border-white/20 hover:bg-[#292a31]",
-                  refreshing && "border-sky-400/40 bg-sky-400/10 text-sky-100",
+                  "group relative overflow-hidden border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-all hover:-translate-y-px hover:border-white/15 hover:bg-surface-4",
+                  refreshing && "border-info-muted bg-info-muted text-info-fg",
                 )}
                 onClick={() => void fetchData()}
                 disabled={refreshing}
@@ -323,21 +392,45 @@ export default function App() {
                     refreshing && "animate-spin",
                   )}
                 />
-                <span className="relative">
-                  {refreshing ? "Refreshing" : "Refresh"}
-                </span>
+                <span className="relative">Refresh</span>
               </Button>
+
               <Button
-                variant="outline"
-                className="border-white/10 bg-slate-100 text-slate-950 shadow-none hover:bg-white"
+                variant={live ? "default" : "outline"}
+                className={cn(
+                  "gap-2 border-white/[0.08] shadow-none transition-all",
+                  live
+                    ? "bg-success-muted text-success-fg hover:bg-success-muted/80"
+                    : "bg-surface-3 text-muted-foreground hover:bg-surface-4 hover:text-foreground",
+                )}
+                onClick={() => setLive((v) => !v)}
               >
-                <Radio className="size-4" />
-                Live
+                <span
+                  className={cn(
+                    "relative flex size-2",
+                    live && "animate-pulse-soft",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute inline-flex size-full rounded-full opacity-75",
+                      live ? "bg-success" : "bg-muted-foreground",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "relative inline-flex size-2 rounded-full",
+                      live ? "bg-success" : "bg-muted-foreground",
+                    )}
+                  />
+                </span>
+                {live ? "Live" : "Paused"}
               </Button>
             </div>
 
+            {/* Center: Search */}
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={search}
                 onChange={(event) => {
@@ -345,172 +438,100 @@ export default function App() {
                   setCurrentPage(1)
                 }}
                 placeholder="Search logs"
-                className="h-10 w-full rounded-md border border-white/10 bg-[#1c1d22] pl-10 pr-3 text-sm text-slate-100 outline-none transition-colors placeholder:text-slate-500 hover:border-white/15 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/20"
+                className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-2 pl-10 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
               />
             </div>
 
+            {/* Right: Actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                className="border-white/10 bg-[#202127] text-slate-100 shadow-none hover:bg-[#292a31]"
-              >
-                <Clock className="size-4" />
-                Last hour
-              </Button>
               <Button
                 asChild
                 variant="outline"
-                className="border-white/10 bg-[#202127] text-slate-100 shadow-none hover:bg-[#292a31]"
+                className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
               >
                 <a href="/admin/logs" target="_blank" rel="noreferrer">
                   JSON logs
                   <ArrowUpRight className="size-4" />
                 </a>
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="More actions"
-                className="border-white/10 bg-[#202127] text-slate-100 shadow-none hover:bg-[#292a31]"
-              >
-                <MoreVertical className="size-4" />
-              </Button>
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {metrics.map((metric) => {
-              const Icon = metric.icon
-              return (
-                <Card
+          {loading ? (
+            <MetricsSkeleton />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 animate-slide-up">
+              {metrics.map((metric) => (
+                <MetricCard
                   key={metric.label}
-                  className="gap-3 rounded-md border-white/10 bg-[#16171c] py-4 shadow-none"
-                >
-                  <CardHeader className="flex flex-row items-center justify-between gap-3 px-4">
-                    <div className="text-xs font-medium text-slate-400">
-                      {metric.label}
-                    </div>
-                    <div className="rounded-md border border-white/10 bg-white/[0.03] p-1.5 text-slate-500">
-                      <Icon className="size-3.5" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-1 px-4">
-                    <div className="font-mono text-2xl font-semibold tabular-nums text-slate-50">
-                      {metric.value}
-                    </div>
-                    <p className="text-xs text-slate-500">{metric.detail}</p>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
+                  label={metric.label}
+                  value={metric.value}
+                  detail={metric.detail}
+                  icon={metric.icon}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="mx-auto flex max-w-[1680px] flex-col gap-3 px-4 py-3 lg:px-5">
-        {error ? (
-          <Card className="rounded-md border-rose-400/30 bg-rose-400/10 py-0 shadow-none">
-            <CardContent className="flex items-center gap-3 px-4 py-3 text-sm text-rose-100">
-              <AlertCircle className="size-4" />
-              {error}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card className="gap-0 overflow-hidden rounded-md border-white/10 bg-[#15161b] py-0 shadow-none">
-          <CardHeader className="border-b border-white/10 bg-[#17181d] px-4 py-3">
-            <div className="flex flex-col gap-3">
+      {/* Main content */}
+      <section className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
+        <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
+          {/* Chart header */}
+          <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="size-4 text-slate-500" />
-                  <CardTitle className="text-sm font-semibold text-slate-200">
+                  <BarChart3 className="size-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-semibold text-foreground">
                     Gateway Request Volume
                   </CardTitle>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-slate-400">
-                    <span className="size-2 rounded-full bg-emerald-400" />
+                  <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                    <span className="size-2 rounded-full bg-success" />
                     Success
                   </span>
-                  <span className="inline-flex items-center gap-1.5 text-slate-400">
-                    <span className="size-2 rounded-full bg-rose-400" />
+                  <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                    <span className="size-2 rounded-full bg-danger" />
                     Error
                   </span>
                 </div>
               </div>
-
-              <div className="relative h-36 overflow-hidden rounded-sm border border-white/5 bg-[#131419] px-4 py-3">
-                <div className="absolute inset-x-4 top-1/2 border-t border-dashed border-white/10" />
-                <div className="absolute inset-x-4 bottom-8 border-t border-dashed border-white/10" />
-                <div className="relative flex h-full items-end gap-1">
-                  {requestBuckets.map((bucket) => {
-                    const successHeight = Math.max(
-                      bucket.success ? 10 : 0,
-                      (bucket.success / maxBucketValue) * 100,
-                    )
-                    const errorHeight = Math.max(
-                      bucket.error ? 10 : 0,
-                      (bucket.error / maxBucketValue) * 100,
-                    )
-
-                    return (
-                      <div
-                        key={bucket.index}
-                        className="flex h-full flex-1 items-end justify-center"
-                        title={`${bucket.success} success, ${bucket.error} error`}
-                      >
-                        <div className="flex h-full w-full max-w-6 flex-col justify-end gap-0.5">
-                          {bucket.error > 0 ? (
-                            <div
-                              className="rounded-t-sm bg-rose-500/85"
-                              style={{ height: `${errorHeight}%` }}
-                            />
-                          ) : null}
-                          {bucket.success > 0 ? (
-                            <div
-                              className="rounded-t-sm bg-emerald-500/80"
-                              style={{ height: `${successHeight}%` }}
-                            />
-                          ) : (
-                            <div className="h-1 rounded-full bg-white/5" />
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+              <RequestVolumeChart buckets={requestBuckets} />
             </div>
           </CardHeader>
 
-          <CardHeader className="border-b border-white/10 bg-[#202127] px-4 py-3">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          {/* Table header */}
+          <CardHeader className="border-b border-white/[0.06] bg-surface-4 px-5 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
-                <Database className="size-4 text-slate-500" />
-                <CardTitle className="text-sm font-semibold text-slate-100">
+                <Database className="size-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-semibold text-foreground">
                   Request History
                 </CardTitle>
                 <Badge
                   variant="outline"
-                  className="border-white/10 bg-white/[0.03] text-slate-300"
+                  className="border-white/[0.06] bg-white/[0.02] text-muted-foreground"
                 >
                   {filteredEntries.length} visible
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                  className="border-success-muted bg-success-muted text-success-fg"
                 >
                   Success {formatPercent(successShare)}
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="border-sky-400/20 bg-sky-400/10 text-sky-200"
+                  className="border-info-muted bg-info-muted text-info-fg"
                 >
                   Cloud {formatPercent(cloudShare)}
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="border-amber-400/20 bg-amber-400/10 text-amber-200"
+                  className="border-warning-muted bg-warning-muted text-warning-fg"
                 >
                   Fallback {formatPercent(fallbackShare)}
                 </Badge>
@@ -528,10 +549,10 @@ export default function App() {
                       }
                       size="sm"
                       className={cn(
-                        "border-white/10 shadow-none",
+                        "border-white/[0.08] shadow-none transition-colors",
                         backendFilter === filter.value && !fallbackOnly
-                          ? "bg-slate-100 text-slate-950 hover:bg-white"
-                          : "bg-[#15161b] text-slate-300 hover:bg-white/[0.06] hover:text-slate-100",
+                          ? "bg-foreground text-background hover:bg-foreground/90"
+                          : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
                       )}
                       onClick={() => {
                         setBackendFilter(filter.value)
@@ -546,10 +567,10 @@ export default function App() {
                     variant={fallbackOnly ? "default" : "outline"}
                     size="sm"
                     className={cn(
-                      "border-white/10 shadow-none",
+                      "border-white/[0.08] shadow-none transition-colors",
                       fallbackOnly
-                        ? "bg-slate-100 text-slate-950 hover:bg-white"
-                        : "bg-[#15161b] text-slate-300 hover:bg-white/[0.06] hover:text-slate-100",
+                        ? "bg-foreground text-background hover:bg-foreground/90"
+                        : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
                     )}
                     onClick={() => {
                       setFallbackOnly((value) => !value)
@@ -570,10 +591,10 @@ export default function App() {
                       }
                       size="sm"
                       className={cn(
-                        "border-white/10 shadow-none",
+                        "border-white/[0.08] shadow-none transition-colors",
                         statusFilter === filter.value
-                          ? "bg-white/[0.08] text-slate-100"
-                          : "bg-[#15161b] text-slate-300 hover:bg-white/[0.06] hover:text-slate-100",
+                          ? "bg-white/[0.08] text-foreground"
+                          : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
                       )}
                       onClick={() => {
                         setStatusFilter(filter.value)
@@ -589,146 +610,60 @@ export default function App() {
           </CardHeader>
 
           {loading ? (
-            <div className="flex min-h-[320px] items-center justify-center text-sm text-slate-500">
-              Loading gateway activity...
-            </div>
+            <TableSkeleton rowCount={8} />
           ) : filteredEntries.length > 0 ? (
             <>
-              <Table className="min-w-[1220px]">
-                <TableHeader>
-                  <TableRow className="border-b border-white/10 bg-[#24252b] hover:bg-[#24252b]">
-                    <TableHead className="pl-5 text-xs font-semibold text-slate-100">
-                      Time
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Method
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Path
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Mode
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Backend
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Fallback
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Reason
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-slate-100">
-                      Status
-                    </TableHead>
-                    <TableHead className="text-right text-xs font-semibold text-slate-100">
-                      Latency
-                    </TableHead>
-                    <TableHead className="pr-5 text-xs font-semibold text-slate-100">
-                      Target URL
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedEntries.map((entry) => (
-                    <TableRow
-                      key={entry.id}
-                      className="group border-white/10 bg-[#15161b] hover:bg-[#1d1e24]"
-                    >
-                      <TableCell className="relative pl-5 text-xs text-slate-400">
-                        <span
-                          className={cn(
-                            "absolute left-0 top-3 h-6 w-1 rounded-r-full",
-                            entry.status_code >= 200 && entry.status_code < 400
-                              ? "bg-emerald-400"
-                              : "bg-rose-400",
-                          )}
-                        />
-                        {formatTime(entry.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex min-w-14 justify-center rounded-md border px-2 py-1 font-mono text-[11px] font-semibold shadow-none",
-                            methodClassName(entry.method),
-                          )}
-                        >
-                          {entry.method}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-[280px] whitespace-normal break-all font-mono text-xs font-medium text-slate-100">
-                        {entry.path}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className="border-white/10 bg-white/[0.03] font-mono text-[11px] text-slate-300"
-                        >
-                          {entry.route_mode}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={backendVariant(entry.backend_used)}
-                          className="border-white/10"
-                        >
-                          {entry.backend_used || "none"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {entry.fallback_used ? (
-                          <Badge
-                            variant="warning"
-                            className="border-amber-400/25 bg-amber-400/10 text-amber-200"
-                          >
-                            fallback
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-slate-500">no</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-[280px] whitespace-normal break-words text-xs text-slate-400">
-                        {entry.fallback_reason || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={statusVariant(entry.status_code)}
-                          className="font-mono"
-                        >
-                          {entry.status_code}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-medium tabular-nums text-slate-100">
-                        {entry.duration_ms
-                          ? formatLatency(entry.duration_ms)
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="max-w-[320px] whitespace-normal break-all pr-5 font-mono text-xs font-medium">
-                        {entry.target_url ? (
-                          <a
-                            href={entry.target_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-slate-100 underline-offset-4 transition-colors hover:text-white hover:underline"
-                          >
-                            {entry.target_url}
-                          </a>
-                        ) : (
-                          <span className="text-slate-500">none</span>
-                        )}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[1220px]">
+                  <TableHeader>
+                    <TableRow className="border-b border-white/[0.06] bg-surface-3 hover:bg-surface-3">
+                      <TableHead className="pl-5 text-xs font-semibold text-foreground">
+                        Time
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Method
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Path
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Mode
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Backend
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Fallback
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Reason
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold text-foreground">
+                        Latency
+                      </TableHead>
+                      <TableHead className="pr-5 text-xs font-semibold text-foreground">
+                        Target URL
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex flex-col gap-3 border-t border-white/10 bg-[#15161b] px-5 py-3 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedEntries.map((entry) => (
+                      <LogTableRow key={entry.id} entry={entry} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-surface-1 px-5 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
                 <div className="font-mono text-xs">
                   Showing{" "}
-                  <span className="font-medium text-slate-100">
+                  <span className="font-medium text-foreground">
                     {filteredEntries.length ? pageStart + 1 : 0}-{pageEnd}
                   </span>{" "}
                   of{" "}
-                  <span className="font-medium text-slate-100">
+                  <span className="font-medium text-foreground">
                     {filteredEntries.length}
                   </span>
                 </div>
@@ -742,7 +677,7 @@ export default function App() {
                         setPageSize(Number(event.target.value))
                         setCurrentPage(1)
                       }}
-                      className="h-8 rounded-md border border-white/10 bg-[#202127] px-2 text-sm font-medium text-slate-100 shadow-none outline-none transition-colors hover:bg-[#292a31] focus-visible:border-slate-500 focus-visible:ring-[3px] focus-visible:ring-slate-500/30"
+                      className="h-8 rounded-md border border-white/[0.08] bg-surface-3 px-2 text-sm font-medium text-foreground shadow-none outline-none transition-colors hover:bg-surface-4 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30"
                     >
                       {pageSizeOptions.map((option) => (
                         <option key={option} value={option}>
@@ -755,7 +690,7 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <span className="min-w-20 text-center font-mono text-xs">
                       Page{" "}
-                      <span className="font-medium text-slate-100">
+                      <span className="font-medium text-foreground">
                         {visiblePage}
                       </span>{" "}
                       / {pageCount}
@@ -764,7 +699,7 @@ export default function App() {
                       variant="outline"
                       size="sm"
                       disabled={visiblePage <= 1}
-                      className="border-white/10 bg-[#202127] text-slate-100 shadow-none hover:bg-[#292a31]"
+                      className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
                       onClick={() =>
                         setCurrentPage(Math.max(1, visiblePage - 1))
                       }
@@ -776,7 +711,7 @@ export default function App() {
                       variant="outline"
                       size="sm"
                       disabled={visiblePage >= pageCount}
-                      className="border-white/10 bg-[#202127] text-slate-100 shadow-none hover:bg-[#292a31]"
+                      className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
                       onClick={() =>
                         setCurrentPage(Math.min(pageCount, visiblePage + 1))
                       }
@@ -789,20 +724,44 @@ export default function App() {
               </div>
             </>
           ) : (
-            <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-6 text-center">
-              <div className="rounded-full border border-white/10 bg-white/[0.03] p-3 text-slate-500">
-                <Activity className="size-5" />
+            <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 px-6 text-center animate-fade-in">
+              <div className="rounded-full border border-white/[0.06] bg-white/[0.02] p-4 text-muted-foreground">
+                <Activity className="size-6" />
               </div>
-              <div className="font-medium text-slate-100">
+              <div className="font-medium text-foreground">
                 No matching requests
               </div>
-              <p className="max-w-md text-sm text-slate-500">
+              <p className="max-w-md text-sm text-muted-foreground">
                 Adjust the filters or wait for new gateway traffic to appear.
               </p>
             </div>
           )}
         </Card>
       </section>
+
+      {/* Toast stack */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={cn(
+              "flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg animate-slide-up backdrop-blur",
+              toast.type === "error"
+                ? "border-danger-muted bg-danger-muted/90 text-danger-fg"
+                : "border-success-muted bg-success-muted/90 text-success-fg",
+            )}
+          >
+            <AlertCircle className="size-4 shrink-0" />
+            <span className="text-sm">{toast.message}</span>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="ml-2 text-xs opacity-70 hover:opacity-100"
+            >
+              Dismiss
+            </button>
+          </div>
+        ))}
+      </div>
     </main>
   )
 }

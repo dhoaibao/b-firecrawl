@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: hsl(230 12% 7%);
-  --color-foreground: hsl(210 35% 96%);
+  /* Base surfaces — strict elevation system */
+  --color-background: hsl(230 14% 6%);
+  --color-foreground: hsl(210 30% 96%);
+
+  --color-surface-base: hsl(230 14% 6%);
+  --color-surface-1: hsl(230 12% 8%);
+  --color-surface-2: hsl(230 11% 10%);
+  --color-surface-3: hsl(230 10% 13%);
+  --color-surface-4: hsl(230 9% 16%);
+
+  /* shadcn compatibility */
   --color-card: hsl(230 11% 10%);
-  --color-card-foreground: hsl(210 35% 96%);
+  --color-card-foreground: hsl(210 30% 96%);
   --color-popover: hsl(230 11% 10%);
-  --color-popover-foreground: hsl(210 35% 96%);
-  --color-primary: hsl(210 35% 96%);
-  --color-primary-foreground: hsl(230 12% 7%);
-  --color-secondary: hsl(225 9% 16%);
-  --color-secondary-foreground: hsl(210 35% 96%);
-  --color-muted: hsl(225 9% 16%);
-  --color-muted-foreground: hsl(215 14% 60%);
-  --color-accent: hsl(225 9% 18%);
-  --color-accent-foreground: hsl(210 35% 96%);
-  --color-destructive: hsl(354 84% 58%);
+  --color-popover-foreground: hsl(210 30% 96%);
+  --color-primary: hsl(210 30% 96%);
+  --color-primary-foreground: hsl(230 14% 6%);
+  --color-secondary: hsl(230 9% 16%);
+  --color-secondary-foreground: hsl(210 30% 96%);
+  --color-muted: hsl(230 9% 16%);
+  --color-muted-foreground: hsl(215 14% 58%);
+  --color-accent: hsl(230 9% 18%);
+  --color-accent-foreground: hsl(210 30% 96%);
+  --color-destructive: hsl(354 78% 62%);
   --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(225 9% 20%);
-  --color-input: hsl(225 9% 20%);
-  --color-ring: hsl(215 20% 60%);
+  --color-border: hsl(230 8% 18%);
+  --color-input: hsl(230 8% 18%);
+  --color-ring: hsl(215 20% 55%);
+
+  /* Semantic palette — cooler, more intentional */
+  --color-success: hsl(155 58% 45%);
+  --color-success-muted: hsl(155 40% 20%);
+  --color-success-fg: hsl(155 70% 90%);
+
+  --color-warning: hsl(38 85% 55%);
+  --color-warning-muted: hsl(38 50% 20%);
+  --color-warning-fg: hsl(38 80% 90%);
+
+  --color-info: hsl(210 75% 58%);
+  --color-info-muted: hsl(210 45% 22%);
+  --color-info-fg: hsl(210 80% 92%);
+
+  --color-danger: hsl(354 78% 62%);
+  --color-danger-muted: hsl(354 40% 22%);
+  --color-danger-fg: hsl(354 80% 92%);
+
   --radius: 0.5rem;
+
+  /* Animation tokens */
+  --animate-pulse-soft: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-shimmer: shimmer 2s infinite;
+  --animate-fade-in: fade-in 0.3s ease-out forwards;
+  --animate-slide-up: slide-up 0.25s ease-out forwards;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @layer base {
@@ -41,6 +94,8 @@
     font-family:
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
       "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   a {
