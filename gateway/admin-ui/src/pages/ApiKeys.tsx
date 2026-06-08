@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, Key, AlertCircle, Copy, Check, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Key, AlertCircle, Copy, Check, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -28,6 +28,21 @@ export default function ApiKeys() {
   const [createdKey, setCreatedKey] = useState<ApiKeyData | null>(null);
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "revoked">("all");
+
+  const filteredKeys = keys.filter((k) => {
+    const matchesSearch =
+      !searchQuery ||
+      k.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      k.key_prefix.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" ? !k.revoked : k.revoked);
+    return matchesSearch && matchesStatus;
+  });
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -123,7 +138,9 @@ export default function ApiKeys() {
           <div className="flex items-center gap-2">
             <Key className="size-5 text-muted-foreground" />
             <h1 className="text-lg font-semibold">API Keys</h1>
-            <span className="text-sm text-muted-foreground">({keys.length})</span>
+            <span className="text-sm text-muted-foreground">
+              ({filteredKeys.length} of {keys.length})
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -147,6 +164,37 @@ export default function ApiKeys() {
             <AlertCircle className="size-4" /> {error}
           </div>
         )}
+
+        {/* Search & Filter Bar */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by name or prefix..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "revoked")}
+            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="revoked">Revoked</option>
+          </select>
+          {(searchQuery || statusFilter !== "all") && (
+            <button
+              onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+              className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
         {createdKey && (
           <div className="mb-6 rounded-lg border border-success-muted bg-success-muted/30 p-4 space-y-2">
@@ -214,7 +262,7 @@ export default function ApiKeys() {
                 </tr>
               </thead>
               <tbody>
-                {keys.map((k) => (
+                {filteredKeys.map((k) => (
                   <tr key={k.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                     <td className="px-4 py-3">{k.name}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{k.key_prefix}...</td>
@@ -243,10 +291,10 @@ export default function ApiKeys() {
                     </td>
                   </tr>
                 ))}
-                {keys.length === 0 && (
+                {filteredKeys.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      No API keys found
+                      {keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
                     </td>
                   </tr>
                 )}

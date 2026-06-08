@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -33,6 +33,21 @@ export default function Users() {
   const [suspendUnit, setSuspendUnit] = useState<SuspendUnit>("days");
   const [suspending, setSuspending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended" | "blocked">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch =
+      !searchQuery ||
+      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || u.status === statusFilter;
+    const matchesRole = roleFilter === "all" || (roleFilter === "admin" ? u.is_admin : !u.is_admin);
+    return matchesSearch && matchesStatus && matchesRole;
+  });
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -208,7 +223,9 @@ export default function Users() {
           <div className="flex items-center gap-2">
             <User className="size-5 text-muted-foreground" />
             <h1 className="text-lg font-semibold">Users</h1>
-            <span className="text-sm text-muted-foreground">({users.length})</span>
+            <span className="text-sm text-muted-foreground">
+              ({filteredUsers.length} of {users.length})
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -232,6 +249,47 @@ export default function Users() {
             <AlertCircle className="size-4" /> {error}
           </div>
         )}
+
+        {/* Search & Filter Bar */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "suspended" | "blocked")}
+            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="blocked">Blocked</option>
+          </select>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as "all" | "admin" | "user")}
+            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
+          >
+            <option value="all">All roles</option>
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
+          </select>
+          {(searchQuery || statusFilter !== "all" || roleFilter !== "all") && (
+            <button
+              onClick={() => { setSearchQuery(""); setStatusFilter("all"); setRoleFilter("all"); }}
+              className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
         {showForm && (
           <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-white/[0.06] bg-surface-2 p-4 space-y-3">
@@ -302,7 +360,7 @@ export default function Users() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {filteredUsers.map((u) => (
                   <tr key={u.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                     <td className="px-4 py-3">{u.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
@@ -353,10 +411,10 @@ export default function Users() {
                     </td>
                   </tr>
                 ))}
-                {users.length === 0 && (
+                {filteredUsers.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      No users found
+                      {users.length === 0 ? "No users found" : "No users match your filters"}
                     </td>
                   </tr>
                 )}
