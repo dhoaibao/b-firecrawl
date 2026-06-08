@@ -18,6 +18,7 @@ import {
 } from "./utils";
 import * as apiKeyService from "./api-keys/service";
 import * as userService from "./users/service";
+import { getRequestLogger } from "./logger";
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -183,6 +184,7 @@ export function createProxyHandler({
     req: Request,
     res: Response,
   ): Promise<void> {
+    const log = getRequestLogger(req);
     const started = Date.now();
     const requestUrl = req.originalUrl || req.url;
     const parsedUrl = new URL(requestUrl, "http://gateway.local");
@@ -234,8 +236,22 @@ export function createProxyHandler({
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
 
+    log.info(
+      {
+        route_mode: routeMode,
+        initial_backend: initialBackend,
+        needs_cloud: needsCloud.required,
+        needs_cloud_reason: needsCloud.reason || undefined,
+      },
+      "routing decision",
+    );
+
     if (initialBackend === "reject") {
       const statusCode = 409;
+      log.warn(
+        { reason: needsCloud.reason },
+        "request rejected: requires cloud in local-only mode",
+      );
       const auditEntry: AuditEntry = {
         id: cryptoRandomId(),
         created_at: nowIso(),
@@ -249,6 +265,7 @@ export function createProxyHandler({
         duration_ms: Date.now() - started,
         target_url: primaryTargetUrl,
         user_id: userId,
+        request_id: req.requestId,
       };
       await auditStore.appendAudit(auditEntry);
       res.status(statusCode).json({
@@ -280,6 +297,10 @@ export function createProxyHandler({
         result.kind === "network-error"
           ? result.error?.message || "local network error"
           : `local returned ${result.response?.status}`;
+      log.warn(
+        { fallback_reason: fallbackReason },
+        "falling back from local to cloud",
+      );
       result = await proxyToBackend({
         backend: "cloud",
         req,
@@ -304,6 +325,7 @@ export function createProxyHandler({
       duration_ms: Date.now() - started,
       target_url: primaryTargetUrl,
       user_id: userId,
+      request_id: req.requestId,
     };
     await auditStore.appendAudit(auditEntry);
 

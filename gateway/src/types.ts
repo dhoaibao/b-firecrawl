@@ -11,6 +11,7 @@ export interface AuditEntry {
   duration_ms: number;
   target_url: string;
   user_id?: string;
+  request_id?: string;
 }
 
 export interface ProxyResult {

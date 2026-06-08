@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
+import { randomUUID } from "node:crypto";
+import { getRequestLogger } from "./logger";
 
 interface RateLimitEntry {
   count: number;
@@ -9,21 +11,41 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 300;
 
-export function requestLogger(req: Request, res: Response, next: NextFunction): void {
+export function requestIdMiddleware(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const requestId =
+    (req.headers["x-request-id"] as string | undefined) || randomUUID();
+  req.requestId = requestId;
+  next();
+}
+
+export function requestLogger(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
   const start = Date.now();
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     const status = res.statusCode;
-    const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
-    const message = `${req.method} ${req.originalUrl || req.url} ${status} - ${duration}ms`;
+    const log = getRequestLogger(req);
+    const meta = {
+      method: req.method,
+      url: req.originalUrl || req.url,
+      status,
+      duration_ms: duration,
+    };
 
-    if (level === "error") {
-      console.error(message);
-    } else if (level === "warn") {
-      console.warn(message);
+    if (status >= 500) {
+      log.error(meta, "request error");
+    } else if (status >= 400) {
+      log.warn(meta, "request warning");
     } else {
-      console.log(message);
+      log.info(meta, "request completed");
     }
   });
 
@@ -57,7 +79,10 @@ export function rateLimiter(
 
   rateLimitStore.set(ip, { count, resetTime });
   res.setHeader("X-RateLimit-Limit", String(RATE_LIMIT_MAX));
-  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, RATE_LIMIT_MAX - count)));
+  res.setHeader(
+    "X-RateLimit-Remaining",
+    String(Math.max(0, RATE_LIMIT_MAX - count)),
+  );
   res.setHeader("X-RateLimit-Reset", String(Math.ceil(resetTime / 1000)));
   next();
 }

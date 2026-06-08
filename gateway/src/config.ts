@@ -1,26 +1,79 @@
+import { z } from "zod";
 import type { GatewayConfig } from "./types";
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-export const config: GatewayConfig = {
-  port: Number(process.env.PORT || 8080),
-  localBaseUrl: stripTrailingSlash(
-    process.env.LOCAL_FIRECRAWL_URL || "http://api:3002",
+const GatewayConfigSchema = z.object({
+  port: z.coerce.number().int().positive().default(8080),
+  localBaseUrl: z
+    .string()
+    .min(1)
+    .default("http://api:3002")
+    .transform(stripTrailingSlash),
+  cloudBaseUrl: z
+    .string()
+    .min(1)
+    .default("https://api.firecrawl.dev")
+    .transform(stripTrailingSlash),
+  cloudApiKey: z.string().default(""),
+  defaultRouteMode: z
+    .enum(["local-first", "local-only", "cloud-first"])
+    .default("local-first"),
+  requestTimeoutMs: z.coerce.number().int().positive().default(120_000),
+  logFile: z
+    .string()
+    .min(1)
+    .default("/data/hybrid-firecrawl-requests.jsonl"),
+  maxBodyBytes: z.coerce.number().int().positive().default(5_242_880),
+  authEnabled: z.preprocess(
+    (val) =>
+      val === undefined ? true : String(val).toLowerCase() !== "false",
+    z.boolean(),
   ),
-  cloudBaseUrl: stripTrailingSlash(
-    process.env.FIRECRAWL_CLOUD_URL || "https://api.firecrawl.dev",
-  ),
-  cloudApiKey: process.env.FIRECRAWL_API_KEY || "",
-  defaultRouteMode: process.env.DEFAULT_ROUTE_MODE || "local-first",
-  requestTimeoutMs: Number(process.env.GATEWAY_REQUEST_TIMEOUT_MS || 120000),
-  logFile:
-    process.env.GATEWAY_LOG_FILE || "/data/hybrid-firecrawl-requests.jsonl",
-  maxBodyBytes: Number(process.env.GATEWAY_MAX_BODY_BYTES || 5242880),
-  authEnabled: process.env.AUTH_ENABLED !== "false",
-  databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@nuq-postgres:5432/postgres",
-  sessionSecret: process.env.SESSION_SECRET || "",
-  adminEmail: process.env.ADMIN_EMAIL || "",
-  adminPassword: process.env.ADMIN_PASSWORD || "",
-};
+  databaseUrl: z.string().min(1, "DATABASE_URL is required"),
+  sessionSecret: z.string().default(""),
+  adminEmail: z.string().default(""),
+  adminPassword: z.string().default(""),
+});
+
+function loadConfig(): GatewayConfig {
+  try {
+    const parsed = GatewayConfigSchema.parse({
+      port: process.env.PORT,
+      localBaseUrl: process.env.LOCAL_FIRECRAWL_URL,
+      cloudBaseUrl: process.env.FIRECRAWL_CLOUD_URL,
+      cloudApiKey: process.env.FIRECRAWL_API_KEY,
+      defaultRouteMode: process.env.DEFAULT_ROUTE_MODE,
+      requestTimeoutMs: process.env.GATEWAY_REQUEST_TIMEOUT_MS,
+      logFile: process.env.GATEWAY_LOG_FILE,
+      maxBodyBytes: process.env.GATEWAY_MAX_BODY_BYTES,
+      authEnabled: process.env.AUTH_ENABLED,
+      databaseUrl: process.env.DATABASE_URL,
+      sessionSecret: process.env.SESSION_SECRET,
+      adminEmail: process.env.ADMIN_EMAIL,
+      adminPassword: process.env.ADMIN_PASSWORD,
+    });
+
+    if (!parsed.sessionSecret && process.env.NODE_ENV === "production") {
+      console.warn(
+        "Warning: SESSION_SECRET is empty in production. Sessions may be insecure.",
+      );
+    }
+
+    return parsed;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const issues = error.issues
+        .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+        .join("\n");
+      console.error(`Configuration error:\n${issues}`);
+    } else {
+      console.error("Configuration error:", error);
+    }
+    process.exit(1);
+  }
+}
+
+export const config: GatewayConfig = loadConfig();

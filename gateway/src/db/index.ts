@@ -1,6 +1,7 @@
 import { Pool, type PoolClient } from "pg";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { rootLogger } from "../logger";
 
 let pool: Pool | null = null;
 
@@ -20,11 +21,26 @@ export async function initDatabase(databaseUrl: string): Promise<Pool> {
   });
 
   pool.on("error", (err) => {
-    console.error("Unexpected database pool error:", err);
+    rootLogger.error({ err }, "Unexpected database pool error");
   });
 
   await runMigrations();
   return pool;
+}
+
+export async function pingDatabase(): Promise<boolean> {
+  try {
+    const client = await getPool().connect();
+    try {
+      await client.query("SELECT 1");
+      return true;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    rootLogger.warn({ err }, "Database ping failed");
+    return false;
+  }
 }
 
 export async function withClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {

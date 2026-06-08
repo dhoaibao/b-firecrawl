@@ -1,6 +1,7 @@
 import type { AuditEntry } from "./types";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { rootLogger } from "./logger";
 
 export type DeleteFilter = "today" | "week" | "month" | "all";
 
@@ -12,8 +13,12 @@ export interface AuditStore {
 
 export function createAuditStore(logFile: string): AuditStore {
   async function appendAudit(entry: AuditEntry): Promise<void> {
-    await fs.mkdir(path.dirname(logFile), { recursive: true });
-    await fs.appendFile(logFile, JSON.stringify(entry) + "\n", "utf8");
+    try {
+      await fs.mkdir(path.dirname(logFile), { recursive: true });
+      await fs.appendFile(logFile, JSON.stringify(entry) + "\n", "utf8");
+    } catch (err) {
+      rootLogger.error({ err, entry }, "Failed to write audit entry");
+    }
   }
 
   async function readAuditEntries(limit = 250): Promise<AuditEntry[]> {

@@ -76,6 +76,12 @@ services:
         condition: service_started
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - gateway-data:/data
     networks:
