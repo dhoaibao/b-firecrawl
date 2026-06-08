@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface PaginationProps {
   currentPage: number;
@@ -23,6 +24,20 @@ export default function Pagination({
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   const pageSizeOptions = [10, 25, 50];
+
+  const maxVisiblePages = 5;
+  let visiblePages: (number | string)[] = [];
+  if (totalPages <= maxVisiblePages) {
+    visiblePages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  } else {
+    if (currentPage <= 3) {
+      visiblePages = [1, 2, 3, 4, '...', totalPages];
+    } else if (currentPage >= totalPages - 2) {
+      visiblePages = [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    } else {
+      visiblePages = [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+    }
+  }
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-white/[0.06] bg-surface-2">
@@ -67,11 +82,24 @@ export default function Pagination({
             <ChevronLeft className="size-4" />
           </button>
 
-          <span className="mx-1 min-w-[4rem] text-center text-sm text-muted-foreground">
-            Page <span className="font-medium text-foreground">{currentPage}</span>
-            {" "}of{" "}
-            <span className="font-medium text-foreground">{totalPages}</span>
-          </span>
+          {visiblePages.map((page, idx) =>
+            page === '...' ? (
+              <span key={`ellipsis-${idx}`} className="px-1 text-xs text-muted-foreground">...</span>
+            ) : (
+              <button
+                key={page}
+                onClick={() => onPageChange(page as number)}
+                className={cn(
+                  "inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border text-xs font-medium transition-all",
+                  currentPage === page
+                    ? "border-transparent bg-foreground text-background shadow-[var(--shadow-card)]"
+                    : "border-white/[0.08] bg-surface-3 text-muted-foreground hover:bg-surface-4 hover:text-foreground",
+                )}
+              >
+                {page}
+              </button>
+            )
+          )}
 
           <button
             onClick={() => onPageChange(currentPage + 1)}

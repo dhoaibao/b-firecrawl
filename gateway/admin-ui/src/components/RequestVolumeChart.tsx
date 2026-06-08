@@ -19,7 +19,7 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
   )
 
   return (
-    <div className="relative h-36 overflow-hidden rounded-sm border border-white/5 bg-surface-2 px-4 py-3">
+    <div className="relative h-36 overflow-hidden rounded-lg border border-white/5 bg-surface-2 px-4 py-3">
       <div className="absolute inset-x-4 top-1/2 border-t border-dashed border-white/10" />
       <div className="absolute inset-x-4 bottom-8 border-t border-dashed border-white/10" />
 
@@ -40,7 +40,7 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
       )}
 
       <div className="relative flex h-full items-end gap-1">
-        {buckets.map((bucket) => {
+        {buckets.map((bucket, i) => {
           const successHeight = Math.max(
             bucket.success ? 10 : 0,
             (bucket.success / maxBucketValue) * 100,
@@ -49,6 +49,7 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
             bucket.error ? 10 : 0,
             (bucket.error / maxBucketValue) * 100,
           )
+          const delay = i * 20
 
           return (
             <div
@@ -60,14 +61,14 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
               <div className="flex h-full w-full max-w-6 flex-col justify-end gap-0.5 transition-opacity duration-150 hover:opacity-80">
                 {bucket.error > 0 ? (
                   <div
-                    className="rounded-t-sm bg-danger/80 transition-all duration-300"
-                    style={{ height: `${errorHeight}%` }}
+                    className="rounded-t-md bg-gradient-to-t from-danger/50 to-danger transition-all duration-300 animate-slide-up"
+                    style={{ height: `${errorHeight}%`, animationDelay: `${delay}ms` }}
                   />
                 ) : null}
                 {bucket.success > 0 ? (
                   <div
-                    className="rounded-t-sm bg-success/80 transition-all duration-300"
-                    style={{ height: `${successHeight}%` }}
+                    className="rounded-t-md bg-gradient-to-t from-success/50 to-success transition-all duration-300 animate-slide-up"
+                    style={{ height: `${successHeight}%`, animationDelay: `${delay}ms` }}
                   />
                 ) : (
                   <div className="h-1 rounded-full bg-white/5" />

@@ -35,16 +35,16 @@ export function LatencyDistributionChart({ entries }: LatencyDistributionChartPr
   const total = Object.values(buckets).reduce((sum, c) => sum + c, 0) || 1
 
   const barMeta = [
-    { key: "<50ms", label: "<50ms", color: "bg-success", text: "text-success-fg" },
-    { key: "50-100ms", label: "50-100", color: "bg-info", text: "text-info-fg" },
-    { key: "100-500ms", label: "100-500", color: "bg-warning", text: "text-warning-fg" },
-    { key: "500ms-1s", label: "500ms-1s", color: "bg-warning/70", text: "text-warning-fg/70" },
-    { key: "1s-3s", label: "1s-3s", color: "bg-danger/70", text: "text-danger-fg/70" },
-    { key: ">3s", label: ">3s", color: "bg-danger", text: "text-danger-fg" },
+    { key: "<50ms", label: "<50ms", gradient: "bg-gradient-to-r from-success/40 to-success", text: "text-success-fg" },
+    { key: "50-100ms", label: "50-100", gradient: "bg-gradient-to-r from-info/40 to-info", text: "text-info-fg" },
+    { key: "100-500ms", label: "100-500", gradient: "bg-gradient-to-r from-warning/40 to-warning", text: "text-warning-fg" },
+    { key: "500ms-1s", label: "500ms-1s", gradient: "bg-gradient-to-r from-warning/30 to-warning/70", text: "text-warning-fg/70" },
+    { key: "1s-3s", label: "1s-3s", gradient: "bg-gradient-to-r from-danger/30 to-danger/70", text: "text-danger-fg/70" },
+    { key: ">3s", label: ">3s", gradient: "bg-gradient-to-r from-danger/40 to-danger", text: "text-danger-fg" },
   ] as const
 
   return (
-    <div className="relative h-36 overflow-hidden rounded-sm border border-white/5 bg-surface-2 px-4 py-3">
+    <div className="relative h-36 overflow-hidden rounded-lg border border-white/5 bg-surface-2 px-4 py-3">
       {total <= 0 ? (
         <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
           No data
@@ -67,9 +67,9 @@ export function LatencyDistributionChart({ entries }: LatencyDistributionChartPr
                 <span className="w-20 shrink-0 text-[10px] text-muted-foreground">
                   {bar.label}
                 </span>
-                <div className="relative h-4 flex-1 rounded-sm bg-white/[0.04]">
+                <div className="relative h-4 flex-1 rounded-md bg-white/[0.04]">
                   <div
-                    className={`h-full rounded-sm ${bar.color} transition-all duration-300 ${isHovered ? "opacity-100" : "opacity-80"}`}
+                    className={`h-full rounded-md ${bar.gradient} transition-all duration-300 ${isHovered ? "opacity-100" : "opacity-85"}`}
                     style={{ width: `${width}%` }}
                   />
                 </div>

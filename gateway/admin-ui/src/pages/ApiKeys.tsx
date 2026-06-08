@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, Key, AlertCircle, Copy, Check, RefreshCw, Search } from "lucide-react";
+import { Plus, Trash2, Key, AlertCircle, Copy, Check, RefreshCw, Search, KeyRound } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import Pagination from "@/components/Pagination";
+import PageSkeleton from "@/components/PageSkeleton";
+import EmptyState from "@/components/EmptyState";
 
 interface ApiKeyData {
   id: string;
@@ -130,22 +132,12 @@ export default function ApiKeys() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading API keys...</div>
-      </div>
-    );
+    return <PageSkeleton columns={6} rows={6} />;
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1680px] px-4 py-4 lg:px-6">
-        <div className="mb-6 flex items-center gap-4">
-          <a href="/admin" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" /> Back
-          </a>
-        </div>
-
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Key className="size-5 text-muted-foreground" />
@@ -186,7 +178,7 @@ export default function ApiKeys() {
               placeholder="Search by name or prefix..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
             />
           </div>
           <select
@@ -239,7 +231,7 @@ export default function ApiKeys() {
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               required
-              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
             />
             <div className="flex gap-2">
               <button
@@ -275,7 +267,8 @@ export default function ApiKeys() {
               </thead>
               <tbody>
                 {paginatedKeys.map((k) => (
-                  <tr key={k.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={k.id} className="group relative border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]">
+                    <td className="absolute left-0 top-0 bottom-0 w-[2px] bg-foreground/20 opacity-0 transition-opacity group-hover:opacity-100" />
                     <td className="px-4 py-3">{k.name}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{k.key_prefix}...</td>
                     <td className="px-4 py-3">
@@ -305,8 +298,13 @@ export default function ApiKeys() {
                 ))}
                 {paginatedKeys.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      {keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
+                    <td colSpan={6}>
+                      <EmptyState
+                        icon={KeyRound}
+                        title={keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
+                        description={keys.length === 0 ? "Create your first API key to start using the gateway." : "Try adjusting your search or filter criteria."}
+                        action={keys.length === 0 ? { label: "Create key", onClick: () => setShowForm(true) } : undefined}
+                      />
                     </td>
                   </tr>
                 )}

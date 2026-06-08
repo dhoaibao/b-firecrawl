@@ -9,8 +9,6 @@ import {
   Clock,
   Cloud,
   Database,
-  Key,
-  LogOut,
   Radio,
   RefreshCw,
   Search,
@@ -46,7 +44,6 @@ import { StatusCodeChart } from "@/components/StatusCodeChart"
 import { TopEndpointsChart } from "@/components/TopEndpointsChart"
 import { LatencyDistributionChart } from "@/components/LatencyDistributionChart"
 import { LogTableRow } from "@/components/LogTableRow"
-import { useAuth } from "@/contexts/AuthContext"
 
 export interface AuditEntry {
   id: string
@@ -348,7 +345,6 @@ export default function Dashboard() {
   }, [])
 
   const { toasts, addToast, removeToast } = useToast()
-  const { user, logout } = useAuth()
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
@@ -671,28 +667,6 @@ export default function Dashboard() {
 
             {/* Right: Actions */}
             <div className="flex flex-wrap items-center gap-2">
-              {user?.is_admin && (
-                <>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
-                  >
-                    <a href="/admin/users">
-                      <User className="size-4 mr-1" /> Users
-                    </a>
-                  </Button>
-                </>
-              )}
-              <Button
-                asChild
-                variant="outline"
-                className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
-              >
-                <a href="/admin/api-keys">
-                  <Key className="size-4 mr-1" /> Keys
-                </a>
-              </Button>
               <Button
                 asChild
                 variant="outline"
@@ -704,13 +678,6 @@ export default function Dashboard() {
                   </svg>
                   GitHub
                 </a>
-              </Button>
-              <Button
-                variant="outline"
-                className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
-                onClick={() => logout()}
-              >
-                <LogOut className="size-4 mr-1" /> Logout
               </Button>
             </div>
           </div>

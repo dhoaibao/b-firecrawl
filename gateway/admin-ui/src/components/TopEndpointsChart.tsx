@@ -22,7 +22,7 @@ export function TopEndpointsChart({ entries }: TopEndpointsChartProps) {
   const maxCount = Math.max(1, ...topPaths.map(([, count]) => count))
 
   return (
-    <div className="relative h-36 overflow-hidden rounded-sm border border-white/5 bg-surface-2 px-4 py-3">
+    <div className="relative h-36 overflow-hidden rounded-lg border border-white/5 bg-surface-2 px-4 py-3">
       {topPaths.length === 0 ? (
         <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
           No data
@@ -43,9 +43,9 @@ export function TopEndpointsChart({ entries }: TopEndpointsChartProps) {
                 <span className="w-32 shrink-0 truncate text-[10px] text-muted-foreground font-mono">
                   {path || "/"}
                 </span>
-                <div className="relative h-4 flex-1 rounded-sm bg-white/[0.04]">
+                <div className="relative h-4 flex-1 rounded-md bg-white/[0.04]">
                   <div
-                    className={`h-full rounded-sm bg-info transition-all duration-300 ${isHovered ? "opacity-100" : "opacity-80"}`}
+                    className={`h-full rounded-md bg-gradient-to-r from-info/40 to-info transition-all duration-300 ${isHovered ? "opacity-100" : "opacity-85"}`}
                     style={{ width: `${width}%` }}
                   />
                 </div>

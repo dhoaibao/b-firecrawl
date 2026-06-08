@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw, Search } from "lucide-react";
+import { Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw, Search, Users as UsersIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import Pagination from "@/components/Pagination";
+import PageSkeleton from "@/components/PageSkeleton";
+import EmptyState from "@/components/EmptyState";
 
 interface UserData {
   id: string;
@@ -215,22 +217,12 @@ export default function Users() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading users...</div>
-      </div>
-    );
+    return <PageSkeleton columns={6} rows={6} />;
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1680px] px-4 py-4 lg:px-6">
-        <div className="mb-6 flex items-center gap-4">
-          <a href="/admin" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" /> Back
-          </a>
-        </div>
-
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <User className="size-5 text-muted-foreground" />
@@ -271,13 +263,13 @@ export default function Users() {
               placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "suspended" | "blocked")}
-            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
+            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
           >
             <option value="all">All statuses</option>
             <option value="active">Active</option>
@@ -287,7 +279,7 @@ export default function Users() {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as "all" | "admin" | "user")}
-            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
+            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
           >
             <option value="all">All roles</option>
             <option value="admin">Admin</option>
@@ -311,7 +303,7 @@ export default function Users() {
                 value={newUser.name}
                 onChange={(e) => setNewUser((u) => ({ ...u, name: e.target.value }))}
                 required
-                className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
               />
               <input
                 type="email"
@@ -319,7 +311,7 @@ export default function Users() {
                 value={newUser.email}
                 onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
                 required
-                className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
               />
               <input
                 type="password"
@@ -327,7 +319,7 @@ export default function Users() {
                 value={newUser.password}
                 onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))}
                 required
-                className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
               />
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -373,7 +365,9 @@ export default function Users() {
               </thead>
               <tbody>
                 {paginatedUsers.map((u) => (
-                  <tr key={u.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={u.id} className="group relative border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
+                  >
+                    <td className="absolute left-0 top-0 bottom-0 w-[2px] bg-foreground/20 opacity-0 transition-opacity group-hover:opacity-100" />
                     <td className="px-4 py-3">{u.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
                     <td className="px-4 py-3">
@@ -425,8 +419,13 @@ export default function Users() {
                 ))}
                 {paginatedUsers.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      {users.length === 0 ? "No users found" : "No users match your filters"}
+                    <td colSpan={6}>
+                      <EmptyState
+                        icon={UsersIcon}
+                        title={users.length === 0 ? "No users found" : "No users match your filters"}
+                        description={users.length === 0 ? "Get started by adding your first user." : "Try adjusting your search or filter criteria."}
+                        action={users.length === 0 ? { label: "Add user", onClick: () => setShowForm(true) } : undefined}
+                      />
                     </td>
                   </tr>
                 )}
