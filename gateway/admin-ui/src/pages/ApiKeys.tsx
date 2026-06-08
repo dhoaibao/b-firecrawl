@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Plus, Trash2, Key, AlertCircle, Copy, Check, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
 
 interface ApiKeyData {
   id: string;
@@ -43,6 +44,17 @@ export default function ApiKeys() {
       (statusFilter === "active" ? !k.revoked : k.revoked);
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const totalPages = Math.max(1, Math.ceil(filteredKeys.length / pageSize));
+  const paginatedKeys = filteredKeys.slice((page - 1) * pageSize, page * pageSize);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter]);
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -262,7 +274,7 @@ export default function ApiKeys() {
                 </tr>
               </thead>
               <tbody>
-                {filteredKeys.map((k) => (
+                {paginatedKeys.map((k) => (
                   <tr key={k.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                     <td className="px-4 py-3">{k.name}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{k.key_prefix}...</td>
@@ -291,7 +303,7 @@ export default function ApiKeys() {
                     </td>
                   </tr>
                 ))}
-                {filteredKeys.length === 0 && (
+                {paginatedKeys.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                       {keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
@@ -301,6 +313,14 @@ export default function ApiKeys() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filteredKeys.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       </div>
       {confirmDialog}

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
 
 interface UserData {
   id: string;
@@ -48,6 +49,17 @@ export default function Users() {
     const matchesRole = roleFilter === "all" || (roleFilter === "admin" ? u.is_admin : !u.is_admin);
     return matchesSearch && matchesStatus && matchesRole;
   });
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter, roleFilter]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -360,7 +372,7 @@ export default function Users() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => (
+                {paginatedUsers.map((u) => (
                   <tr key={u.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                     <td className="px-4 py-3">{u.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
@@ -411,7 +423,7 @@ export default function Users() {
                     </td>
                   </tr>
                 ))}
-                {filteredUsers.length === 0 && (
+                {paginatedUsers.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                       {users.length === 0 ? "No users found" : "No users match your filters"}
@@ -421,6 +433,14 @@ export default function Users() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={filteredUsers.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       </div>
 
