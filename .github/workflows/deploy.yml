@@ -82,6 +82,7 @@ jobs:
           SESSION_SECRET=${{ secrets.SESSION_SECRET }}
           BULL_AUTH_KEY=${{ secrets.BULL_AUTH_KEY }}
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          DATABASE_URL=postgresql://postgres:${{ secrets.POSTGRES_PASSWORD }}@nuq-postgres:5432/postgres
           FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
           ENDFILE
 
