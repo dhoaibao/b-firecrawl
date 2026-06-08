@@ -10,7 +10,7 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, detail, icon: Icon }: MetricCardProps) {
   return (
-    <Card className="gap-2 rounded-lg border-white/[0.06] bg-surface-2 py-5 shadow-none transition-all duration-200 hover:bg-surface-3 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 hover:border-white/[0.10]">
+    <Card className="gap-2 rounded-lg border-white/[0.06] bg-surface-2 py-5 shadow-none hover:bg-surface-3 hover:shadow-[var(--shadow-card-hover)] hover:border-white/[0.10]">
       <CardHeader className="flex flex-row items-center justify-between gap-3 px-5 pb-0">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {label}
