@@ -58,6 +58,11 @@ jobs:
         run: |
           ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Create deploy directory
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} -p ${{ secrets.SSH_PORT }} \
+            "mkdir -p ${{ vars.DEPLOY_PATH }}"
+
       - name: Copy compose file to server
         run: |
           scp -P ${{ secrets.SSH_PORT }} docker-compose.prebuilt.yaml \
@@ -67,7 +72,6 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} -p ${{ secrets.SSH_PORT }} << 'EOF'
           set -e
-          mkdir -p ${{ vars.DEPLOY_PATH }}
           cd ${{ vars.DEPLOY_PATH }}
 
           # Update .env file with secrets
