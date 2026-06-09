@@ -87,6 +87,9 @@ jobs:
           PROXY_SERVER=${{ secrets.PROXY_SERVER }}
           PROXY_USERNAME=${{ secrets.PROXY_USERNAME }}
           PROXY_PASSWORD=${{ secrets.PROXY_PASSWORD }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
+          MODEL_NAME=${{ secrets.MODEL_NAME }}
           ENDFILE
 
           docker compose -f docker-compose.prebuilt.yaml pull
