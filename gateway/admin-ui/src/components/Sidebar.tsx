@@ -45,7 +45,7 @@ export default function Sidebar() {
           <Shield className="size-4 text-foreground" />
         </div>
         <span className="text-sm font-semibold text-foreground">
-          Firecrawl
+          Firecrawl Gateway
         </span>
       </div>
 
