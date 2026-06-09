@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Activity,
-  AlertCircle,
   BarChart3,
   CalendarDays,
   ChevronLeft,
@@ -44,6 +43,8 @@ import { StatusCodeChart } from "@/components/StatusCodeChart"
 import { TopEndpointsChart } from "@/components/TopEndpointsChart"
 import { LatencyDistributionChart } from "@/components/LatencyDistributionChart"
 import { LogTableRow } from "@/components/LogTableRow"
+import { useToast } from "@/hooks/useToast"
+import { ToastStack } from "@/components/ToastStack"
 
 export interface AuditEntry {
   id: string
@@ -128,32 +129,6 @@ function buildRequestBuckets(entries: AuditEntry[]) {
   return buckets
 }
 
-/* ------------------------------------------------------------------ */
-/*  Simple toast system                                                */
-/* ------------------------------------------------------------------ */
-interface Toast {
-  id: number
-  message: string
-  type: "error" | "success"
-}
-
-function useToast() {
-  const [toasts, setToasts] = useState<Toast[]>([])
-
-  const addToast = useCallback((message: string, type: Toast["type"] = "error") => {
-    const id = Date.now() + Math.random()
-    setToasts((prev) => [...prev, { id, message, type }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4000)
-  }, [])
-
-  const removeToast = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }, [])
-
-  return { toasts, addToast, removeToast }
-}
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton loaders                                                   */
@@ -243,6 +218,8 @@ export default function Dashboard() {
     "today" | "week" | "month" | "all"
   >("today")
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
 
   const activeFilters = useMemo(() => {
     const filters: Array<{
@@ -1156,20 +1133,24 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-2">
                     <span>Rows</span>
-                    <select
-                      value={pageSize}
-                      onChange={(event) => {
-                        setPageSize(Number(event.target.value))
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => {
+                        setPageSize(Number(v))
                         setCurrentPage(1)
                       }}
-                      className="h-8 rounded-md border border-white/[0.08] bg-surface-3 px-2 text-sm font-medium text-foreground shadow-none outline-none transition-colors hover:bg-surface-4 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30"
                     >
-                      {pageSizeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="h-8 w-[4.5rem] bg-surface-3 text-sm font-medium">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pageSizeOptions.map((option) => (
+                          <SelectItem key={option} value={String(option)}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </label>
 
                   <div className="flex items-center gap-2">
@@ -1305,29 +1286,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Toast stack */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={cn(
-              "flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg animate-slide-up backdrop-blur",
-              toast.type === "error"
-                ? "border-danger-muted bg-danger-muted/90 text-danger-fg"
-                : "border-success-muted bg-success-muted/90 text-success-fg",
-            )}
-          >
-            <AlertCircle className="size-4 shrink-0" />
-            <span className="text-sm">{toast.message}</span>
-            <button
-              onClick={() => removeToast(toast.id)}
-              className="ml-2 text-xs opacity-70 hover:opacity-100"
-            >
-              Dismiss
-            </button>
-          </div>
-        ))}
-      </div>
+      <ToastStack toasts={toasts} onRemove={removeToast} />
     </main>
   )
 }

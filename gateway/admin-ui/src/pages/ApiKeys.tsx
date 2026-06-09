@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Key, AlertCircle, Copy, Check, RefreshCw, Search, KeyRound } from "lucide-react";
+import { Plus, Trash2, Key, Copy, Check, RefreshCw, Search, KeyRound } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/useToast";
+import { ToastStack } from "@/components/ToastStack";
 import Pagination from "@/components/Pagination";
 import PageSkeleton from "@/components/PageSkeleton";
 import EmptyState from "@/components/EmptyState";
@@ -21,7 +24,7 @@ interface ApiKeyData {
 export default function ApiKeys() {
   const [keys, setKeys] = useState<ApiKeyData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { toasts, addToast, removeToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const { user } = useAuth();
   const { confirm: confirmRevoke, dialog: confirmDialog } = useConfirmDialog();
@@ -47,6 +50,8 @@ export default function ApiKeys() {
     return matchesSearch && matchesStatus;
   });
 
+  useEffect(() => { document.title = "API Keys — Firecrawl Gateway" }, [])
+
   // Pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -65,7 +70,7 @@ export default function ApiKeys() {
       const json = await res.json();
       setKeys(json.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error loading API keys");
+      addToast(err instanceof Error ? err.message : "Error loading API keys", "error");
     } finally {
       setLoading(false);
     }
@@ -96,7 +101,7 @@ export default function ApiKeys() {
       setShowForm(false);
       await fetchKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create API key");
+      addToast(err instanceof Error ? err.message : "Failed to create API key", "error");
     } finally {
       setCreating(false);
     }
@@ -109,9 +114,10 @@ export default function ApiKeys() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to revoke API key");
+      addToast("API key revoked", "success");
       await fetchKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revoke API key");
+      addToast(err instanceof Error ? err.message : "Failed to revoke API key", "error");
     }
   }
 
@@ -163,12 +169,6 @@ export default function ApiKeys() {
           </div>
         </div>
 
-        {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-danger-muted bg-danger-muted/50 px-3 py-2 text-sm text-danger-fg">
-            <AlertCircle className="size-4" /> {error}
-          </div>
-        )}
-
         {/* Search & Filter Bar */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
@@ -181,15 +181,16 @@ export default function ApiKeys() {
               className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
             />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "revoked")}
-            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="revoked">Revoked</option>
-          </select>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "revoked")}>
+            <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="revoked">Revoked</SelectItem>
+            </SelectContent>
+          </Select>
           {(searchQuery || statusFilter !== "all") && (
             <button
               onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
@@ -322,6 +323,7 @@ export default function ApiKeys() {
         </div>
       </div>
       {confirmDialog}
+      <ToastStack toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

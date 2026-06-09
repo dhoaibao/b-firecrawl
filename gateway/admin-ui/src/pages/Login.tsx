@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,8 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [shake, setShake] = useState(false);
   const { login } = useAuth();
+
+  useEffect(() => { document.title = "Sign in — Firecrawl Gateway" }, [])
   const navigate = useNavigate();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,7 +43,7 @@ export default function Login() {
 
       {/* Glassmorphism card */}
       <div
-        className={`relative w-full max-w-sm animate-slide-up ${shake ? "animate-[shake_0.5s_ease-in-out]" : ""}`}
+        className={`relative w-full max-w-sm animate-slide-up ${shake ? "animate-shake" : ""}`}
       >
         {/* Gradient border glow */}
         <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent opacity-60 blur-sm"></div>
@@ -118,16 +120,7 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Shake keyframe */}
-      <style>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-6px); }
-          40% { transform: translateX(6px); }
-          60% { transform: translateX(-4px); }
-          80% { transform: translateX(4px); }
-        }
-      `}</style>
+
     </div>
   );
 }

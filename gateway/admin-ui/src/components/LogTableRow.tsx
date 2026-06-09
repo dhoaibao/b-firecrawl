@@ -163,10 +163,8 @@ export const LogTableRow = React.memo(function LogTableRow({
       <TableCell className="text-xs text-muted-foreground">
         {user ? (
           <span className="text-foreground">{user.name || user.email}</span>
-        ) : entry.user_id ? (
-          <span className="text-muted-foreground">{entry.user_id.slice(0, 8)}…</span>
         ) : (
-          <span className="text-muted-foreground">-</span>
+          <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
       <TableCell className="max-w-[320px] whitespace-normal break-all pr-5 font-mono text-xs font-medium">

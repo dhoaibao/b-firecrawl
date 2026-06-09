@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, User, AlertCircle, ShieldOff, ShieldCheck, Clock, RefreshCw, Search, Users as UsersIcon } from "lucide-react";
+import { Plus, Trash2, User, ShieldOff, ShieldCheck, Clock, RefreshCw, Search, Users as UsersIcon, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/useToast";
+import { ToastStack } from "@/components/ToastStack";
 import Pagination from "@/components/Pagination";
 import PageSkeleton from "@/components/PageSkeleton";
 import EmptyState from "@/components/EmptyState";
@@ -22,7 +25,7 @@ type SuspendUnit = "hours" | "days" | "weeks";
 export default function Users() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { toasts, addToast, removeToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const { user: currentUser } = useAuth();
   const { confirm: confirmDelete, dialog: confirmDialog } = useConfirmDialog();
@@ -36,6 +39,7 @@ export default function Users() {
   const [suspendUnit, setSuspendUnit] = useState<SuspendUnit>("days");
   const [suspending, setSuspending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activatingId, setActivatingId] = useState<string | null>(null);
 
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -51,6 +55,8 @@ export default function Users() {
     const matchesRole = roleFilter === "all" || (roleFilter === "admin" ? u.is_admin : !u.is_admin);
     return matchesSearch && matchesStatus && matchesRole;
   });
+
+  useEffect(() => { document.title = "Users — Firecrawl Gateway" }, [])
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -70,7 +76,7 @@ export default function Users() {
       const json = await res.json();
       setUsers(json.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error loading users");
+      addToast(err instanceof Error ? err.message : "Error loading users", "error");
     } finally {
       setLoading(false);
     }
@@ -96,9 +102,10 @@ export default function Users() {
       }
       setNewUser({ email: "", name: "", password: "", is_admin: false });
       setShowForm(false);
+      addToast("User created successfully", "success");
       await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create user");
+      addToast(err instanceof Error ? err.message : "Failed to create user", "error");
     } finally {
       setCreating(false);
     }
@@ -111,9 +118,10 @@ export default function Users() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to delete user");
+      addToast("User deleted", "success");
       await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete user");
+      addToast(err instanceof Error ? err.message : "Failed to delete user", "error");
     }
   }
 
@@ -141,9 +149,10 @@ export default function Users() {
         throw new Error(json.error);
       }
       setSuspendTarget(null);
+      addToast("User suspended", "success");
       await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to suspend user");
+      addToast(err instanceof Error ? err.message : "Failed to suspend user", "error");
     } finally {
       setSuspending(false);
     }
@@ -168,24 +177,29 @@ export default function Users() {
             credentials: "include",
           });
           if (!res.ok) throw new Error("Failed to block user");
+          addToast("User blocked", "success");
           await fetchUsers();
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Failed to block user");
+          addToast(err instanceof Error ? err.message : "Failed to block user", "error");
         }
       },
     });
   }
 
   async function handleActivate(id: string) {
+    setActivatingId(id);
     try {
       const res = await fetch(`/admin/api/users/${id}/activate`, {
         method: "POST",
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to activate user");
+      addToast("User activated", "success");
       await fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to activate user");
+      addToast(err instanceof Error ? err.message : "Failed to activate user", "error");
+    } finally {
+      setActivatingId(null);
     }
   }
 
@@ -248,12 +262,6 @@ export default function Users() {
           </div>
         </div>
 
-        {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-danger-muted bg-danger-muted/50 px-3 py-2 text-sm text-danger-fg">
-            <AlertCircle className="size-4" /> {error}
-          </div>
-        )}
-
         {/* Search & Filter Bar */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
@@ -266,25 +274,27 @@ export default function Users() {
               className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
             />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "suspended" | "blocked")}
-            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-            <option value="blocked">Blocked</option>
-          </select>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as "all" | "admin" | "user")}
-            className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-          >
-            <option value="all">All roles</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
-          </select>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "suspended" | "blocked")}>
+            <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="blocked">Blocked</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as "all" | "admin" | "user")}>
+            <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All roles</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="user">User</SelectItem>
+            </SelectContent>
+          </Select>
           {(searchQuery || statusFilter !== "all" || roleFilter !== "all") && (
             <button
               onClick={() => { setSearchQuery(""); setStatusFilter("all"); setRoleFilter("all"); }}
@@ -400,9 +410,10 @@ export default function Users() {
                         {u.status !== "active" && (
                           <button
                             onClick={() => handleActivate(u.id)}
-                            className="inline-flex items-center gap-1 rounded-md border border-success-muted bg-success-muted/30 px-2 py-1 text-xs text-success-fg hover:bg-success-muted/50"
+                            disabled={activatingId === u.id}
+                            className="inline-flex items-center gap-1 rounded-md border border-success-muted bg-success-muted/30 px-2 py-1 text-xs text-success-fg hover:bg-success-muted/50 disabled:opacity-50"
                           >
-                            <ShieldCheck className="size-3" /> Activate
+                            {activatingId === u.id ? <Loader2 className="size-3 animate-spin" /> : <ShieldCheck className="size-3" />} Activate
                           </button>
                         )}
                         {currentUser?.id !== u.id && (
@@ -466,15 +477,16 @@ export default function Users() {
                     onChange={(e) => setSuspendDuration(Math.max(1, parseInt(e.target.value) || 1))}
                     className="h-9 w-20 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
                   />
-                  <select
-                    value={suspendUnit}
-                    onChange={(e) => setSuspendUnit(e.target.value as SuspendUnit)}
-                    className="h-9 flex-1 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
-                  >
-                    <option value="hours">Hour(s)</option>
-                    <option value="days">Day(s)</option>
-                    <option value="weeks">Week(s)</option>
-                  </select>
+                  <Select value={suspendUnit} onValueChange={(v) => setSuspendUnit(v as SuspendUnit)}>
+                    <SelectTrigger className="h-9 flex-1 bg-surface-3 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hours">Hour(s)</SelectItem>
+                      <SelectItem value="days">Day(s)</SelectItem>
+                      <SelectItem value="weeks">Week(s)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -499,6 +511,7 @@ export default function Users() {
 
       {confirmDialog}
       {blockDialog}
+      <ToastStack toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }
