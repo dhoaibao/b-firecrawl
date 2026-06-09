@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 
-import type { AuditEntry } from "@/pages/Dashboard"
+import type { AuditEntry } from "@/types"
 
 interface StatusCodeChartProps {
   entries: AuditEntry[]

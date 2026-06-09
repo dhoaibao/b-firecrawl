@@ -2,27 +2,7 @@ import React from "react"
 import { Badge } from "@/components/ui/badge"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
-
-interface AuditEntry {
-  id: string
-  created_at: string
-  method: string
-  path: string
-  route_mode: string
-  backend_used: string
-  fallback_used: boolean
-  fallback_reason: string
-  status_code: number
-  duration_ms: number
-  target_url: string
-  user_id?: string
-}
-
-interface UserData {
-  id: string
-  email: string
-  name: string
-}
+import type { AuditEntry, UserData } from "@/types"
 
 type BadgeVariant =
   | "default"

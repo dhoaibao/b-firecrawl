@@ -3,28 +3,21 @@ import { Plus, Trash2, Key, Copy, Check, RefreshCw, Search, KeyRound } from "luc
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
-import { ToastStack } from "@/components/ToastStack";
 import Pagination from "@/components/Pagination";
 import PageSkeleton from "@/components/PageSkeleton";
 import EmptyState from "@/components/EmptyState";
-
-interface ApiKeyData {
-  id: string;
-  user_id: string;
-  name: string;
-  key_prefix: string;
-  revoked: boolean;
-  created_at: string;
-  updated_at: string;
-  last_used_at: string | null;
-  key?: string; // shown only on creation
-}
+import DataTable from "@/components/DataTable";
+import PageLayout from "@/components/PageLayout";
+import { api } from "@/lib/api";
+import { formatDate } from "@/lib/date";
+import type { ApiKeyData } from "@/types";
 
 export default function ApiKeys() {
   const [keys, setKeys] = useState<ApiKeyData[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toasts, addToast, removeToast } = useToast();
+  const { addToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const { user } = useAuth();
   const { confirm: confirmRevoke, dialog: confirmDialog } = useConfirmDialog();
@@ -39,6 +32,12 @@ export default function ApiKeys() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "revoked">("all");
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => { document.title = "API Keys — Firecrawl Gateway" }, []);
+
   const filteredKeys = keys.filter((k) => {
     const matchesSearch =
       !searchQuery ||
@@ -50,11 +49,6 @@ export default function ApiKeys() {
     return matchesSearch && matchesStatus;
   });
 
-  useEffect(() => { document.title = "API Keys — Firecrawl Gateway" }, [])
-
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const totalPages = Math.max(1, Math.ceil(filteredKeys.length / pageSize));
   const paginatedKeys = filteredKeys.slice((page - 1) * pageSize, page * pageSize);
 
@@ -65,9 +59,7 @@ export default function ApiKeys() {
 
   const fetchKeys = useCallback(async () => {
     try {
-      const res = await fetch("/admin/api/api-keys", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch API keys");
-      const json = await res.json();
+      const json = await api.get<{ data: ApiKeyData[] }>("/admin/api/api-keys");
       setKeys(json.data || []);
     } catch (err) {
       addToast(err instanceof Error ? err.message : "Error loading API keys", "error");
@@ -85,17 +77,10 @@ export default function ApiKeys() {
     if (!user) return;
     setCreating(true);
     try {
-      const res = await fetch("/admin/api/api-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ user_id: user.id, name: newKeyName }),
+      const json = await api.post<{ data: ApiKeyData }>("/admin/api/api-keys", {
+        user_id: user.id,
+        name: newKeyName,
       });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({ error: "Failed to create API key" }));
-        throw new Error(json.error);
-      }
-      const json = await res.json();
       setCreatedKey(json.data);
       setNewKeyName("");
       setShowForm(false);
@@ -109,11 +94,7 @@ export default function ApiKeys() {
 
   async function doRevoke(id: string) {
     try {
-      const res = await fetch(`/admin/api/api-keys/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to revoke API key");
+      await api.delete(`/admin/api/api-keys/${id}`);
       addToast("API key revoked", "success");
       await fetchKeys();
     } catch (err) {
@@ -142,188 +123,159 @@ export default function ApiKeys() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-[1680px] px-4 py-4 lg:px-6">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Key className="size-5 text-muted-foreground" />
-            <h1 className="text-lg font-semibold">API Keys</h1>
-            <span className="text-sm text-muted-foreground">
-              ({filteredKeys.length} of {keys.length})
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setRefreshing(true); void fetchKeys().then(() => setRefreshing(false)); }}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-3 px-3 py-2 text-sm text-foreground hover:bg-surface-4 disabled:opacity-50"
-            >
-              <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
-            </button>
-            <button
-              onClick={() => { setShowForm(true); setCreatedKey(null); }}
-              className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:bg-foreground/90"
-            >
-              <Plus className="size-4" /> New key
-            </button>
-          </div>
-        </div>
-
-        {/* Search & Filter Bar */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search by name or prefix..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "revoked")}>
-            <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="revoked">Revoked</SelectItem>
-            </SelectContent>
-          </Select>
-          {(searchQuery || statusFilter !== "all") && (
-            <button
-              onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
-              className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-muted-foreground hover:text-foreground"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {createdKey && (
-          <div className="mb-6 rounded-lg border border-success-muted bg-success-muted/30 p-4 space-y-2">
-            <p className="text-sm font-medium text-success-fg">API key created. Copy it now — you won&apos;t see it again.</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm font-mono text-foreground">
-                {createdKey.key}
-              </code>
-              <button
-                onClick={() => createdKey.key && copyKey(createdKey.key)}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-surface-3 px-3 py-2 text-sm hover:bg-surface-4"
-              >
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <button
-              onClick={() => setCreatedKey(null)}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {showForm && (
-          <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-white/[0.06] bg-surface-2 p-4 space-y-3">
-            <input
-              placeholder="Key name (e.g., Production, Development)"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              required
-              className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-            />
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={creating}
-                className="h-9 rounded-lg bg-foreground px-3 text-sm font-medium text-background hover:bg-foreground/90 disabled:opacity-50"
-              >
-                {creating ? "Creating..." : "Create key"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="h-9 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground hover:bg-surface-4"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-
-        <div className="rounded-lg border border-white/[0.06] bg-surface-2 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/[0.06] bg-surface-3">
-                  <th className="px-4 py-3 text-left font-semibold">Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Prefix</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold">Created</th>
-                  <th className="px-4 py-3 text-left font-semibold">Last Used</th>
-                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedKeys.map((k) => (
-                  <tr key={k.id} className="group relative border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]">
-                    <td className="absolute left-0 top-0 bottom-0 w-[2px] bg-foreground/20 opacity-0 transition-opacity group-hover:opacity-100" />
-                    <td className="px-4 py-3">{k.name}</td>
-                    <td className="px-4 py-3 font-mono text-muted-foreground">{k.key_prefix}...</td>
-                    <td className="px-4 py-3">
-                      {k.revoked ? (
-                        <span className="rounded-md bg-danger-muted px-2 py-0.5 text-xs text-danger-fg">Revoked</span>
-                      ) : (
-                        <span className="rounded-md bg-success-muted px-2 py-0.5 text-xs text-success-fg">Active</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(k.created_at).toLocaleString("en-US", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {k.last_used_at
-                        ? new Date(k.last_used_at).toLocaleString("en-US", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                        : <span className="text-xs italic opacity-60">Never</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {!k.revoked && (
-                        <button
-                          onClick={() => handleRevoke(k.id)}
-                          className="inline-flex items-center gap-1 rounded-md border border-danger-muted bg-danger-muted/30 px-2 py-1 text-xs text-danger-fg hover:bg-danger-muted/50"
-                        >
-                          <Trash2 className="size-3" /> Revoke
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {paginatedKeys.length === 0 && (
-                  <tr>
-                    <td colSpan={6}>
-                      <EmptyState
-                        icon={KeyRound}
-                        title={keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
-                        description={keys.length === 0 ? "Create your first API key to start using the gateway." : "Try adjusting your search or filter criteria."}
-                        action={keys.length === 0 ? { label: "Create key", onClick: () => setShowForm(true) } : undefined}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            totalItems={filteredKeys.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            onPageSizeChange={setPageSize}
+    <PageLayout
+      title="API Keys"
+      icon={Key}
+      count={{ filtered: filteredKeys.length, total: keys.length }}
+      actions={
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setRefreshing(true); void fetchKeys().then(() => setRefreshing(false)); }}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`size-4 mr-1 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+          <Button size="sm" onClick={() => { setShowForm(true); setCreatedKey(null); }}>
+            <Plus className="size-4 mr-1" /> New key
+          </Button>
+        </>
+      }
+    >
+      {/* Search & Filter Bar */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by name or prefix..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </div>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "revoked")}>
+          <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="revoked">Revoked</SelectItem>
+          </SelectContent>
+        </Select>
+        {(searchQuery || statusFilter !== "all") && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+          >
+            Clear
+          </Button>
+        )}
       </div>
+
+      {createdKey && (
+        <div className="mb-6 rounded-lg border border-success-muted bg-success-muted/30 p-4 space-y-2">
+          <p className="text-sm font-medium text-success-fg">API key created. Copy it now — you won&apos;t see it again.</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm font-mono text-foreground">
+              {createdKey.key}
+            </code>
+            <Button variant="outline" size="sm" onClick={() => createdKey.key && copyKey(createdKey.key)}>
+              {copied ? <Check className="size-4 mr-1" /> : <Copy className="size-4 mr-1" />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <button onClick={() => setCreatedKey(null)} className="text-sm text-muted-foreground hover:text-foreground">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-white/[0.06] bg-surface-2 p-4 space-y-3">
+          <input
+            placeholder="Key name (e.g., Production, Development)"
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            required
+            className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+          />
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={creating}>
+              {creating ? "Creating..." : "Create key"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+
+      <div className="rounded-lg border border-white/[0.06] bg-surface-2 overflow-hidden">
+        <DataTable
+          columns={[
+            { key: "name", header: "Name", render: (k) => k.name },
+            { key: "prefix", header: "Prefix", className: "font-mono text-muted-foreground", render: (k) => `${k.key_prefix}...` },
+            {
+              key: "status",
+              header: "Status",
+              render: (k) =>
+                k.revoked ? (
+                  <span className="rounded-md bg-danger-muted px-2 py-0.5 text-xs text-danger-fg">Revoked</span>
+                ) : (
+                  <span className="rounded-md bg-success-muted px-2 py-0.5 text-xs text-success-fg">Active</span>
+                ),
+            },
+            { key: "created", header: "Created", className: "text-muted-foreground", render: (k) => formatDate(k.created_at) },
+            {
+              key: "lastUsed",
+              header: "Last Used",
+              className: "text-muted-foreground",
+              render: (k) =>
+                k.last_used_at ? formatDate(k.last_used_at) : <span className="text-xs italic opacity-60">Never</span>,
+            },
+            {
+              key: "actions",
+              header: "Actions",
+              align: "right",
+              render: (k) =>
+                !k.revoked && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 border-danger-muted bg-danger-muted/30 text-danger-fg hover:bg-danger-muted/50"
+                    onClick={() => handleRevoke(k.id)}
+                  >
+                    <Trash2 className="size-3 mr-1" /> Revoke
+                  </Button>
+                ),
+            },
+          ]}
+          data={paginatedKeys}
+          keyExtractor={(k) => k.id}
+          emptyState={
+            <EmptyState
+              icon={KeyRound}
+              title={keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
+              description={keys.length === 0 ? "Create your first API key to start using the gateway." : "Try adjusting your search or filter criteria."}
+              action={keys.length === 0 ? { label: "Create key", onClick: () => setShowForm(true) } : undefined}
+            />
+          }
+        />
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filteredKeys.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      </div>
+
       {confirmDialog}
-      <ToastStack toasts={toasts} onRemove={removeToast} />
-    </div>
+    </PageLayout>
   );
 }

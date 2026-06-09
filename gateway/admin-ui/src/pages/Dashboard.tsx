@@ -2,19 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Activity,
   BarChart3,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
-  Cloud,
   Database,
-  Radio,
   RefreshCw,
   Search,
   Server,
-  SlidersHorizontal,
   Trash2,
-  User,
   X,
 } from "lucide-react"
 
@@ -28,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -37,56 +31,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { MetricCard } from "@/components/MetricCard"
+import { api } from "@/lib/api"
+import { useToast } from "@/hooks/useToast"
+import { formatRelative } from "@/lib/date"
+import { useAuditMetrics, formatPercent, buildRequestBuckets } from "@/hooks/useAuditMetrics"
 import { RequestVolumeChart } from "@/components/RequestVolumeChart"
 import { StatusCodeChart } from "@/components/StatusCodeChart"
 import { TopEndpointsChart } from "@/components/TopEndpointsChart"
 import { LatencyDistributionChart } from "@/components/LatencyDistributionChart"
 import { LogTableRow } from "@/components/LogTableRow"
-import { useToast } from "@/hooks/useToast"
-import { ToastStack } from "@/components/ToastStack"
-
-export interface AuditEntry {
-  id: string
-  created_at: string
-  method: string
-  path: string
-  route_mode: string
-  backend_used: string
-  fallback_used: boolean
-  fallback_reason: string
-  status_code: number
-  duration_ms: number
-  target_url: string
-  user_id?: string
-}
-
-interface UserData {
-  id: string
-  email: string
-  name: string
-  is_admin: boolean
-  created_at: string
-  updated_at: string
-}
-
-type BackendFilter = "" | "local" | "cloud"
-type StatusFilter = "" | "2xx" | "4xx" | "5xx"
-
-const backendFilters: Array<{ label: string; value: BackendFilter }> = [
-  { label: "All", value: "" },
-  { label: "Local", value: "local" },
-  { label: "Cloud", value: "cloud" },
-]
-
-const statusFilters: Array<{ label: string; value: StatusFilter }> = [
-  { label: "All status", value: "" },
-  { label: "2xx", value: "2xx" },
-  { label: "4xx", value: "4xx" },
-  { label: "5xx", value: "5xx" },
-]
-
-type DateRange = "all" | "today" | "week" | "month" | "custom"
+import MetricsGrid from "@/components/MetricsGrid"
+import FilterBar from "@/components/FilterBar"
+import DeleteHistoryDialog from "@/components/DeleteHistoryDialog"
+import type { AuditEntry, UserData, BackendFilter, StatusFilter, DateRange } from "@/types"
 
 const datePresets: Array<{ label: string; value: DateRange }> = [
   { label: "All", value: "all" },
@@ -96,95 +53,34 @@ const datePresets: Array<{ label: string; value: DateRange }> = [
 ]
 
 const pageSizeOptions = [10, 25, 50, 100]
-const bucketCount = 24
-
-function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) return "0%"
-  return `${Math.round(value)}%`
-}
-
-function formatLatency(value: number): string {
-  if (!Number.isFinite(value)) return "0ms"
-  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`
-  return `${Math.round(value)}ms`
-}
-
-function buildRequestBuckets(entries: AuditEntry[]) {
-  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    index,
-    success: 0,
-    error: 0,
-  }))
-
-  entries.slice(0, 180).forEach((entry, entryIndex) => {
-    const bucketIndex =
-      bucketCount - 1 - Math.min(bucketCount - 1, Math.floor(entryIndex / 4))
-    if (entry.status_code >= 200 && entry.status_code < 400) {
-      buckets[bucketIndex].success += 1
-    } else {
-      buckets[bucketIndex].error += 1
-    }
-  })
-
-  return buckets
-}
-
 
 /* ------------------------------------------------------------------ */
-/*  Skeleton loaders                                                   */
+/*  Table skeleton                                                     */
 /* ------------------------------------------------------------------ */
-function MetricsSkeleton() {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-surface-2 p-5"
-        >
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-6 w-6 rounded-md" />
-          </div>
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-2.5 w-32" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function TableSkeleton({ rowCount = 8 }: { rowCount?: number }) {
+  // Keep inline to avoid extra file; visually identical to original
   return (
     <>
       <div className="min-w-[1220px]">
-        {/* Header skeleton */}
         <div className="flex h-10 items-center gap-4 border-b border-white/[0.06] bg-surface-3 px-5">
           {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-3 flex-1" style={{ minWidth: i === 0 ? 140 : 80 }} />
+            <div key={i} className="h-3 flex-1 animate-pulse rounded bg-white/[0.06]" style={{ minWidth: i === 0 ? 140 : 80 }} />
           ))}
         </div>
-        {/* Row skeletons */}
         {Array.from({ length: rowCount }).map((_, rowIdx) => (
-          <div
-            key={rowIdx}
-            className="flex h-12 items-center gap-4 border-b border-white/[0.04] bg-surface-1 px-5"
-          >
+          <div key={rowIdx} className="flex h-12 items-center gap-4 border-b border-white/[0.04] bg-surface-1 px-5">
             {Array.from({ length: 10 }).map((__, colIdx) => (
-              <Skeleton
-                key={colIdx}
-                className="h-3 flex-1"
-                style={{ minWidth: colIdx === 0 ? 140 : 80 }}
-              />
+              <div key={colIdx} className="h-3 flex-1 animate-pulse rounded bg-white/[0.06]" style={{ minWidth: colIdx === 0 ? 140 : 80 }} />
             ))}
           </div>
         ))}
       </div>
       <div className="flex items-center justify-between border-t border-white/[0.06] bg-surface-1 px-5 py-3">
-        <Skeleton className="h-3 w-40" />
+        <div className="h-3 w-40 animate-pulse rounded bg-white/[0.06]" />
         <div className="flex items-center gap-3">
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="h-8 w-28" />
+          <div className="h-8 w-20 animate-pulse rounded bg-white/[0.06]" />
+          <div className="h-8 w-28 animate-pulse rounded bg-white/[0.06]" />
+          <div className="h-8 w-28 animate-pulse rounded bg-white/[0.06]" />
         </div>
       </div>
     </>
@@ -204,9 +100,7 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
   const [fallbackOnly, setFallbackOnly] = useState(false)
   const [search, setSearch] = useState("")
-  const [dateRange, setDateRange] = useState<
-    "all" | "today" | "week" | "month" | "custom"
-  >("all")
+  const [dateRange, setDateRange] = useState<DateRange>("all")
   const [dayFilter, setDayFilter] = useState("all")
   const [monthFilter, setMonthFilter] = useState("all")
   const [yearFilter, setYearFilter] = useState("all")
@@ -214,125 +108,24 @@ export default function Dashboard() {
   const [pageSize, setPageSize] = useState(25)
   const [currentPage, setCurrentPage] = useState(1)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [deleteFilter, setDeleteFilter] = useState<
-    "today" | "week" | "month" | "all"
-  >("today")
+  const [deleteFilter, setDeleteFilter] = useState<"today" | "week" | "month" | "all">("today")
   const [deleting, setDeleting] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
 
-  const activeFilters = useMemo(() => {
-    const filters: Array<{
-      key: string
-      label: string
-      clear: () => void
-    }> = []
-    if (dateRange !== "all") {
-      const preset = datePresets.find((p) => p.value === dateRange)
-      filters.push({
-        key: "dateRange",
-        label: preset?.label || "Custom",
-        clear: () => setDateRange("all"),
-      })
-    }
-    if (dayFilter !== "all" && dateRange === "custom") {
-      filters.push({
-        key: "day",
-        label: `Day: ${dayFilter}`,
-        clear: () => setDayFilter("all"),
-      })
-    }
-    if (monthFilter !== "all" && dateRange === "custom") {
-      filters.push({
-        key: "month",
-        label: `Month: ${monthFilter}`,
-        clear: () => setMonthFilter("all"),
-      })
-    }
-    if (yearFilter !== "all" && dateRange === "custom") {
-      filters.push({
-        key: "year",
-        label: `Year: ${yearFilter}`,
-        clear: () => setYearFilter("all"),
-      })
-    }
-    if (backendFilter) {
-      filters.push({
-        key: "backend",
-        label: `Backend: ${backendFilter.charAt(0).toUpperCase() + backendFilter.slice(1)}`,
-        clear: () => setBackendFilter(""),
-      })
-    }
-    if (fallbackOnly) {
-      filters.push({
-        key: "fallback",
-        label: "Fallback",
-        clear: () => setFallbackOnly(false),
-      })
-    }
-    if (statusFilter) {
-      const label =
-        statusFilters.find((f) => f.value === statusFilter)?.label || statusFilter
-      filters.push({
-        key: "status",
-        label: `Status: ${label}`,
-        clear: () => setStatusFilter(""),
-      })
-    }
-    if (userFilter !== "all") {
-      const u = users.find((usr) => usr.id === userFilter)
-      filters.push({
-        key: "user",
-        label: `User: ${u?.name || u?.email || userFilter.slice(0, 8)}`,
-        clear: () => setUserFilter("all"),
-      })
-    }
-    if (search.trim()) {
-      filters.push({
-        key: "search",
-        label: `Search: "${search.trim()}"`,
-        clear: () => setSearch(""),
-      })
-    }
-    return filters
-  }, [
-    dateRange,
-    dayFilter,
-    monthFilter,
-    yearFilter,
-    backendFilter,
-    fallbackOnly,
-    statusFilter,
-    userFilter,
-    search,
-    users,
-  ])
-
-  const clearAllFilters = useCallback(() => {
-    setDateRange("all")
-    setDayFilter("all")
-    setMonthFilter("all")
-    setYearFilter("all")
-    setBackendFilter("")
-    setFallbackOnly(false)
-    setStatusFilter("")
-    setUserFilter("all")
-    setSearch("")
-    setCurrentPage(1)
-  }, [])
-
-  const { toasts, addToast, removeToast } = useToast()
+  const { addToast } = useToast()
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
     try {
-      const res = await fetch("/admin/api/data", { credentials: "include" })
-      if (!res.ok) {
-        throw new Error(`Request failed with ${res.status}`)
-      }
-      const json = await res.json()
+      const json = await api.get<{
+        data: AuditEntry[]
+        users: UserData[]
+      }>("/admin/api/data")
       setEntries(Array.isArray(json.data) ? json.data : [])
       setUsers(Array.isArray(json.users) ? json.users : [])
+      setLastUpdated(new Date())
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load audit data"
       addToast(msg, "error")
@@ -345,15 +138,9 @@ export default function Dashboard() {
   const handleDeleteHistory = useCallback(async () => {
     setDeleting(true)
     try {
-      const res = await fetch(
+      const json = await api.delete<{ deleted: number }>(
         `/admin/api/logs?filter=${deleteFilter}`,
-        { method: "DELETE", credentials: "include" },
       )
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({ error: "Delete failed" }))
-        throw new Error(json.error || "Delete failed")
-      }
-      const json = await res.json()
       addToast(
         json.deleted === -1
           ? "All history deleted"
@@ -394,14 +181,7 @@ export default function Dashboard() {
     return entries.filter((entry) => {
       if (
         normalizedSearch &&
-        ![
-          entry.path,
-          entry.target_url,
-          entry.method,
-          entry.backend_used,
-          entry.route_mode,
-          entry.fallback_reason,
-        ]
+        ![entry.path, entry.target_url, entry.method, entry.backend_used, entry.route_mode, entry.fallback_reason]
           .join(" ")
           .toLowerCase()
           .includes(normalizedSearch)
@@ -410,35 +190,17 @@ export default function Dashboard() {
       }
       if (backendFilter && entry.backend_used !== backendFilter) return false
       if (fallbackOnly && !entry.fallback_used) return false
-      if (
-        statusFilter === "2xx" &&
-        !(entry.status_code >= 200 && entry.status_code < 300)
-      ) {
-        return false
-      }
-      if (
-        statusFilter === "4xx" &&
-        !(entry.status_code >= 400 && entry.status_code < 500)
-      ) {
-        return false
-      }
-      if (
-        statusFilter === "5xx" &&
-        !(entry.status_code >= 500 && entry.status_code < 600)
-      ) {
-        return false
-      }
-      // Date range filter
+      if (statusFilter === "2xx" && !(entry.status_code >= 200 && entry.status_code < 300)) return false
+      if (statusFilter === "4xx" && !(entry.status_code >= 400 && entry.status_code < 500)) return false
+      if (statusFilter === "5xx" && !(entry.status_code >= 500 && entry.status_code < 600)) return false
+
       const entryDate = new Date(entry.created_at)
       const now = new Date()
       if (dateRange === "today") {
-        const entryDay = entryDate.getDate()
-        const entryMonth = entryDate.getMonth()
-        const entryYear = entryDate.getFullYear()
         if (
-          entryDay !== now.getDate() ||
-          entryMonth !== now.getMonth() ||
-          entryYear !== now.getFullYear()
+          entryDate.getDate() !== now.getDate() ||
+          entryDate.getMonth() !== now.getMonth() ||
+          entryDate.getFullYear() !== now.getFullYear()
         ) {
           return false
         }
@@ -467,101 +229,82 @@ export default function Dashboard() {
           if (year !== yearFilter) return false
         }
       }
-      // User filter
       if (userFilter !== "all" && entry.user_id !== userFilter) return false
       return true
     })
   }, [backendFilter, entries, fallbackOnly, search, statusFilter, dateRange, dayFilter, monthFilter, yearFilter, userFilter])
 
-  // Filtered metrics
-  const filteredTotal = filteredEntries.length
-  const filteredLocal = filteredEntries.filter(
-    (entry) => entry.backend_used === "local",
-  ).length
-  const filteredCloud = filteredEntries.filter(
-    (entry) => entry.backend_used === "cloud",
-  ).length
-  const filteredFallbacks = filteredEntries.filter(
-    (entry) => entry.fallback_used,
-  ).length
-  const filteredDurations = filteredEntries
-    .map((entry) => Number(entry.duration_ms))
-    .filter((value) => Number.isFinite(value))
-  const filteredAvgDuration = filteredDurations.length
-    ? Math.round(
-        filteredDurations.reduce((sum, value) => sum + value, 0) /
-          filteredDurations.length,
-      )
-    : 0
-  const filteredSuccessCount = filteredEntries.filter(
-    (entry) => entry.status_code >= 200 && entry.status_code < 300,
-  ).length
-  const filteredSuccessShare = filteredTotal
-    ? (filteredSuccessCount / filteredTotal) * 100
-    : 0
-  const filteredCloudShare = filteredTotal
-    ? (filteredCloud / filteredTotal) * 100
-    : 0
-  const filteredFallbackShare = filteredTotal
-    ? (filteredFallbacks / filteredTotal) * 100
-    : 0
-
+  const metrics = useAuditMetrics(filteredEntries)
   const pageCount = Math.max(1, Math.ceil(filteredEntries.length / pageSize))
   const visiblePage = Math.min(currentPage, pageCount)
-  const pageStart = filteredEntries.length
-    ? (visiblePage - 1) * pageSize
-    : 0
+  const pageStart = filteredEntries.length ? (visiblePage - 1) * pageSize : 0
   const pageEnd = Math.min(pageStart + pageSize, filteredEntries.length)
   const paginatedEntries = filteredEntries.slice(pageStart, pageEnd)
-  const requestBuckets = useMemo(
-    () => buildRequestBuckets(filteredEntries),
-    [filteredEntries],
-  )
+  const requestBuckets = useMemo(() => buildRequestBuckets(filteredEntries), [filteredEntries])
 
-  const metrics = useMemo(
-    () => [
-      {
-        label: "Total Requests",
-        value: filteredTotal,
-        detail: `${filteredTotal} visible`,
-        icon: Activity,
-      },
-      {
-        label: "Success Rate",
-        value: formatPercent(filteredSuccessShare),
-        detail: `${filteredSuccessCount} successful`,
-        icon: Radio,
-      },
-      {
-        label: "Local Requests",
-        value: filteredLocal,
-        detail: "self-hosted traffic",
-        icon: Server,
-      },
-      {
-        label: "Cloud Traffic",
-        value: filteredCloud,
-        detail: `${formatPercent(filteredCloudShare)} of traffic`,
-        icon: Cloud,
-      },
-      {
-        label: "Avg Latency",
-        value: formatLatency(filteredAvgDuration),
-        detail: `${filteredFallbacks} fallbacks`,
-        icon: Clock,
-      },
-    ],
-    [
-      filteredTotal,
-      filteredLocal,
-      filteredCloud,
-      filteredFallbacks,
-      filteredAvgDuration,
-      filteredSuccessShare,
-      filteredSuccessCount,
-      filteredCloudShare,
-    ],
-  )
+  // Active filter chips
+  const activeFilters = useMemo(() => {
+    const filters: Array<{ key: string; label: string; clear: () => void }> = []
+    if (dateRange !== "all") {
+      const preset = datePresets.find((p) => p.value === dateRange)
+      filters.push({
+        key: "dateRange",
+        label: preset?.label || "Custom",
+        clear: () => setDateRange("all"),
+      })
+    }
+    if (dayFilter !== "all" && dateRange === "custom") {
+      filters.push({ key: "day", label: `Day: ${dayFilter}`, clear: () => setDayFilter("all") })
+    }
+    if (monthFilter !== "all" && dateRange === "custom") {
+      filters.push({ key: "month", label: `Month: ${monthFilter}`, clear: () => setMonthFilter("all") })
+    }
+    if (yearFilter !== "all" && dateRange === "custom") {
+      filters.push({ key: "year", label: `Year: ${yearFilter}`, clear: () => setYearFilter("all") })
+    }
+    if (backendFilter) {
+      filters.push({
+        key: "backend",
+        label: `Backend: ${backendFilter.charAt(0).toUpperCase() + backendFilter.slice(1)}`,
+        clear: () => setBackendFilter(""),
+      })
+    }
+    if (fallbackOnly) {
+      filters.push({ key: "fallback", label: "Fallback", clear: () => setFallbackOnly(false) })
+    }
+    if (statusFilter) {
+      const label =
+        statusFilter === "2xx" ? "2xx" :
+        statusFilter === "4xx" ? "4xx" :
+        statusFilter === "5xx" ? "5xx" : statusFilter
+      filters.push({ key: "status", label: `Status: ${label}`, clear: () => setStatusFilter("") })
+    }
+    if (userFilter !== "all") {
+      const u = users.find((usr) => usr.id === userFilter)
+      filters.push({
+        key: "user",
+        label: `User: ${u?.name || u?.email || userFilter.slice(0, 8)}`,
+        clear: () => setUserFilter("all"),
+      })
+    }
+    if (search.trim()) {
+      filters.push({ key: "search", label: `Search: "${search.trim()}"`, clear: () => setSearch("") })
+    }
+    return filters
+  }, [dateRange, dayFilter, monthFilter, yearFilter, backendFilter, fallbackOnly, statusFilter, userFilter, search, users])
+
+  const clearAllFilters = useCallback(() => {
+    setDateRange("all")
+    setDayFilter("all")
+    setMonthFilter("all")
+    setYearFilter("all")
+    setBackendFilter("")
+    setFallbackOnly(false)
+    setStatusFilter("")
+    setUserFilter("all")
+    setSearch("")
+    setCurrentPage(1)
+  }, [])
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -605,24 +348,9 @@ export default function Dashboard() {
                 )}
                 onClick={() => setLive((v) => !v)}
               >
-                <span
-                  className={cn(
-                    "relative flex size-2",
-                    live && "animate-pulse-soft",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute inline-flex size-full rounded-full opacity-75",
-                      live ? "bg-success" : "bg-muted-foreground",
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "relative inline-flex size-2 rounded-full",
-                      live ? "bg-success" : "bg-muted-foreground",
-                    )}
-                  />
+                <span className={cn("relative flex size-2", live && "animate-pulse-soft")}>
+                  <span className={cn("absolute inline-flex size-full rounded-full opacity-75", live ? "bg-success" : "bg-muted-foreground")} />
+                  <span className={cn("relative inline-flex size-2 rounded-full", live ? "bg-success" : "bg-muted-foreground")} />
                 </span>
                 {live ? "Live" : "Paused"}
               </Button>
@@ -642,7 +370,7 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* Right: Actions */}
+            {/* Right: GitHub link */}
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 asChild
@@ -659,19 +387,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {loading ? (
-            <MetricsSkeleton />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 animate-slide-up">
-              {metrics.map((metric) => (
-                <MetricCard
-                  key={metric.label}
-                  label={metric.label}
-                  value={metric.value}
-                  detail={metric.detail}
-                  icon={metric.icon}
-                />
-              ))}
+          <MetricsGrid metrics={metrics} loading={loading} />
+
+          {lastUpdated && (
+            <div className="flex justify-end">
+              <span className="text-[11px] text-muted-foreground">
+                Updated {formatRelative(lastUpdated)}
+              </span>
             </div>
           )}
         </div>
@@ -680,74 +402,68 @@ export default function Dashboard() {
       {/* Charts grid */}
       <section className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Request Volume */}
           <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
             <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <BarChart3 className="size-4 text-muted-foreground" />
-                    <CardTitle className="text-sm font-semibold text-foreground">
-                      Gateway Request Volume
-                    </CardTitle>
+                    <CardTitle className="text-sm font-semibold text-foreground">Gateway Request Volume</CardTitle>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                      <span className="size-2 rounded-full bg-success" />
-                      Success
+                      <span className="size-2 rounded-full bg-success" /> Success
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                      <span className="size-2 rounded-full bg-danger" />
-                      Error
+                      <span className="size-2 rounded-full bg-danger" /> Error
                     </span>
                   </div>
                 </div>
-                <RequestVolumeChart buckets={requestBuckets} />
+                <div role="img" aria-label={`Request volume chart showing ${requestBuckets.reduce((sum, b) => sum + b.success + b.error, 0)} requests across ${requestBuckets.length} time buckets`}>
+                  <RequestVolumeChart buckets={requestBuckets} />
+                </div>
               </div>
             </CardHeader>
           </Card>
 
-          {/* Status Code Distribution */}
           <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
             <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <Activity className="size-4 text-muted-foreground" />
-                  <CardTitle className="text-sm font-semibold text-foreground">
-                    Status Code Distribution
-                  </CardTitle>
+                  <CardTitle className="text-sm font-semibold text-foreground">Status Code Distribution</CardTitle>
                 </div>
-                <StatusCodeChart entries={filteredEntries} />
+                <div role="img" aria-label={`Status code distribution for ${filteredEntries.length} requests`}>
+                  <StatusCodeChart entries={filteredEntries} />
+                </div>
               </div>
             </CardHeader>
           </Card>
 
-          {/* Top Endpoints */}
           <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
             <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <Server className="size-4 text-muted-foreground" />
-                  <CardTitle className="text-sm font-semibold text-foreground">
-                    Top Endpoints
-                  </CardTitle>
+                  <CardTitle className="text-sm font-semibold text-foreground">Top Endpoints</CardTitle>
                 </div>
-                <TopEndpointsChart entries={filteredEntries} />
+                <div role="img" aria-label={`Top endpoints chart for ${filteredEntries.length} requests`}>
+                  <TopEndpointsChart entries={filteredEntries} />
+                </div>
               </div>
             </CardHeader>
           </Card>
 
-          {/* Latency Distribution */}
           <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
             <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   <Clock className="size-4 text-muted-foreground" />
-                  <CardTitle className="text-sm font-semibold text-foreground">
-                    Latency Distribution
-                  </CardTitle>
+                  <CardTitle className="text-sm font-semibold text-foreground">Latency Distribution</CardTitle>
                 </div>
-                <LatencyDistributionChart entries={filteredEntries} />
+                <div role="img" aria-label={`Latency distribution for ${filteredEntries.length} requests`}>
+                  <LatencyDistributionChart entries={filteredEntries} />
+                </div>
               </div>
             </CardHeader>
           </Card>
@@ -755,39 +471,22 @@ export default function Dashboard() {
 
         {/* Request History table */}
         <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
-
-          {/* Table header */}
           <CardHeader className="border-b border-white/[0.06] bg-surface-4 px-5 py-4">
-            {/* Title + summary badges */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Database className="size-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  Request History
-                </CardTitle>
-                <Badge
-                  variant="outline"
-                  className="border-white/[0.06] bg-white/[0.02] text-muted-foreground"
-                >
+                <CardTitle className="text-sm font-semibold text-foreground">Request History</CardTitle>
+                <Badge variant="outline" className="border-white/[0.06] bg-white/[0.02] text-muted-foreground">
                   {filteredEntries.length} visible
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-success-muted bg-success-muted text-success-fg"
-                >
-                  Success {formatPercent(filteredSuccessShare)}
+                <Badge variant="outline" className="border-success-muted bg-success-muted text-success-fg">
+                  Success {formatPercent(metrics.successShare)}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-info-muted bg-info-muted text-info-fg"
-                >
-                  Cloud {formatPercent(filteredCloudShare)}
+                <Badge variant="outline" className="border-info-muted bg-info-muted text-info-fg">
+                  Cloud {formatPercent(metrics.cloudShare)}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className="border-warning-muted bg-warning-muted text-warning-fg"
-                >
-                  Fallback {formatPercent(filteredFallbackShare)}
+                <Badge variant="outline" className="border-warning-muted bg-warning-muted text-warning-fg">
+                  Fallback {formatPercent(metrics.fallbackShare)}
                 </Badge>
               </div>
               <Button
@@ -807,9 +506,7 @@ export default function Dashboard() {
             {/* Active filter chips */}
             {activeFilters.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Active
-                </span>
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Active</span>
                 {activeFilters.map((filter) => (
                   <Badge
                     key={filter.key}
@@ -831,241 +528,26 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Filter grid */}
-            <div className="grid grid-cols-1 gap-5 border-t border-white/[0.06] pt-3 md:grid-cols-2 lg:grid-cols-4">
-              {/* Period */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  <CalendarDays className="size-3" /> Period
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {datePresets.map((preset) => (
-                    <Button
-                      key={preset.value}
-                      variant={dateRange === preset.value ? "default" : "outline"}
-                      size="sm"
-                      className={cn(
-                        "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
-                        dateRange === preset.value
-                          ? "bg-foreground text-background hover:bg-foreground/90"
-                          : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                      )}
-                      onClick={() => {
-                        setDateRange(preset.value)
-                        setCurrentPage(1)
-                      }}
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
-                  <Button
-                    variant={dateRange === "custom" ? "default" : "outline"}
-                    size="sm"
-                    className={cn(
-                      "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
-                      dateRange === "custom"
-                        ? "bg-foreground text-background hover:bg-foreground/90"
-                        : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                    )}
-                    onClick={() => {
-                      setDateRange((prev) => (prev === "custom" ? "all" : "custom"))
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <SlidersHorizontal className="size-2.5" />
-                    Custom
-                  </Button>
-                </div>
-                {dateRange === "custom" && (
-                  <div className="flex gap-1 pt-0.5">
-                    <Select
-                      value={dayFilter}
-                      onValueChange={(value) => {
-                        setDayFilter(value)
-                        setCurrentPage(1)
-                      }}
-                    >
-                      <SelectTrigger className="h-6 w-[4.5rem] text-[11px]">
-                        <SelectValue placeholder="Day" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All days</SelectItem>
-                        {Array.from({ length: 31 }, (_, i) => {
-                          const d = String(i + 1).padStart(2, "0")
-                          return (
-                            <SelectItem key={d} value={d}>
-                              {d}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={monthFilter}
-                      onValueChange={(value) => {
-                        setMonthFilter(value)
-                        setCurrentPage(1)
-                      }}
-                    >
-                      <SelectTrigger className="h-6 w-[5.5rem] text-[11px]">
-                        <SelectValue placeholder="Month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All months</SelectItem>
-                        {[
-                          ["01", "Jan"],
-                          ["02", "Feb"],
-                          ["03", "Mar"],
-                          ["04", "Apr"],
-                          ["05", "May"],
-                          ["06", "Jun"],
-                          ["07", "Jul"],
-                          ["08", "Aug"],
-                          ["09", "Sep"],
-                          ["10", "Oct"],
-                          ["11", "Nov"],
-                          ["12", "Dec"],
-                        ].map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={yearFilter}
-                      onValueChange={(value) => {
-                        setYearFilter(value)
-                        setCurrentPage(1)
-                      }}
-                    >
-                      <SelectTrigger className="h-6 w-[4.5rem] text-[11px]">
-                        <SelectValue placeholder="Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All years</SelectItem>
-                        {Array.from({ length: 5 }, (_, i) => {
-                          const y = String(new Date().getFullYear() - i)
-                          return (
-                            <SelectItem key={y} value={y}>
-                              {y}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-
-              {/* Backend */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  <Server className="size-3" /> Backend
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {backendFilters.map((filter) => (
-                    <Button
-                      key={filter.label}
-                      variant={
-                        backendFilter === filter.value && !fallbackOnly
-                          ? "default"
-                          : "outline"
-                      }
-                      size="sm"
-                      className={cn(
-                        "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
-                        backendFilter === filter.value && !fallbackOnly
-                          ? "bg-foreground text-background hover:bg-foreground/90"
-                          : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                      )}
-                      onClick={() => {
-                        setBackendFilter(filter.value)
-                        setFallbackOnly(false)
-                        setCurrentPage(1)
-                      }}
-                    >
-                      {filter.label}
-                    </Button>
-                  ))}
-                  <Button
-                    variant={fallbackOnly ? "default" : "outline"}
-                    size="sm"
-                    className={cn(
-                      "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
-                      fallbackOnly
-                        ? "bg-foreground text-background hover:bg-foreground/90"
-                        : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                    )}
-                    onClick={() => {
-                      setFallbackOnly((value) => !value)
-                      setBackendFilter("")
-                      setCurrentPage(1)
-                    }}
-                  >
-                    Fallback
-                  </Button>
-                </div>
-              </div>
-
-              {/* Status */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  <Activity className="size-3" /> Status
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {statusFilters.map((filter) => (
-                    <Button
-                      key={filter.label}
-                      variant={
-                        statusFilter === filter.value ? "default" : "outline"
-                      }
-                      size="sm"
-                      className={cn(
-                        "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
-                        statusFilter === filter.value
-                          ? "bg-foreground text-background hover:bg-foreground/90"
-                          : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                      )}
-                      onClick={() => {
-                        setStatusFilter(filter.value)
-                        setCurrentPage(1)
-                      }}
-                    >
-                      {filter.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* User */}
-              {users.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    <User className="size-3" /> User
-                  </label>
-                  <Select
-                    value={userFilter}
-                    onValueChange={(value) => {
-                      setUserFilter(value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <SelectTrigger className="h-6 w-full text-[11px]">
-                      <SelectValue placeholder="All users" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All users</SelectItem>
-                      {users.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name || u.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
+            <FilterBar
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              dayFilter={dayFilter}
+              setDayFilter={setDayFilter}
+              monthFilter={monthFilter}
+              setMonthFilter={setMonthFilter}
+              yearFilter={yearFilter}
+              setYearFilter={setYearFilter}
+              backendFilter={backendFilter}
+              setBackendFilter={setBackendFilter}
+              fallbackOnly={fallbackOnly}
+              setFallbackOnly={setFallbackOnly}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              userFilter={userFilter}
+              setUserFilter={setUserFilter}
+              users={users}
+              onChange={() => setCurrentPage(1)}
+            />
           </CardHeader>
 
           {loading ? (
@@ -1076,39 +558,17 @@ export default function Dashboard() {
                 <Table className="min-w-[1220px]">
                   <TableHeader>
                     <TableRow className="border-b border-white/[0.06] bg-surface-3 hover:bg-surface-3">
-                      <TableHead className="pl-5 text-xs font-semibold text-foreground">
-                        Time
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Method
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Path
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Mode
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Backend
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Fallback
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Reason
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        Status
-                      </TableHead>
-                      <TableHead className="text-right text-xs font-semibold text-foreground">
-                        Latency
-                      </TableHead>
-                      <TableHead className="text-xs font-semibold text-foreground">
-                        User
-                      </TableHead>
-                      <TableHead className="pr-5 text-xs font-semibold text-foreground">
-                        Target URL
-                      </TableHead>
+                      <TableHead className="pl-5 text-xs font-semibold text-foreground">Time</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Method</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Path</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Mode</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Backend</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Fallback</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Reason</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Status</TableHead>
+                      <TableHead className="text-right text-xs font-semibold text-foreground">Latency</TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">User</TableHead>
+                      <TableHead className="pr-5 text-xs font-semibold text-foreground">Target URL</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1121,13 +581,9 @@ export default function Dashboard() {
               <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-surface-1 px-5 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
                 <div className="font-mono text-xs">
                   Showing{" "}
-                  <span className="font-medium text-foreground">
-                    {filteredEntries.length ? pageStart + 1 : 0}-{pageEnd}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium text-foreground">
-                    {filteredEntries.length}
-                  </span>
+                  <span className="font-medium text-foreground">{filteredEntries.length ? pageStart + 1 : 0}-{pageEnd}</span>
+                  {" "}of{" "}
+                  <span className="font-medium text-foreground">{filteredEntries.length}</span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -1145,9 +601,7 @@ export default function Dashboard() {
                       </SelectTrigger>
                       <SelectContent>
                         {pageSizeOptions.map((option) => (
-                          <SelectItem key={option} value={String(option)}>
-                            {option}
-                          </SelectItem>
+                          <SelectItem key={option} value={String(option)}>{option}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1155,35 +609,25 @@ export default function Dashboard() {
 
                   <div className="flex items-center gap-2">
                     <span className="min-w-20 text-center font-mono text-xs">
-                      Page{" "}
-                      <span className="font-medium text-foreground">
-                        {visiblePage}
-                      </span>{" "}
-                      / {pageCount}
+                      Page <span className="font-medium text-foreground">{visiblePage}</span> / {pageCount}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={visiblePage <= 1}
                       className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
-                      onClick={() =>
-                        setCurrentPage(Math.max(1, visiblePage - 1))
-                      }
+                      onClick={() => setCurrentPage(Math.max(1, visiblePage - 1))}
                     >
-                      <ChevronLeft className="size-4" />
-                      Previous
+                      <ChevronLeft className="size-4" /> Previous
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={visiblePage >= pageCount}
                       className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
-                      onClick={() =>
-                        setCurrentPage(Math.min(pageCount, visiblePage + 1))
-                      }
+                      onClick={() => setCurrentPage(Math.min(pageCount, visiblePage + 1))}
                     >
-                      Next
-                      <ChevronRight className="size-4" />
+                      Next <ChevronRight className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -1194,9 +638,7 @@ export default function Dashboard() {
               <div className="rounded-full border border-white/[0.06] bg-white/[0.02] p-4 text-muted-foreground">
                 <Activity className="size-6" />
               </div>
-              <div className="font-medium text-foreground">
-                No matching requests
-              </div>
+              <div className="font-medium text-foreground">No matching requests</div>
               <p className="max-w-md text-sm text-muted-foreground">
                 Adjust the filters or wait for new gateway traffic to appear.
               </p>
@@ -1205,88 +647,15 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      {/* Delete History Dialog */}
-      {showDeleteDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowDeleteDialog(false)
-          }}
-        >
-          <div className="w-full max-w-sm rounded-lg border border-white/[0.06] bg-surface-2 p-6 shadow-xl animate-slide-up">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-full bg-danger-muted/50 p-2">
-                <Trash2 className="size-5 text-danger-fg" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-foreground">
-                  Delete History
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Choose a time range to delete
-                </p>
-              </div>
-            </div>
+      <DeleteHistoryDialog
+        open={showDeleteDialog}
+        filter={deleteFilter}
+        setFilter={setDeleteFilter}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={() => void handleDeleteHistory()}
+        deleting={deleting}
+      />
 
-            <div className="space-y-1.5">
-              {[
-                { value: "today" as const, label: "Today" },
-                { value: "week" as const, label: "This Week" },
-                { value: "month" as const, label: "This Month" },
-                { value: "all" as const, label: "All History" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setDeleteFilter(option.value)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors",
-                    deleteFilter === option.value
-                      ? "bg-white/[0.08] text-foreground"
-                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "size-4 rounded-full border-2",
-                      deleteFilter === option.value
-                        ? "border-foreground bg-foreground"
-                        : "border-white/20",
-                    )}
-                  >
-                    {deleteFilter === option.value && (
-                      <span className="block size-full rounded-full border-2 border-surface-2 bg-foreground" />
-                    )}
-                  </span>
-                  {option.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-white/[0.08] bg-surface-3 text-foreground shadow-none hover:bg-surface-4"
-                onClick={() => setShowDeleteDialog(false)}
-                disabled={deleting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-danger-muted bg-danger-muted text-danger-fg shadow-none hover:bg-danger-muted/80"
-                onClick={() => void handleDeleteHistory()}
-                disabled={deleting}
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ToastStack toasts={toasts} onRemove={removeToast} />
     </main>
   )
 }

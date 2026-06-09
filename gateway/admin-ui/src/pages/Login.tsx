@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
@@ -34,23 +35,17 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
-      {/* Ambient background orbs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-20 -top-20 size-[500px] rounded-full bg-info/8 blur-[100px] animate-pulse-soft"></div>
         <div className="absolute -right-20 top-1/3 size-[400px] rounded-full bg-success/6 blur-[80px] animate-pulse-soft" style={{ animationDelay: "1s" }}></div>
         <div className="absolute -bottom-20 left-1/3 size-[450px] rounded-full bg-warning/5 blur-[90px] animate-pulse-soft" style={{ animationDelay: "0.5s" }}></div>
       </div>
 
-      {/* Glassmorphism card */}
-      <div
-        className={`relative w-full max-w-sm animate-slide-up ${shake ? "animate-shake" : ""}`}
-      >
-        {/* Gradient border glow */}
+      <div className={`relative w-full max-w-sm animate-slide-up ${shake ? "animate-shake" : ""}`}>
         <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent opacity-60 blur-sm"></div>
 
         <div className="relative rounded-2xl border border-white/[0.08] bg-surface-2/80 p-8 shadow-[var(--shadow-modal)] backdrop-blur-xl"
         >
-          {/* Logo */}
           <div className="mb-8 flex flex-col items-center gap-4"
           >
             <div className="relative flex size-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.08] to-white/[0.02] shadow-[var(--shadow-card)]"
@@ -64,9 +59,10 @@ export default function Login() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-label="Sign in">
             {error && (
               <div className="flex items-center gap-2 rounded-lg border border-danger-muted bg-danger-muted/50 px-3 py-2.5 text-sm text-danger-fg animate-fade-in"
+              role="alert"
               >
                 <AlertCircle className="size-4 shrink-0" />
                 {error}
@@ -109,18 +105,16 @@ export default function Login() {
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
               disabled={submitting}
-              className="h-11 w-full rounded-lg bg-foreground text-sm font-medium text-background shadow-[var(--shadow-card)] transition-all hover:bg-foreground/90 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 active:translate-y-px active:shadow-none disabled:opacity-50 disabled:hover:translate-y-0"
+              className="h-11 w-full"
             >
               {submitting ? "Signing in..." : "Sign in"}
-            </button>
+            </Button>
           </form>
         </div>
       </div>
-
-
     </div>
   );
 }

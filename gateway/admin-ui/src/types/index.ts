@@ -1,0 +1,62 @@
+/** Audit log entry from the gateway */
+export interface AuditEntry {
+  id: string
+  created_at: string
+  method: string
+  path: string
+  route_mode: string
+  backend_used: string
+  fallback_used: boolean
+  fallback_reason: string
+  status_code: number
+  duration_ms: number
+  target_url: string
+  user_id?: string
+}
+
+/** User record from the admin API */
+export interface UserData {
+  id: string
+  email: string
+  name: string
+  is_admin: boolean
+  status: "active" | "suspended" | "blocked"
+  suspended_until: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** API key record */
+export interface ApiKeyData {
+  id: string
+  user_id: string
+  name: string
+  key_prefix: string
+  revoked: boolean
+  created_at: string
+  updated_at: string
+  last_used_at: string | null
+  key?: string // shown only on creation
+}
+
+/** Backend filter option */
+export type BackendFilter = "" | "local" | "cloud"
+
+/** HTTP status category filter */
+export type StatusFilter = "" | "2xx" | "4xx" | "5xx"
+
+/** Date range preset */
+export type DateRange = "all" | "today" | "week" | "month" | "custom"
+
+/** Suspend duration unit */
+export type SuspendUnit = "hours" | "days" | "weeks"
+
+/** Generic API response wrapper */
+export interface ApiResponse<T> {
+  data: T
+}
+
+/** Generic API error response */
+export interface ApiError {
+  error: string
+}

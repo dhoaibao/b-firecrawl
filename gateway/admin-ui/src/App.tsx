@@ -1,10 +1,14 @@
+import { Suspense, lazy } from "react"
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
+import { ToastProvider } from "@/contexts/ToastContext"
+import ErrorBoundary from "@/components/ErrorBoundary"
 import Sidebar from "@/components/Sidebar"
-import Dashboard from "@/pages/Dashboard"
-import Login from "@/pages/Login"
-import Users from "@/pages/Users"
-import ApiKeys from "@/pages/ApiKeys"
+
+const Dashboard = lazy(() => import("@/pages/Dashboard"))
+const Login = lazy(() => import("@/pages/Login"))
+const Users = lazy(() => import("@/pages/Users"))
+const ApiKeys = lazy(() => import("@/pages/ApiKeys"))
 
 function LoadingScreen() {
   return (
@@ -54,29 +58,50 @@ function AuthenticatedLayout() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/admin">
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          element={
-            <RequireAuth>
-              <AuthenticatedLayout />
-            </RequireAuth>
-          }
-        >
-          <Route path="/" element={<Dashboard />} />
-          <Route
-            path="/users"
-            element={
-              <RequireAdmin>
-                <Users />
-              </RequireAdmin>
-            }
-          />
-          <Route path="/api-keys" element={<ApiKeys />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <ToastProvider>
+        <BrowserRouter basename="/admin">
+          <a href="#content" className="skip-link">
+            Skip to content
+          </a>
+          <Routes>
+            <Route path="/login" element={
+              <Suspense fallback={<LoadingScreen />}>
+                <Login />
+              </Suspense>
+            } />
+            <Route
+              element={
+                <RequireAuth>
+                  <AuthenticatedLayout />
+                </RequireAuth>
+              }
+            >
+              <Route path="/" element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <Dashboard />
+                </Suspense>
+              } />
+              <Route
+                path="/users"
+                element={
+                  <RequireAdmin>
+                    <Suspense fallback={<LoadingScreen />}>
+                      <Users />
+                    </Suspense>
+                  </RequireAdmin>
+                }
+              />
+              <Route path="/api-keys" element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <ApiKeys />
+                </Suspense>
+              } />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }
