@@ -52,17 +52,20 @@ export default function DataTable<T>({
                 key={keyExtractor(item)}
                 className="group relative border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
               >
-                <td className="absolute left-0 top-0 bottom-0 w-[2px] bg-foreground/20 opacity-0 transition-opacity group-hover:opacity-100" />
-                {columns.map((col) => (
+                {columns.map((col, colIndex) => (
                   <td
                     key={col.key}
                     className={cn(
                       "px-4 py-3",
+                      colIndex === 0 && "relative",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
                       col.className,
                     )}
                   >
+                    {colIndex === 0 && (
+                      <span className="absolute -left-4 top-0 bottom-0 w-[2px] bg-foreground/20 opacity-0 transition-opacity group-hover:opacity-100" />
+                    )}
                     {col.render(item)}
                   </td>
                 ))}

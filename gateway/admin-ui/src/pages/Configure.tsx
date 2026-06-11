@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/useToast"
+import { useConfirmDialog } from "@/components/ConfirmDialog"
 import PageLayout from "@/components/PageLayout"
 import { api } from "@/lib/api"
 import type { SettingsData } from "@/types"
@@ -64,6 +65,7 @@ export default function Configure() {
   const [fallbackKeys, setFallbackKeys] = useState<string[]>([])
   const [newKey, setNewKey] = useState("")
   const { addToast } = useToast()
+  const { confirm: confirmReset, dialog: resetDialog } = useConfirmDialog()
 
   useEffect(() => {
     document.title = "Configure — Firecrawl Gateway"
@@ -120,11 +122,18 @@ export default function Configure() {
     }
   }
 
-  async function handleReset() {
-    if (!confirm("Reset all settings to last saved values?")) return
-    setLoading(true)
-    await fetchSettings()
-    addToast("Settings reset", "success")
+  function handleReset() {
+    confirmReset({
+      title: "Reset Settings",
+      message: "This will discard any unsaved changes and reload the last saved settings. Are you sure?",
+      confirmLabel: "Reset",
+      variant: "warning",
+      onConfirm: async () => {
+        setLoading(true)
+        await fetchSettings()
+        addToast("Settings reset", "success")
+      },
+    })
   }
 
   if (loading) {
@@ -261,6 +270,7 @@ export default function Configure() {
           )
         })}
       </div>
+      {resetDialog}
     </PageLayout>
   )
 }
