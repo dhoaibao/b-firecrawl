@@ -18,6 +18,8 @@ import { createAuthRouter } from "./auth/routes";
 import { requireAuth, requireAdmin } from "./auth/middleware";
 import { createUsersRouter } from "./users/routes";
 import { createApiKeysRouter } from "./api-keys/routes";
+import { createSettingsRouter } from "./settings/routes";
+import { startBackgroundJobs } from "./jobs";
 import { rootLogger } from "./logger";
 
 async function main() {
@@ -87,8 +89,10 @@ async function main() {
     app.use("/admin/api", requireAuth, adminRouter);
     app.use("/admin/api/users", express.json(), requireAdmin, createUsersRouter());
     app.use("/admin/api/api-keys", express.json(), requireAuth, createApiKeysRouter());
+    app.use("/admin/api/settings", express.json(), requireAdmin, createSettingsRouter());
   } else {
     app.use("/admin/api", adminRouter);
+    app.use("/admin/api/settings", express.json(), createSettingsRouter());
   }
 
   // Serve static files from admin-ui dist
@@ -136,6 +140,9 @@ async function main() {
     });
   });
 
+  // Start background jobs
+  const stopJobs = startBackgroundJobs();
+
   const server = app.listen(config.port, "0.0.0.0", () => {
     rootLogger.info(
       {
@@ -161,6 +168,8 @@ async function main() {
 
   async function gracefulShutdown(signal: string): Promise<void> {
     rootLogger.info({ signal }, "Shutting down gracefully");
+
+    stopJobs();
 
     server.close(async (err) => {
       if (err) {

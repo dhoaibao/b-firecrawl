@@ -8,6 +8,7 @@ import {
   Menu,
   X,
   Shield,
+  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -23,6 +24,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "API Keys", href: "/api-keys", icon: Key },
   { label: "Users", href: "/users", icon: Users, adminOnly: true },
+  { label: "Configure", href: "/configure", icon: Settings, adminOnly: true },
 ]
 
 export default function Sidebar() {

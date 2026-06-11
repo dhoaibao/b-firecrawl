@@ -56,6 +56,13 @@ export interface ApiResponse<T> {
   data: T
 }
 
+/** Settings record from admin API */
+export interface SettingsData {
+  user_inactivity_suspend_days?: number
+  api_key_inactivity_revoke_days?: number
+  fallback_firecrawl_api_keys?: string[]
+}
+
 /** Generic API error response */
 export interface ApiError {
   error: string

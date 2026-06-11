@@ -9,6 +9,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"))
 const Login = lazy(() => import("@/pages/Login"))
 const Users = lazy(() => import("@/pages/Users"))
 const ApiKeys = lazy(() => import("@/pages/ApiKeys"))
+const Configure = lazy(() => import("@/pages/Configure"))
 
 function LoadingScreen() {
   return (
@@ -97,6 +98,16 @@ export default function App() {
                   <ApiKeys />
                 </Suspense>
               } />
+              <Route
+                path="/configure"
+                element={
+                  <RequireAdmin>
+                    <Suspense fallback={<LoadingScreen />}>
+                      <Configure />
+                    </Suspense>
+                  </RequireAdmin>
+                }
+              />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

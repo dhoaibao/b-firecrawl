@@ -18,6 +18,7 @@ import {
 } from "./utils";
 import * as apiKeyService from "./api-keys/service";
 import * as userService from "./users/service";
+import * as settingsService from "./settings/service";
 import { getRequestLogger } from "./logger";
 
 const hopByHopHeaders = new Set([
@@ -33,10 +34,24 @@ const hopByHopHeaders = new Set([
   "content-length",
 ]);
 
+async function getFallbackCloudApiKeys(): Promise<string[]> {
+  try {
+    const record = await settingsService.getSetting("fallback_firecrawl_api_keys");
+    if (record?.value) {
+      const parsed = JSON.parse(record.value) as string[];
+      return Array.isArray(parsed) ? parsed.filter((k) => typeof k === "string" && k.length > 0) : [];
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return [];
+}
+
 function sanitizeHeaders(
   headers: Record<string, string | string[] | undefined>,
   backend: string,
   config: GatewayConfig,
+  apiKey?: string,
 ): Record<string, string> {
   const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
@@ -50,8 +65,9 @@ function sanitizeHeaders(
     next[key] = Array.isArray(value) ? value.join(", ") : value;
   }
 
-  if (backend === "cloud" && config.cloudApiKey) {
-    next.authorization = `Bearer ${config.cloudApiKey}`;
+  const cloudKey = apiKey || config.cloudApiKey;
+  if (backend === "cloud" && cloudKey) {
+    next.authorization = `Bearer ${cloudKey}`;
   }
 
   return next;
@@ -78,12 +94,14 @@ async function proxyToBackend({
   bodyBuffer,
   targetUrl,
   config,
+  apiKey,
 }: {
   backend: string;
   req: Request;
   bodyBuffer: Buffer;
   targetUrl: string;
   config: GatewayConfig;
+  apiKey?: string;
 }): Promise<ProxyResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
@@ -92,7 +110,7 @@ async function proxyToBackend({
   try {
     const response = await fetch(targetUrl, {
       method: req.method,
-      headers: sanitizeHeaders(req.headers, backend, config),
+      headers: sanitizeHeaders(req.headers, backend, config, apiKey),
       body:
         req.method === "GET" || req.method === "HEAD" ? undefined : bodyBuffer,
       redirect: "manual",
@@ -172,6 +190,9 @@ function sendProxyResponse(
   res.status(result.response?.status || 502).set(headers);
   res.end(result.body);
 }
+
+/** Status codes that suggest trying another cloud API key */
+const RETRYABLE_CLOUD_STATUS = new Set([401, 403, 429]);
 
 export function createProxyHandler({
   config,
@@ -308,6 +329,42 @@ export function createProxyHandler({
         targetUrl: backendUrl("cloud", requestUrl, config),
         config,
       });
+    }
+
+    // Try fallback cloud API keys on auth/rate-limit errors
+    if (
+      result.backend === "cloud" &&
+      result.kind === "response" &&
+      result.response &&
+      RETRYABLE_CLOUD_STATUS.has(result.response.status)
+    ) {
+      const fallbackKeys = await getFallbackCloudApiKeys();
+      if (fallbackKeys.length > 0) {
+        log.warn(
+          { status: result.response.status, fallback_keys: fallbackKeys.length },
+          "cloud returned retryable status, trying fallback keys",
+        );
+        for (const fallbackKey of fallbackKeys) {
+          const fallbackResult = await proxyToBackend({
+            backend: "cloud",
+            req,
+            bodyBuffer,
+            targetUrl: backendUrl("cloud", requestUrl, config),
+            config,
+            apiKey: fallbackKey,
+          });
+          if (
+            fallbackResult.kind === "response" &&
+            fallbackResult.response &&
+            !RETRYABLE_CLOUD_STATUS.has(fallbackResult.response.status)
+          ) {
+            fallbackUsed = true;
+            fallbackReason = `primary cloud key failed with ${result.response.status}, fallback succeeded`;
+            result = fallbackResult;
+            break;
+          }
+        }
+      }
     }
 
     const statusCode =
