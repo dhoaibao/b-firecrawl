@@ -6,7 +6,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import bcrypt from "bcrypt";
 import { config } from "./config";
-import { initDatabase, pingDatabase } from "./db";
+import { initDatabase, pingDatabase, getPool } from "./db";
 import { bootstrapAdminUser } from "./db/bootstrap";
 import { createAuditStore } from "./audit-store";
 import { createProxyHandler } from "./proxy";
@@ -41,7 +41,10 @@ async function main() {
 
   // Security middleware
   app.use(helmet());
-  app.use(cors());
+  app.use(cors({
+    origin: process.env.CORS_ORIGIN || true,
+    credentials: true,
+  }));
   app.use(compression());
 
   // Health endpoints — minimal middleware, no logging/rate limiting
@@ -159,12 +162,20 @@ async function main() {
   async function gracefulShutdown(signal: string): Promise<void> {
     rootLogger.info({ signal }, "Shutting down gracefully");
 
-    server.close((err) => {
+    server.close(async (err) => {
       if (err) {
         rootLogger.error({ err }, "Error closing server");
         process.exit(1);
       }
       rootLogger.info("HTTP server closed");
+
+      try {
+        await getPool().end();
+        rootLogger.info("Database pool closed");
+      } catch (poolErr) {
+        rootLogger.error({ err: poolErr }, "Error closing database pool");
+      }
+
       process.exit(0);
     });
 

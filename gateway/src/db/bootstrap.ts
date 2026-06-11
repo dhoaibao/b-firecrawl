@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { withClient } from "./index";
 
 export async function bootstrapAdminUser(

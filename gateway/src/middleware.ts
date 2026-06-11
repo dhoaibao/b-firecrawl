@@ -11,6 +11,16 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 300;
 
+/** Periodic cleanup to prevent unbounded memory growth from stale IPs */
+function cleanupStaleRateLimitEntries(): void {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitStore) {
+    if (now > entry.resetTime) {
+      rateLimitStore.delete(ip);
+    }
+  }
+}
+
 export function requestIdMiddleware(
   req: Request,
   _res: Response,
@@ -59,6 +69,12 @@ export function rateLimiter(
 ): void {
   const ip = (req.ip || req.socket.remoteAddress || "unknown").toString();
   const now = Date.now();
+
+  // Run periodic cleanup (~1% chance per request) to prevent unbounded growth
+  if (Math.random() < 0.01) {
+    cleanupStaleRateLimitEntries();
+  }
+
   const entry = rateLimitStore.get(ip);
 
   if (entry && now > entry.resetTime) {

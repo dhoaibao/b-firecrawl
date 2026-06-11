@@ -26,7 +26,7 @@ WORKDIR /app
 
 # Copy gateway package files and install production deps
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built gateway
 COPY --from=gateway-builder /app/dist/ ./dist/

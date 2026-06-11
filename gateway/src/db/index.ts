@@ -12,6 +12,9 @@ export function getPool(): Pool {
   return pool;
 }
 
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 2000;
+
 export async function initDatabase(databaseUrl: string): Promise<Pool> {
   pool = new Pool({
     connectionString: databaseUrl,
@@ -24,7 +27,20 @@ export async function initDatabase(databaseUrl: string): Promise<Pool> {
     rootLogger.error({ err }, "Unexpected database pool error");
   });
 
-  await runMigrations();
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await runMigrations();
+      rootLogger.info("Database initialized");
+      return pool;
+    } catch (err) {
+      rootLogger.warn({ err, attempt, maxRetries: MAX_RETRIES }, "Database initialization failed, retrying...");
+      if (attempt === MAX_RETRIES) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+  }
+
   return pool;
 }
 

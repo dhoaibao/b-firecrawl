@@ -66,7 +66,11 @@ export function createApiKeysRouter() {
         return;
       }
       const revoked = await apiKeyService.revokeApiKey(req.params.id);
-      res.json({ data: sanitizeApiKey(revoked!) });
+      if (!revoked) {
+        res.status(404).json({ success: false, error: "API key not found" });
+        return;
+      }
+      res.json({ data: sanitizeApiKey(revoked) });
     } catch (error) {
       next(error);
     }

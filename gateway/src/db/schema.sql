@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON api_keys(key_prefix);
 
 -- connect-pg-simple will create its own session table if configured with createTableIfMissing

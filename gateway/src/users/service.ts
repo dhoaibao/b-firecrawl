@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { withClient } from "../db";
 import type { User } from "../types";
 
@@ -61,7 +62,16 @@ export async function listUsers(): Promise<User[]> {
     const result = await client.query<User>(
       "SELECT * FROM users ORDER BY created_at DESC",
     );
-    return Promise.all(result.rows.map((u) => maybeReactivate(client, u))) as Promise<User[]>;
+    // Only reactivate in-place without DB writes to avoid side effects on reads
+    return result.rows.map((u) => {
+      if (u.status === "suspended" && u.suspended_until) {
+        const until = new Date(u.suspended_until);
+        if (until.getTime() <= Date.now()) {
+          return { ...u, status: "active" as const, suspended_until: null };
+        }
+      }
+      return u;
+    });
   });
 }
 
@@ -163,7 +173,7 @@ export function checkUserAccess(user: User): { allowed: true } | { allowed: fals
       const diff = until.getTime() - now;
       const hours = Math.ceil(diff / (1000 * 60 * 60));
       const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-      const label = days > 1 ? `${days} day${days > 1 ? "s" : ""}` : `${hours} hour${hours > 1 ? "s" : ""}`;
+      const label = days > 1 ? `${days} days` : `${hours} hour${hours > 1 ? "s" : ""}`;
       return { allowed: false, reason: `Account suspended. Try again in ${label}.` };
     }
   }

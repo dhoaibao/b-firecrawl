@@ -67,11 +67,24 @@ export function createUsersRouter() {
     }
   });
 
+  const VALID_STATUSES = ["active", "suspended", "blocked"];
+
   router.patch("/:id", async (req, res, next) => {
     try {
       const updates: { name?: string; email?: string; password_hash?: string; is_admin?: boolean; status?: string; suspended_until?: string | null } = {};
       if (req.body.name !== undefined) updates.name = req.body.name;
-      if (req.body.email !== undefined) updates.email = req.body.email;
+      if (req.body.email !== undefined) {
+        if (!EMAIL_REGEX.test(req.body.email)) {
+          res.status(400).json({ success: false, error: "Invalid email format" });
+          return;
+        }
+        const existing = await userService.getUserByEmail(req.body.email);
+        if (existing && existing.id !== req.params.id) {
+          res.status(409).json({ success: false, error: "User with this email already exists" });
+          return;
+        }
+        updates.email = req.body.email;
+      }
       if (req.body.password !== undefined) {
         if (req.body.password.length < MIN_PASSWORD_LENGTH) {
           res.status(400).json({ success: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
@@ -80,7 +93,13 @@ export function createUsersRouter() {
         updates.password_hash = await bcrypt.hash(req.body.password, getBcryptRounds());
       }
       if (req.body.is_admin !== undefined) updates.is_admin = req.body.is_admin;
-      if (req.body.status !== undefined) updates.status = req.body.status;
+      if (req.body.status !== undefined) {
+        if (!VALID_STATUSES.includes(req.body.status)) {
+          res.status(400).json({ success: false, error: `Status must be one of: ${VALID_STATUSES.join(", ")}` });
+          return;
+        }
+        updates.status = req.body.status;
+      }
       if (req.body.suspended_until !== undefined) updates.suspended_until = req.body.suspended_until;
 
       const user = await userService.updateUser(req.params.id, updates);
