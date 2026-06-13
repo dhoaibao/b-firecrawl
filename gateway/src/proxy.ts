@@ -72,6 +72,21 @@ function sanitizeHeaders(
   return next;
 }
 
+export function headersForPrivacyCheck(
+  headers: Record<string, string | string[] | undefined>,
+  authEnabled: boolean,
+): Record<string, string | string[] | undefined> {
+  if (!authEnabled) return headers;
+
+  const next = { ...headers };
+  for (const key of Object.keys(next)) {
+    if (key.toLowerCase() === "authorization") {
+      delete next[key];
+    }
+  }
+  return next;
+}
+
 async function readRequestBody(req: Request, maxBodyBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let total = 0;
@@ -255,8 +270,9 @@ export function createProxyHandler({
     }
     const targetUrls = collectTargetUrls(json);
     const primaryTargetUrl = targetUrls[0] || "";
+    const privacyHeaders = headersForPrivacyCheck(req.headers, config.authEnabled);
     const privacy = {
-      hasSensitiveHeaders: hasSensitiveHeaders(req.headers, json),
+      hasSensitiveHeaders: hasSensitiveHeaders(privacyHeaders, json),
       hasPrivateTargetUrl: hasPrivateTargetUrl(targetUrls),
     };
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
