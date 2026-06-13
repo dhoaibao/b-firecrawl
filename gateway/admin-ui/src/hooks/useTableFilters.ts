@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useCallback } from "react"
 
 export interface FilterState<T> {
   searchQuery: string
@@ -32,14 +32,21 @@ export function useTableFilters<T>({
   searchFields,
   filterFn,
 }: UseTableFiltersOptions<T>): FilterState<T> {
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQuery, setSearchQueryState] = useState("")
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(initialPageSize)
+  const [pageSize, setPageSizeState] = useState(initialPageSize)
 
-  // Reset to page 1 when search or filters change
-  useEffect(() => {
+  // Reset page when search query changes to avoid landing on an empty page.
+  const setSearchQuery = useCallback((value: string) => {
+    setSearchQueryState(value)
     setPage(1)
-  }, [searchQuery, filterFn])
+  }, [])
+
+  // Reset page when page size changes because the same page number may no longer exist.
+  const setPageSize = useCallback((value: number) => {
+    setPageSizeState(value)
+    setPage(1)
+  }, [])
 
   const filteredData = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase()
@@ -70,7 +77,7 @@ export function useTableFilters<T>({
   const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize)
 
   const resetFilters = () => {
-    setSearchQuery("")
+    setSearchQueryState("")
     setPage(1)
   }
 

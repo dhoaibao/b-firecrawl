@@ -37,6 +37,7 @@ export interface GatewayConfig {
   sessionSecret: string;
   adminEmail: string;
   adminPassword: string;
+  trustProxy: boolean | string;
 }
 
 export interface PrivacyCheck {

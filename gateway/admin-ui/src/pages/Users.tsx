@@ -57,11 +57,6 @@ export default function Users() {
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
   const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery, statusFilter, roleFilter]);
-
   const fetchUsers = useCallback(async () => {
     try {
       const json = await api.get<{ data: UserData[] }>("/admin/api/users");
@@ -74,6 +69,8 @@ export default function Users() {
   }, [addToast]);
 
   useEffect(() => {
+    // Load users on mount: standard React pattern for loading authenticated data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchUsers();
   }, [fetchUsers]);
 
@@ -227,11 +224,11 @@ export default function Users() {
             type="text"
             placeholder="Search by name or email..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "suspended" | "blocked")}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | "active" | "suspended" | "blocked"); setPage(1); }}>
           <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
             <SelectValue />
           </SelectTrigger>
@@ -242,7 +239,7 @@ export default function Users() {
             <SelectItem value="blocked">Blocked</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as "all" | "admin" | "user")}>
+        <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v as "all" | "admin" | "user"); setPage(1); }}>
           <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
             <SelectValue />
           </SelectTrigger>
@@ -256,7 +253,7 @@ export default function Users() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setSearchQuery(""); setStatusFilter("all"); setRoleFilter("all"); }}
+            onClick={() => { setSearchQuery(""); setStatusFilter("all"); setRoleFilter("all"); setPage(1); }}
           >
             Clear
           </Button>

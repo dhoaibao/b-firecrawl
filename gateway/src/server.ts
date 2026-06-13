@@ -38,7 +38,7 @@ async function main() {
   const handleProxy = createProxyHandler({ config, auditStore });
   const adminRouter = createAdminRouter(auditStore);
 
-  app.set("trust proxy", false);
+  app.set("trust proxy", config.trustProxy);
 
   // Security middleware
   app.use(helmet());

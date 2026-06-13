@@ -1,0 +1,211 @@
+import { describe, it, expect } from "vitest";
+import {
+  getRouteMode,
+  requestNeedsCloud,
+  chooseInitialBackend,
+  isFallbackAllowed,
+  isFallbackEligible,
+  hasSensitiveHeaders,
+} from "./policy";
+
+describe("getRouteMode", () => {
+  it("uses header value when valid", () => {
+    expect(
+      getRouteMode("/v1/scrape", { "x-firecrawl-route-mode": "cloud-first" }, "local-first"),
+    ).toBe("cloud-first");
+  });
+
+  it("uses query value when valid", () => {
+    expect(getRouteMode("/v1/scrape?routeMode=local-only", {}, "local-first")).toBe("local-only");
+  });
+
+  it("falls back to default when invalid", () => {
+    expect(getRouteMode("/v1/scrape", { "x-firecrawl-route-mode": "invalid" }, "local-first")).toBe(
+      "local-first",
+    );
+  });
+
+  it("defaults to local-first when default is invalid", () => {
+    expect(getRouteMode("/v1/scrape", {}, "invalid" as string)).toBe("local-first");
+  });
+});
+
+describe("requestNeedsCloud", () => {
+  it("requires cloud for agent paths", () => {
+    const result = requestNeedsCloud("/v1/agent/run", null);
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for browser paths", () => {
+    const result = requestNeedsCloud("/v1/browser/snapshot", null);
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for monitor paths", () => {
+    const result = requestNeedsCloud("/v1/monitor/jobs", null);
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for research paths", () => {
+    const result = requestNeedsCloud("/v1/research", null);
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for scrape interact paths", () => {
+    const result = requestNeedsCloud("/v1/scrape/abc/interact", null);
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for search feedback paths", () => {
+    const result = requestNeedsCloud("/v1/search/abc/feedback", null);
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for actions in body", () => {
+    const result = requestNeedsCloud("/v1/scrape", { actions: [{ type: "click" }] });
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for agent field", () => {
+    const result = requestNeedsCloud("/v1/scrape", { agent: { model: "gpt-4" } });
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for screenshot format", () => {
+    const result = requestNeedsCloud("/v1/scrape", { formats: ["screenshot"] });
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for branding format object", () => {
+    const result = requestNeedsCloud("/v1/scrape", { formats: [{ type: "branding" }] });
+    expect(result.required).toBe(true);
+  });
+
+  it("requires cloud for stealth proxy", () => {
+    const result = requestNeedsCloud("/v1/scrape", { proxy: "stealth" });
+    expect(result.required).toBe(true);
+  });
+
+  it("does not require cloud for basic scrape", () => {
+    const result = requestNeedsCloud("/v1/scrape", { url: "https://example.com" });
+    expect(result.required).toBe(false);
+  });
+});
+
+describe("chooseInitialBackend", () => {
+  it("chooses cloud for cloud-first", () => {
+    expect(chooseInitialBackend("cloud-first", { required: false, reason: "" })).toBe("cloud");
+  });
+
+  it("chooses local for local-only when no cloud requirement", () => {
+    expect(chooseInitialBackend("local-only", { required: false, reason: "" })).toBe("local");
+  });
+
+  it("rejects local-only when cloud is required", () => {
+    expect(chooseInitialBackend("local-only", { required: true, reason: "actions" })).toBe("reject");
+  });
+
+  it("chooses cloud for local-first when cloud is required", () => {
+    expect(chooseInitialBackend("local-first", { required: true, reason: "actions" })).toBe("cloud");
+  });
+
+  it("chooses local for local-first when cloud is not required", () => {
+    expect(chooseInitialBackend("local-first", { required: false, reason: "" })).toBe("local");
+  });
+});
+
+describe("isFallbackAllowed", () => {
+  it("allows fallback in local-first mode without privacy concerns", () => {
+    expect(
+      isFallbackAllowed("local-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: false }),
+    ).toBe(true);
+  });
+
+  it("denies fallback outside local-first", () => {
+    expect(
+      isFallbackAllowed("cloud-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: false }),
+    ).toBe(false);
+  });
+
+  it("denies fallback with sensitive headers", () => {
+    expect(
+      isFallbackAllowed("local-first", { hasSensitiveHeaders: true, hasPrivateTargetUrl: false }),
+    ).toBe(false);
+  });
+
+  it("denies fallback with private target URL", () => {
+    expect(
+      isFallbackAllowed("local-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: true }),
+    ).toBe(false);
+  });
+});
+
+describe("isFallbackEligible", () => {
+  it("eligible on network error", () => {
+    expect(isFallbackEligible({ kind: "network-error", body: Buffer.alloc(0) })).toBe(true);
+  });
+
+  it("eligible on 5xx response", () => {
+    expect(
+      isFallbackEligible({
+        kind: "response",
+        response: new Response("", { status: 502 }),
+        body: Buffer.alloc(0),
+      }),
+    ).toBe(true);
+  });
+
+  it("eligible on 4xx with fire-engine message", () => {
+    expect(
+      isFallbackEligible({
+        kind: "response",
+        response: new Response("", { status: 400 }),
+        body: Buffer.from("fire-engine not configured"),
+      }),
+    ).toBe(true);
+  });
+
+  it("not eligible on 4xx without fallback keywords", () => {
+    expect(
+      isFallbackEligible({
+        kind: "response",
+        response: new Response("", { status: 404 }),
+        body: Buffer.from("not found"),
+      }),
+    ).toBe(false);
+  });
+
+  it("not eligible on 2xx", () => {
+    expect(
+      isFallbackEligible({
+        kind: "response",
+        response: new Response("", { status: 200 }),
+        body: Buffer.from("ok"),
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("hasSensitiveHeaders", () => {
+  it("detects authorization header", () => {
+    expect(hasSensitiveHeaders({ Authorization: "Bearer token" }, null)).toBe(true);
+  });
+
+  it("detects cookie header case-insensitively", () => {
+    expect(hasSensitiveHeaders({ cookie: "session=abc" }, null)).toBe(true);
+  });
+
+  it("detects sensitive headers in body", () => {
+    expect(
+      hasSensitiveHeaders({}, { headers: { "x-api-key": "secret" } }),
+    ).toBe(true);
+  });
+
+  it("detects token headers in body", () => {
+    expect(hasSensitiveHeaders({}, { headers: { "x-auth-token": "abc" } })).toBe(true);
+  });
+
+  it("returns false for safe headers", () => {
+    expect(hasSensitiveHeaders({ "content-type": "application/json" }, null)).toBe(false);
+  });
+});

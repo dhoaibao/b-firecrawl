@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { randomUUID } from "node:crypto";
+import { config } from "./config";
 import { getRequestLogger } from "./logger";
 
 interface RateLimitEntry {
@@ -67,7 +68,11 @@ export function rateLimiter(
   res: Response,
   next: NextFunction,
 ): void {
-  const ip = (req.socket.remoteAddress || req.ip || "unknown").toString();
+  // Use Express's computed client IP only when a trusted reverse proxy is configured;
+  // otherwise fall back to the direct socket address to prevent X-Forwarded-For spoofing.
+  const ip = config.trustProxy
+    ? (req.ip || req.socket.remoteAddress || "unknown").toString()
+    : (req.socket.remoteAddress || req.ip || "unknown").toString();
   const now = Date.now();
 
   // Run periodic cleanup (~1% chance per request) to prevent unbounded growth

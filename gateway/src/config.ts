@@ -45,6 +45,20 @@ const GatewayConfigSchema = z.object({
   sessionSecret: z.string().default(""),
   adminEmail: z.string().default(""),
   adminPassword: z.string().default(""),
+  trustProxy: z.preprocess(
+    (val) => {
+      if (val === undefined) return false;
+      const s = String(val).toLowerCase().trim();
+      if (s === "" || s === "false" || s === "0" || s === "no" || s === "off") {
+        return false;
+      }
+      if (s === "true" || s === "1" || s === "yes" || s === "on") {
+        return true;
+      }
+      return val;
+    },
+    z.boolean().or(z.string()).default(false),
+  ),
 });
 
 function loadConfig(): GatewayConfig {
@@ -63,6 +77,7 @@ function loadConfig(): GatewayConfig {
       sessionSecret: process.env.SESSION_SECRET,
       adminEmail: process.env.ADMIN_EMAIL,
       adminPassword: process.env.ADMIN_PASSWORD,
+      trustProxy: process.env.TRUST_PROXY,
     });
 
     if (!parsed.sessionSecret && process.env.NODE_ENV === "production") {

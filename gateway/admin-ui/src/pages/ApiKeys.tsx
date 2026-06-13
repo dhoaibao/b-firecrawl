@@ -52,11 +52,6 @@ export default function ApiKeys() {
   const totalPages = Math.max(1, Math.ceil(filteredKeys.length / pageSize));
   const paginatedKeys = filteredKeys.slice((page - 1) * pageSize, page * pageSize);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery, statusFilter]);
-
   const fetchKeys = useCallback(async () => {
     try {
       const json = await api.get<{ data: ApiKeyData[] }>("/admin/api/api-keys");
@@ -69,6 +64,8 @@ export default function ApiKeys() {
   }, [addToast]);
 
   useEffect(() => {
+    // Load API keys on mount: standard React pattern for loading authenticated data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchKeys();
   }, [fetchKeys]);
 
@@ -150,11 +147,11 @@ export default function ApiKeys() {
             type="text"
             placeholder="Search by name or prefix..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "revoked")}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | "active" | "revoked"); setPage(1); }}>
           <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
             <SelectValue />
           </SelectTrigger>
@@ -168,7 +165,7 @@ export default function ApiKeys() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+            onClick={() => { setSearchQuery(""); setStatusFilter("all"); setPage(1); }}
           >
             Clear
           </Button>

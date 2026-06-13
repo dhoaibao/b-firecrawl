@@ -85,6 +85,8 @@ export default function Configure() {
   }, [addToast])
 
   useEffect(() => {
+    // Load settings on mount: standard React pattern for loading authenticated data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchSettings()
   }, [fetchSettings])
 
