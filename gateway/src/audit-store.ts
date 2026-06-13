@@ -1,5 +1,6 @@
 import type { AuditEntry } from "./types";
 import fs from "node:fs/promises";
+import crypto from "node:crypto";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
@@ -93,6 +94,8 @@ export function createAuditStore(logFile: string): AuditStore {
     }
 
     const now = new Date();
+    const nowDate = now.toISOString().slice(0, 10);
+    const nowMonth = now.toISOString().slice(0, 7);
     const exists = await fs.access(logFile).then(() => true).catch(() => false);
     if (!exists) return 0;
 
@@ -113,21 +116,16 @@ export function createAuditStore(logFile: string): AuditStore {
       }
 
       const entryDate = new Date(entry.created_at);
+      const entryMonth = entryDate.toISOString().slice(0, 7);
       let shouldDelete = false;
 
       if (filter === "today") {
-        shouldDelete =
-          entryDate.getDate() === now.getDate() &&
-          entryDate.getMonth() === now.getMonth() &&
-          entryDate.getFullYear() === now.getFullYear();
+        shouldDelete = entryDate.toISOString().slice(0, 10) === nowDate;
       } else if (filter === "week") {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        weekAgo.setHours(0, 0, 0, 0);
         shouldDelete = entryDate >= weekAgo;
       } else if (filter === "month") {
-        shouldDelete =
-          entryDate.getMonth() === now.getMonth() &&
-          entryDate.getFullYear() === now.getFullYear();
+        shouldDelete = entryMonth === nowMonth;
       }
 
       if (shouldDelete) {
@@ -137,7 +135,9 @@ export function createAuditStore(logFile: string): AuditStore {
       }
     }
 
-    await fs.writeFile(logFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
+    const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
+    await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
+    await fs.rename(tmpFile, logFile);
     return deleted;
   }
 

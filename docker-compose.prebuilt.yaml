@@ -66,9 +66,14 @@ services:
       DEFAULT_ROUTE_MODE: ${DEFAULT_ROUTE_MODE:-local-first}
       GATEWAY_REQUEST_TIMEOUT_MS: ${GATEWAY_REQUEST_TIMEOUT_MS:-120000}
       GATEWAY_LOG_FILE: /data/hybrid-firecrawl-requests.jsonl
+      GATEWAY_MAX_BODY_BYTES: ${GATEWAY_MAX_BODY_BYTES:-5242880}
       AUTH_ENABLED: ${AUTH_ENABLED:-true}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@nuq-postgres:5432/postgres}
       SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_SECURE: ${SESSION_SECURE}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:

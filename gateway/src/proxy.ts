@@ -58,7 +58,6 @@ function sanitizeHeaders(
     const lower = key.toLowerCase();
     if (hopByHopHeaders.has(lower)) continue;
     if (lower === "x-firecrawl-route-mode") continue;
-    if (lower === "x-firecrawl-allow-cloud-fallback") continue;
     // Strip the virtual API key before forwarding; only send auth to cloud
     if (lower === "authorization" && backend !== "cloud") continue;
     if (value === undefined) continue;
@@ -243,11 +242,17 @@ export function createProxyHandler({
       }
 
       userId = validKey.user_id;
-      void apiKeyService.touchApiKey(validKey.id);
+      apiKeyService.touchApiKey(validKey.id).catch((err) => {
+        log.warn({ err }, "Failed to update API key last used timestamp");
+      });
     }
 
     const bodyBuffer = await readRequestBody(req, config.maxBodyBytes);
-    const { json } = inspectBody(bodyBuffer, req.headers);
+    const { json, parseError } = inspectBody(bodyBuffer, req.headers);
+    if (parseError) {
+      res.status(400).json({ success: false, error: "Invalid JSON body", details: parseError });
+      return;
+    }
     const targetUrls = collectTargetUrls(json);
     const primaryTargetUrl = targetUrls[0] || "";
     const privacy = {

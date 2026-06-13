@@ -91,6 +91,7 @@ jobs:
           OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
           MODEL_NAME=${{ secrets.MODEL_NAME }}
           ENDFILE
+          chmod 600 .env
 
           docker compose -f docker-compose.prebuilt.yaml pull
           docker compose -f docker-compose.prebuilt.yaml up -d --force-recreate --remove-orphans

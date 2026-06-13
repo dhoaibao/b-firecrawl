@@ -8,7 +8,7 @@ export function createApiKeysRouter() {
   router.get("/", async (req, res, next) => {
     try {
       const user = req.user as User;
-      const keys = await apiKeyService.listApiKeys(user.id);
+      const keys = await apiKeyService.listApiKeys(user.is_admin ? undefined : user.id);
       res.json({ data: keys.map(sanitizeApiKey) });
     } catch (error) {
       next(error);

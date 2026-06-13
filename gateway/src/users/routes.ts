@@ -92,7 +92,13 @@ export function createUsersRouter() {
         }
         updates.password_hash = await bcrypt.hash(req.body.password, getBcryptRounds());
       }
-      if (req.body.is_admin !== undefined) updates.is_admin = req.body.is_admin;
+      if (req.body.is_admin !== undefined) {
+        if (typeof req.body.is_admin !== "boolean") {
+          res.status(400).json({ success: false, error: "is_admin must be a boolean" });
+          return;
+        }
+        updates.is_admin = req.body.is_admin;
+      }
       if (req.body.status !== undefined) {
         if (!VALID_STATUSES.includes(req.body.status)) {
           res.status(400).json({ success: false, error: `Status must be one of: ${VALID_STATUSES.join(", ")}` });
@@ -100,7 +106,18 @@ export function createUsersRouter() {
         }
         updates.status = req.body.status;
       }
-      if (req.body.suspended_until !== undefined) updates.suspended_until = req.body.suspended_until;
+      if (req.body.suspended_until !== undefined) {
+        if (req.body.suspended_until === null) {
+          updates.suspended_until = null;
+        } else {
+          const date = new Date(req.body.suspended_until);
+          if (Number.isNaN(date.getTime())) {
+            res.status(400).json({ success: false, error: "suspended_until must be a valid date" });
+            return;
+          }
+          updates.suspended_until = req.body.suspended_until;
+        }
+      }
 
       const user = await userService.updateUser(req.params.id, updates);
       if (!user) {

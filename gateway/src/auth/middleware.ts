@@ -13,12 +13,15 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   }
 
   const user = req.user as User | undefined;
-  if (user) {
-    const access = checkUserAccess(user);
-    if (!access.allowed) {
-      res.status(403).json({ success: false, error: access.reason });
-      return;
-    }
+  if (!user) {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+    return;
+  }
+
+  const access = checkUserAccess(user);
+  if (!access.allowed) {
+    res.status(403).json({ success: false, error: access.reason });
+    return;
   }
 
   next();
@@ -31,15 +34,18 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
   }
 
   const user = req.user as User | undefined;
-  if (user) {
-    const access = checkUserAccess(user);
-    if (!access.allowed) {
-      res.status(403).json({ success: false, error: access.reason });
-      return;
-    }
+  if (!user) {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+    return;
   }
 
-  if (!user?.is_admin) {
+  const access = checkUserAccess(user);
+  if (!access.allowed) {
+    res.status(403).json({ success: false, error: access.reason });
+    return;
+  }
+
+  if (!user.is_admin) {
     res.status(403).json({ success: false, error: "Forbidden" });
     return;
   }

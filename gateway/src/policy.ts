@@ -37,7 +37,10 @@ export function hasSensitiveHeaders(
   headers: Record<string, string | string[] | undefined>,
   jsonBody: unknown,
 ): boolean {
-  if (headers.authorization || headers.cookie) return true;
+  const normalizedKeys = new Set(
+    Object.keys(headers).map((key) => key.toLowerCase()),
+  );
+  if (normalizedKeys.has("authorization") || normalizedKeys.has("cookie")) return true;
 
   const bodyHeaders = findObjectsByKey(jsonBody, "headers");
   for (const item of bodyHeaders) {

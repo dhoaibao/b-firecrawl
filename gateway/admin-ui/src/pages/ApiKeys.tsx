@@ -66,7 +66,7 @@ export default function ApiKeys() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     void fetchKeys();
@@ -78,7 +78,6 @@ export default function ApiKeys() {
     setCreating(true);
     try {
       const json = await api.post<{ data: ApiKeyData }>("/admin/api/api-keys", {
-        user_id: user.id,
         name: newKeyName,
       });
       setCreatedKey(json.data);

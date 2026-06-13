@@ -38,8 +38,7 @@ async function main() {
   const handleProxy = createProxyHandler({ config, auditStore });
   const adminRouter = createAdminRouter(auditStore);
 
-  // Trust proxy when behind a reverse proxy
-  app.set("trust proxy", 1);
+  app.set("trust proxy", false);
 
   // Security middleware
   app.use(helmet());
@@ -131,6 +130,9 @@ async function main() {
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     rootLogger.error({ err }, "Gateway error");
+    if (res.headersSent) {
+      return;
+    }
     const isDev = process.env.NODE_ENV !== "production";
     const statusCode = (err as Error & { statusCode?: number }).statusCode || 500;
     res.status(statusCode).json({
@@ -206,11 +208,14 @@ async function main() {
 
   process.on("uncaughtException", (err) => {
     rootLogger.error({ err }, "Uncaught Exception");
+    process.exitCode = 1;
     void gracefulShutdown("uncaughtException");
   });
 
   process.on("unhandledRejection", (reason) => {
     rootLogger.error({ reason }, "Unhandled Rejection");
+    process.exitCode = 1;
+    void gracefulShutdown("unhandledRejection");
   });
 }
 

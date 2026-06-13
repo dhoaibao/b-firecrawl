@@ -71,7 +71,7 @@ export default function Users() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     void fetchUsers();

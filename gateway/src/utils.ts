@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -73,7 +75,12 @@ export function collectTargetUrls(jsonBody: unknown): string[] {
 }
 
 function isPrivateHostname(hostname: string): boolean {
-  const host = hostname.toLowerCase();
+  let host = hostname.toLowerCase();
+  // Strip IPv6 brackets so "[::1]" normalizes to "::1"
+  if (host.startsWith("[") && host.endsWith("]")) {
+    host = host.slice(1, -1);
+  }
+
   if (
     host === "localhost" ||
     host.endsWith(".localhost") ||
@@ -85,6 +92,37 @@ function isPrivateHostname(hostname: string): boolean {
 
   if (host === "127.0.0.1" || host === "0.0.0.0" || host === "::1") {
     return true;
+  }
+
+  // Handle IPv4-mapped IPv6 addresses (e.g. ::ffff:192.168.1.1 or ::ffff:c0a8:101)
+  if (host.startsWith("::ffff:")) {
+    const suffix = host.slice(7);
+    const ipv4Decimal = suffix.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipv4Decimal) {
+      host = suffix;
+    } else {
+      const parts = suffix.split(":");
+      if (parts.length === 2) {
+        const high = parseInt(parts[0], 16);
+        const low = parseInt(parts[1], 16);
+        if (!Number.isNaN(high) && !Number.isNaN(low)) {
+          const ip32 = ((high << 16) | low) >>> 0;
+          host = `${(ip32 >>> 24) & 0xff}.${(ip32 >>> 16) & 0xff}.${(ip32 >>> 8) & 0xff}.${ip32 & 0xff}`;
+        }
+      }
+    }
+  }
+
+  // IPv6 private/loopback ranges: fc00::/7 (ULA), fe80::/10 (link-local)
+  if (host.includes(":")) {
+    const firstHextet = host.split(":")[0];
+    if (!firstHextet) return host === "::1";
+    const value = parseInt(firstHextet, 16);
+    if (Number.isNaN(value)) return false;
+    return (
+      (value >= 0xfc00 && value <= 0xfdff) ||
+      (value >= 0xfe80 && value <= 0xfebf)
+    );
   }
 
   const ipv4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
@@ -115,5 +153,5 @@ export function hasPrivateTargetUrl(urls: string[]): boolean {
 }
 
 export function cryptoRandomId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return crypto.randomUUID();
 }

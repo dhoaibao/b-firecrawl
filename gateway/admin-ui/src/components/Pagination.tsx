@@ -26,18 +26,14 @@ export default function Pagination({
   const pageSizeOptions = [10, 25, 50];
 
   const maxVisiblePages = 5;
-  let visiblePages: (number | string)[] = [];
-  if (totalPages <= maxVisiblePages) {
-    visiblePages = Array.from({ length: totalPages }, (_, i) => i + 1);
-  } else {
-    if (currentPage <= 3) {
-      visiblePages = [1, 2, 3, 4, '...', totalPages];
-    } else if (currentPage >= totalPages - 2) {
-      visiblePages = [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-    } else {
-      visiblePages = [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
-    }
-  }
+  const visiblePages: (number | string)[] =
+    totalPages <= maxVisiblePages
+      ? Array.from({ length: totalPages }, (_, i) => i + 1)
+      : currentPage <= 3
+        ? [1, 2, 3, 4, '...', totalPages]
+        : currentPage >= totalPages - 2
+          ? [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+          : [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-white/[0.06] bg-surface-2">

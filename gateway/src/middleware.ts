@@ -67,7 +67,7 @@ export function rateLimiter(
   res: Response,
   next: NextFunction,
 ): void {
-  const ip = (req.ip || req.socket.remoteAddress || "unknown").toString();
+  const ip = (req.socket.remoteAddress || req.ip || "unknown").toString();
   const now = Date.now();
 
   // Run periodic cleanup (~1% chance per request) to prevent unbounded growth

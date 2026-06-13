@@ -28,8 +28,17 @@ const GatewayConfigSchema = z.object({
     .default("/data/hybrid-firecrawl-requests.jsonl"),
   maxBodyBytes: z.coerce.number().int().positive().default(5_242_880),
   authEnabled: z.preprocess(
-    (val) =>
-      val === undefined ? true : String(val).toLowerCase() !== "false",
+    (val) => {
+      if (val === undefined) return true;
+      const s = String(val).toLowerCase().trim();
+      if (s === "" || s === "false" || s === "0" || s === "no" || s === "off") {
+        return false;
+      }
+      if (s === "true" || s === "1" || s === "yes" || s === "on") {
+        return true;
+      }
+      return val;
+    },
     z.boolean(),
   ),
   databaseUrl: z.string().min(1, "DATABASE_URL is required"),
