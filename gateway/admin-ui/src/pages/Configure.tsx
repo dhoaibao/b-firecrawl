@@ -247,8 +247,11 @@ export default function Configure() {
   async function handleSave() {
     setSaving(true)
     try {
-      const payload: SettingsData = { ...settings }
-      payload.firecrawl_api_keys = apiKeyRows.map((row) => row.key)
+      const payload: Partial<SettingsData> = {
+        firecrawl_api_keys: apiKeyRows.map((row) => row.key),
+        user_inactivity_suspend_days: settings.user_inactivity_suspend_days,
+        api_key_inactivity_revoke_days: settings.api_key_inactivity_revoke_days,
+      }
 
       await api.put<{ data: SettingsData }>("/admin/api/settings", payload)
       addToast("Settings saved successfully", "success")
