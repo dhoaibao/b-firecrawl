@@ -65,7 +65,7 @@ The gateway listens on port 8080 and proxies `/v1/*` and `/v2/*` requests to eit
 
 ### Routing Modes
 
-Set globally via `DEFAULT_ROUTE_MODE` env var, or per-request via `X-Firecrawl-Route-Mode` header:
+Set globally via `DEFAULT_ROUTE_MODE` env var as the initial seed, or override per-request via `X-Firecrawl-Route-Mode` header. The live default is managed in the Admin UI (Configure page) and stored in the database; the env var is only used when no Admin UI value has been saved.
 
 - **`local-first`** (default): Try local first; fallback to Cloud on eligible failures
 - **`local-only`**: Never route to Cloud

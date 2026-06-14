@@ -1,17 +1,20 @@
 import { Router } from "express";
 import type { GatewayConfig } from "../types";
 import * as settingsService from "./service";
+import { VALID_ROUTE_MODES } from "./service";
 
 const VALID_SETTINGS = [
   "firecrawl_api_keys",
   "user_inactivity_suspend_days",
   "api_key_inactivity_revoke_days",
+  "default_route_mode",
 ] as const;
 
 const SETTING_TYPES: Record<string, "string" | "number" | "boolean" | "json"> = {
   firecrawl_api_keys: "json",
   user_inactivity_suspend_days: "number",
   api_key_inactivity_revoke_days: "number",
+  default_route_mode: "string",
 };
 
 export interface CreditUsageItem {
@@ -67,7 +70,19 @@ export function createSettingsRouter(config: GatewayConfig) {
         const type = SETTING_TYPES[key] || "string";
         let value: string;
 
-        if (type === "json") {
+        if (key === "default_route_mode") {
+          if (
+            typeof rawValue !== "string" ||
+            !(VALID_ROUTE_MODES as readonly string[]).includes(rawValue)
+          ) {
+            res.status(400).json({
+              success: false,
+              error: `${key} must be one of ${VALID_ROUTE_MODES.join(", ")}`,
+            });
+            return;
+          }
+          value = rawValue;
+        } else if (type === "json") {
           value = JSON.stringify(rawValue);
         } else if (type === "boolean") {
           value = String(rawValue === true || rawValue === "true");

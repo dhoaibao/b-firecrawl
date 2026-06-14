@@ -1,3 +1,5 @@
+import type { RouteMode } from "@/lib/routing"
+
 /** Audit log entry from the gateway */
 export interface AuditEntry {
   id: string
@@ -61,6 +63,7 @@ export interface SettingsData {
   firecrawl_api_keys?: string[]
   user_inactivity_suspend_days?: number
   api_key_inactivity_revoke_days?: number
+  default_route_mode?: RouteMode
 }
 
 /** Credit usage item for a single API key */

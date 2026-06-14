@@ -1,5 +1,9 @@
 import { withClient } from "../db";
 
+export const VALID_ROUTE_MODES = ["local-first", "local-only", "cloud-first"] as const;
+
+export type RouteMode = (typeof VALID_ROUTE_MODES)[number];
+
 export interface SettingRecord {
   key: string;
   value: string;
@@ -49,4 +53,14 @@ export async function deleteSetting(key: string): Promise<boolean> {
     );
     return result.rowCount !== null && result.rowCount > 0;
   });
+}
+
+export async function getDefaultRouteMode(
+  fallback: RouteMode,
+): Promise<RouteMode> {
+  const record = await getSetting("default_route_mode");
+  if (record?.value && (VALID_ROUTE_MODES as readonly string[]).includes(record.value)) {
+    return record.value as RouteMode;
+  }
+  return fallback;
 }

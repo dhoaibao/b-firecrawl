@@ -223,10 +223,11 @@ export function createProxyHandler({
     const started = Date.now();
     const requestUrl = req.originalUrl || req.url;
     const parsedUrl = new URL(requestUrl, "http://gateway.local");
+    const defaultRouteMode = await settingsService.getDefaultRouteMode(config.defaultRouteMode);
     const routeMode = getRouteMode(
       requestUrl,
       req.headers,
-      config.defaultRouteMode,
+      defaultRouteMode,
     );
 
     // Validate virtual API key when auth is enabled

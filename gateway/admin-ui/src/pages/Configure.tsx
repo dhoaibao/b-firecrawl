@@ -25,9 +25,18 @@ import {
   Shield,
   CreditCard,
   GripVertical,
+  Route,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { DEFAULT_ROUTE_MODE, ROUTE_MODES } from "@/lib/routing"
 import { useToast } from "@/hooks/useToast"
 import { useConfirmDialog } from "@/components/ConfirmDialog"
 import PageLayout from "@/components/PageLayout"
@@ -40,14 +49,24 @@ interface SettingField {
   key: SettingKey
   label: string
   description: string
-  type: "number"
-  category: "security"
+  type: "number" | "select"
+  category: "security" | "cloud" | "routing"
   icon: React.ComponentType<{ className?: string }>
   min?: number
   step?: number
+  options?: { value: string; label: string }[]
 }
 
 const FIELDS: SettingField[] = [
+  {
+    key: "default_route_mode",
+    label: "Default Route Mode",
+    description: "Default routing behavior when no X-Firecrawl-Route-Mode header or query parameter is provided.",
+    type: "select",
+    category: "routing",
+    icon: Route,
+    options: [...ROUTE_MODES],
+  },
   {
     key: "user_inactivity_suspend_days",
     label: "User Inactivity Suspension",
@@ -71,6 +90,7 @@ const FIELDS: SettingField[] = [
 ]
 
 const CATEGORIES = [
+  { key: "routing" as const, label: "Routing", icon: Route },
   { key: "security" as const, label: "Security & Access", icon: Shield },
   { key: "cloud" as const, label: "Firecrawl Cloud API Keys", icon: CreditCard },
 ] as const
@@ -388,17 +408,35 @@ export default function Configure() {
                       {field.label}
                     </label>
                     <p className="mb-3 text-xs text-muted-foreground">{field.description}</p>
-                    <input
-                      type="number"
-                      min={field.min}
-                      step={field.step}
-                      value={settings[field.key] ?? 0}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? 0 : Number(e.target.value)
-                        updateSetting(field.key, val)
-                      }}
-                      className="h-10 w-full max-w-xs rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-                    />
+                    {field.type === "select" ? (
+                      <Select
+                        value={String(settings[field.key] ?? DEFAULT_ROUTE_MODE)}
+                        onValueChange={(value) => updateSetting(field.key, value)}
+                      >
+                        <SelectTrigger className="h-10 w-full max-w-md text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {field.options?.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <input
+                        type="number"
+                        min={field.min}
+                        step={field.step}
+                        value={settings[field.key] ?? 0}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? 0 : Number(e.target.value)
+                          updateSetting(field.key, val)
+                        }}
+                        className="h-10 w-full max-w-xs rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                      />
+                    )}
                   </div>
                 ))}
               </div>

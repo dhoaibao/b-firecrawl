@@ -19,7 +19,7 @@ Professional Express.js + TypeScript gateway for deployment-only Firecrawl self-
 
 ## Routing Modes
 
-Set globally with `DEFAULT_ROUTE_MODE`, or per request with:
+Set the initial default with `DEFAULT_ROUTE_MODE`, manage the live default in the Admin UI under **Configure > Routing**, or override per request with:
 
 ```text
 X-Firecrawl-Route-Mode: local-first | local-only | cloud-first

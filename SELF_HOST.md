@@ -123,11 +123,13 @@ With auth disabled, omit the `Authorization` header.
 
 ## Routing Modes
 
-Set the default in `.env`:
+Set the initial default in `.env`:
 
 ```env
 DEFAULT_ROUTE_MODE=local-first
 ```
+
+The live default is managed in the Admin UI under **Configure > Routing** and stored in the database. The env value is only used when no Admin UI value has been saved.
 
 Per request, override with:
 

@@ -12,6 +12,7 @@ vi.mock("./service", () => ({
   getSetting: mockGetSetting,
   listSettings: mockListSettings,
   setSetting: mockSetSetting,
+  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first"],
 }));
 
 function createApp() {
@@ -45,12 +46,14 @@ describe("GET /settings", () => {
     mockListSettings.mockResolvedValue([
       { key: "user_inactivity_suspend_days", value: "30", updated_at: new Date().toISOString() },
       { key: "firecrawl_api_keys", value: '["fc_key1"]', updated_at: new Date().toISOString() },
+      { key: "default_route_mode", value: "cloud-first", updated_at: new Date().toISOString() },
     ]);
     const app = createApp();
     const res = await request(app).get("/settings").expect(200);
     expect(res.body.data).toEqual({
       user_inactivity_suspend_days: 30,
       firecrawl_api_keys: ["fc_key1"],
+      default_route_mode: "cloud-first",
     });
   });
 });
@@ -73,6 +76,30 @@ describe("PUT /settings", () => {
       .expect(200);
     expect(mockSetSetting).toHaveBeenCalledWith("firecrawl_api_keys", '["fc_secret_key"]');
     expect(res.body.data.firecrawl_api_keys).toEqual(["fc_secret_key"]);
+  });
+
+  it("saves default_route_mode", async () => {
+    mockSetSetting.mockImplementation(async (key: string, value: string) => ({
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+    }));
+    const app = createApp();
+    const res = await request(app)
+      .put("/settings")
+      .send({ default_route_mode: "cloud-first" })
+      .expect(200);
+    expect(mockSetSetting).toHaveBeenCalledWith("default_route_mode", "cloud-first");
+    expect(res.body.data.default_route_mode).toBe("cloud-first");
+  });
+
+  it("rejects invalid default_route_mode values", async () => {
+    const app = createApp();
+    const res = await request(app)
+      .put("/settings")
+      .send({ default_route_mode: "invalid" })
+      .expect(400);
+    expect(res.body.error).toContain("default_route_mode must be one of");
   });
 
   it("rejects invalid setting keys", async () => {

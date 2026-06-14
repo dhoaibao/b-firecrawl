@@ -1,3 +1,5 @@
+import type { RouteMode } from "./settings/service";
+
 export interface AuditEntry {
   id: string;
   created_at: string;
@@ -27,7 +29,7 @@ export interface GatewayConfig {
   port: number;
   localBaseUrl: string;
   cloudBaseUrl: string;
-  defaultRouteMode: string;
+  defaultRouteMode: RouteMode;
   requestTimeoutMs: number;
   logFile: string;
   maxBodyBytes: number;
