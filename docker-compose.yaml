@@ -62,7 +62,6 @@ services:
       PORT: 8080
       LOCAL_FIRECRAWL_URL: http://api:${INTERNAL_PORT:-3002}
       FIRECRAWL_CLOUD_URL: ${FIRECRAWL_CLOUD_URL:-https://api.firecrawl.dev}
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
       DEFAULT_ROUTE_MODE: ${DEFAULT_ROUTE_MODE:-local-first}
       GATEWAY_REQUEST_TIMEOUT_MS: ${GATEWAY_REQUEST_TIMEOUT_MS:-120000}
       GATEWAY_LOG_FILE: /data/hybrid-firecrawl-requests.jsonl

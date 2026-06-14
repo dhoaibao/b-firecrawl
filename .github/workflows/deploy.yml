@@ -83,7 +83,6 @@ jobs:
           BULL_AUTH_KEY=${{ secrets.BULL_AUTH_KEY }}
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
           DATABASE_URL=postgresql://postgres:${{ secrets.POSTGRES_PASSWORD }}@nuq-postgres:5432/postgres
-          FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
           PROXY_SERVER=${{ secrets.PROXY_SERVER }}
           PROXY_USERNAME=${{ secrets.PROXY_USERNAME }}
           PROXY_PASSWORD=${{ secrets.PROXY_PASSWORD }}

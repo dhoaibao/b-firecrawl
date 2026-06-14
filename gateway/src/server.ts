@@ -88,10 +88,10 @@ async function main() {
     app.use("/admin/api", requireAuth, adminRouter);
     app.use("/admin/api/users", express.json(), requireAdmin, createUsersRouter());
     app.use("/admin/api/api-keys", express.json(), requireAuth, createApiKeysRouter());
-    app.use("/admin/api/settings", express.json(), requireAdmin, createSettingsRouter());
+    app.use("/admin/api/settings", express.json(), requireAdmin, createSettingsRouter(config));
   } else {
     app.use("/admin/api", adminRouter);
-    app.use("/admin/api/settings", express.json(), createSettingsRouter());
+    app.use("/admin/api/settings", express.json(), createSettingsRouter(config));
   }
 
   // Serve static files from admin-ui dist

@@ -100,7 +100,7 @@ The core proxy logic:
 5. If local fails and fallback is allowed/eligible, retries against Cloud
 6. Writes an audit entry and returns the response with `x-hybrid-firecrawl-*` headers
 
-The virtual API key is stripped before forwarding to local; only the Cloud backend receives the real `FIRECRAWL_API_KEY`.
+The virtual API key is stripped before forwarding to local; only the Cloud backend receives the real Firecrawl API key configured in Settings.
 
 ### Authentication System
 

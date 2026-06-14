@@ -34,6 +34,19 @@ const hopByHopHeaders = new Set([
   "content-length",
 ]);
 
+async function getPrimaryCloudApiKey(): Promise<string | undefined> {
+  try {
+    const record = await settingsService.getSetting("firecrawl_api_key");
+    if (record?.value) {
+      const trimmed = record.value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+  } catch {
+    // ignore errors
+  }
+  return undefined;
+}
+
 async function getFallbackCloudApiKeys(): Promise<string[]> {
   try {
     const record = await settingsService.getSetting("fallback_firecrawl_api_keys");
@@ -50,7 +63,6 @@ async function getFallbackCloudApiKeys(): Promise<string[]> {
 function sanitizeHeaders(
   headers: Record<string, string | string[] | undefined>,
   backend: string,
-  config: GatewayConfig,
   apiKey?: string,
 ): Record<string, string> {
   const next: Record<string, string> = {};
@@ -64,9 +76,8 @@ function sanitizeHeaders(
     next[key] = Array.isArray(value) ? value.join(", ") : value;
   }
 
-  const cloudKey = apiKey || config.cloudApiKey;
-  if (backend === "cloud" && cloudKey) {
-    next.authorization = `Bearer ${cloudKey}`;
+  if (backend === "cloud" && apiKey) {
+    next.authorization = `Bearer ${apiKey}`;
   }
 
   return next;
@@ -124,7 +135,7 @@ async function proxyToBackend({
   try {
     const response = await fetch(targetUrl, {
       method: req.method,
-      headers: sanitizeHeaders(req.headers, backend, config, apiKey),
+      headers: sanitizeHeaders(req.headers, backend, apiKey),
       body:
         req.method === "GET" || req.method === "HEAD" ? undefined : bodyBuffer,
       redirect: "manual",
@@ -277,6 +288,36 @@ export function createProxyHandler({
     };
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
+    const primaryCloudApiKey = await getPrimaryCloudApiKey();
+
+    if (initialBackend === "cloud" && !primaryCloudApiKey) {
+      const statusCode = 502;
+      log.warn(
+        { reason: needsCloud.reason },
+        "request requires Firecrawl Cloud but no primary API key configured",
+      );
+      const auditEntry: AuditEntry = {
+        id: cryptoRandomId(),
+        created_at: nowIso(),
+        method: req.method,
+        path: parsedUrl.pathname,
+        route_mode: routeMode,
+        backend_used: "none",
+        fallback_used: false,
+        fallback_reason: "No Firecrawl Cloud API key configured",
+        status_code: statusCode,
+        duration_ms: Date.now() - started,
+        target_url: primaryTargetUrl,
+        user_id: userId,
+        request_id: req.requestId,
+      };
+      await auditStore.appendAudit(auditEntry);
+      res.status(statusCode).json({
+        success: false,
+        error: "No Firecrawl Cloud API key configured. Add one in Settings.",
+      });
+      return;
+    }
 
     log.info(
       {
@@ -325,6 +366,7 @@ export function createProxyHandler({
       bodyBuffer,
       targetUrl: backendUrl(initialBackend, requestUrl, config),
       config,
+      apiKey: initialBackend === "cloud" ? primaryCloudApiKey : undefined,
     });
     let fallbackUsed = false;
     let fallbackReason = "";
@@ -349,6 +391,7 @@ export function createProxyHandler({
         bodyBuffer,
         targetUrl: backendUrl("cloud", requestUrl, config),
         config,
+        apiKey: primaryCloudApiKey,
       });
     }
 

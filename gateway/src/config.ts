@@ -17,7 +17,6 @@ const GatewayConfigSchema = z.object({
     .min(1)
     .default("https://api.firecrawl.dev")
     .transform(stripTrailingSlash),
-  cloudApiKey: z.string().default(""),
   defaultRouteMode: z
     .enum(["local-first", "local-only", "cloud-first"])
     .default("local-first"),
@@ -67,7 +66,6 @@ function loadConfig(): GatewayConfig {
       port: process.env.PORT,
       localBaseUrl: process.env.LOCAL_FIRECRAWL_URL,
       cloudBaseUrl: process.env.FIRECRAWL_CLOUD_URL,
-      cloudApiKey: process.env.FIRECRAWL_API_KEY,
       defaultRouteMode: process.env.DEFAULT_ROUTE_MODE,
       requestTimeoutMs: process.env.GATEWAY_REQUEST_TIMEOUT_MS,
       logFile: process.env.GATEWAY_LOG_FILE,

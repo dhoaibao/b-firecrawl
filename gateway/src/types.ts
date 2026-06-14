@@ -27,7 +27,6 @@ export interface GatewayConfig {
   port: number;
   localBaseUrl: string;
   cloudBaseUrl: string;
-  cloudApiKey: string;
   defaultRouteMode: string;
   requestTimeoutMs: number;
   logFile: string;

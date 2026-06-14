@@ -8,6 +8,10 @@ import {
   Shield,
   Server,
   AlertTriangle,
+  CreditCard,
+  RefreshCw,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,7 +19,7 @@ import { useToast } from "@/hooks/useToast"
 import { useConfirmDialog } from "@/components/ConfirmDialog"
 import PageLayout from "@/components/PageLayout"
 import { api } from "@/lib/api"
-import type { SettingsData } from "@/types"
+import type { SettingsData, CreditUsageItem } from "@/types"
 
 type SettingKey = keyof SettingsData
 
@@ -55,8 +59,9 @@ const FIELDS: SettingField[] = [
 
 const CATEGORIES = [
   { key: "security" as const, label: "Security & Access", icon: Shield },
-  { key: "fallback" as const, label: "Self-Hosted Fallbacks", icon: Server },
-]
+  { key: "cloud" as const, label: "Firecrawl Cloud", icon: CreditCard },
+  { key: "fallback" as const, label: "Fallback Keys", icon: Server },
+] as const
 
 export default function Configure() {
   const [settings, setSettings] = useState<SettingsData>({})
@@ -64,6 +69,9 @@ export default function Configure() {
   const [saving, setSaving] = useState(false)
   const [fallbackKeys, setFallbackKeys] = useState<string[]>([])
   const [newKey, setNewKey] = useState("")
+  const [showPrimaryKey, setShowPrimaryKey] = useState(false)
+  const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
+  const [creditUsageLoading, setCreditUsageLoading] = useState(false)
   const { addToast } = useToast()
   const { confirm: confirmReset, dialog: resetDialog } = useConfirmDialog()
 
@@ -81,6 +89,18 @@ export default function Configure() {
       addToast(err instanceof Error ? err.message : "Failed to load settings", "error")
     } finally {
       setLoading(false)
+    }
+  }, [addToast])
+
+  const fetchCreditUsage = useCallback(async () => {
+    setCreditUsageLoading(true)
+    try {
+      const json = await api.get<{ data: CreditUsageItem[] }>("/admin/api/settings/credit-usage")
+      setCreditUsage(json.data || [])
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : "Failed to load credit usage", "error")
+    } finally {
+      setCreditUsageLoading(false)
     }
   }, [addToast])
 
@@ -124,6 +144,16 @@ export default function Configure() {
     }
   }
 
+  function formatCredits(value: number | null): string {
+    if (value === null) return "—"
+    return value.toLocaleString()
+  }
+
+  function formatDate(value: string | null): string {
+    if (!value) return "—"
+    return new Date(value).toLocaleDateString()
+  }
+
   function handleReset() {
     confirmReset({
       title: "Reset Settings",
@@ -142,7 +172,7 @@ export default function Configure() {
     return (
       <PageLayout title="Configure" icon={Settings}>
         <div className="space-y-4">
-          {Array.from({ length: 2 }).map((_, i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i} className="h-40 animate-pulse border-white/[0.06] bg-surface-2">
               <div className="h-full bg-white/[0.02]" />
             </Card>
@@ -175,6 +205,90 @@ export default function Configure() {
       <div className="space-y-6">
         {CATEGORIES.map((cat) => {
           const catFields = FIELDS.filter((f) => f.category === cat.key)
+          if (cat.key === "cloud") {
+            return (
+              <Card key={cat.key} className="border-white/[0.06] bg-surface-2 py-0 shadow-none">
+                <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <cat.icon className="size-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-semibold text-foreground">{cat.label}</CardTitle>
+                  </div>
+                </CardHeader>
+                <div className="space-y-4 px-5 py-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-foreground">Primary Firecrawl API Key</label>
+                    <p className="text-xs text-muted-foreground">
+                      This key is used for all Firecrawl Cloud requests and local-to-cloud fallbacks.
+                    </p>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type={showPrimaryKey ? "text" : "password"}
+                          placeholder="Enter Firecrawl API key..."
+                          value={settings.firecrawl_api_key || ""}
+                          onChange={(e) => updateSetting("firecrawl_api_key", e.target.value)}
+                          className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 pr-10 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPrimaryKey((prev) => !prev)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showPrimaryKey ? "Hide API key" : "Show API key"}
+                        >
+                          {showPrimaryKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-foreground">Credit Usage</label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void fetchCreditUsage()}
+                        disabled={creditUsageLoading}
+                      >
+                        <RefreshCw className={`size-4 mr-1 ${creditUsageLoading ? "animate-spin" : ""}`} /> Check Usage
+                      </Button>
+                    </div>
+                    {creditUsage.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Click "Check Usage" to see remaining credits for the primary and fallback keys.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {creditUsage.map((item, i) => (
+                          <div
+                            key={`${item.keyPrefix}-${i}`}
+                            className="flex flex-col gap-1 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <code className="text-xs font-mono text-muted-foreground">{item.keyPrefix}</code>
+                              {item.error ? (
+                                <span className="text-xs text-danger-fg">{item.error}</span>
+                              ) : (
+                                <span className="text-sm font-medium text-foreground">
+                                  {formatCredits(item.remainingCredits)} / {formatCredits(item.planCredits)} credits
+                                </span>
+                              )}
+                            </div>
+                            {!item.error && (
+                              <p className="text-xs text-muted-foreground">
+                                Billing period: {formatDate(item.billingPeriodStart)} – {formatDate(item.billingPeriodEnd)}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )
+          }
+
           if (cat.key === "fallback") {
             return (
               <Card key={cat.key} className="border-white/[0.06] bg-surface-2 py-0 shadow-none">
@@ -205,7 +319,7 @@ export default function Configure() {
                     {fallbackKeys.length === 0 && (
                       <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3 text-sm text-muted-foreground">
                         <AlertTriangle className="size-4" />
-                        No fallback keys configured. Only the primary FIRECRAWL_API_KEY from the environment will be used.
+                        No fallback keys configured.
                       </div>
                     )}
                     {fallbackKeys.map((key, i) => (

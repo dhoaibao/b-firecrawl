@@ -30,7 +30,7 @@ ADMIN_PASSWORD=changeme
 SESSION_SECRET=change-me-to-a-long-random-string
 ```
 
-Optional: set `FIRECRAWL_API_KEY` for cloud fallback.
+Optional: add a Firecrawl Cloud API key in the admin UI for cloud fallback.
 
 ## 3. Start everything
 

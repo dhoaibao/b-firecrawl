@@ -30,11 +30,7 @@ ADMIN_PASSWORD=changeme
 SESSION_SECRET=change-me-to-a-long-random-string
 ```
 
-Set this if you want Cloud fallback or `cloud-first` routing:
-
-```env
-FIRECRAWL_API_KEY=fc-your-cloud-key
-```
+Set the Firecrawl Cloud API key in the admin UI (`/admin/configure`) if you want Cloud fallback or `cloud-first` routing.
 
 To disable authentication and run the gateway as a transparent proxy:
 

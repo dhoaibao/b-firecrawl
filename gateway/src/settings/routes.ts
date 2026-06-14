@@ -1,20 +1,41 @@
 import { Router } from "express";
+import type { GatewayConfig } from "../types";
 import * as settingsService from "./service";
 
 const VALID_SETTINGS = [
+  "firecrawl_api_key",
   "user_inactivity_suspend_days",
   "api_key_inactivity_revoke_days",
   "fallback_firecrawl_api_keys",
 ] as const;
 
 const SETTING_TYPES: Record<string, "string" | "number" | "boolean" | "json"> = {
+  firecrawl_api_key: "string",
   user_inactivity_suspend_days: "number",
   api_key_inactivity_revoke_days: "number",
   fallback_firecrawl_api_keys: "json",
 };
 
-export function createSettingsRouter() {
+export interface CreditUsageItem {
+  keyPrefix: string;
+  remainingCredits: number | null;
+  planCredits: number | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
+  error?: string;
+}
+
+export function createSettingsRouter(config: GatewayConfig) {
   const router = Router();
+
+  router.get("/credit-usage", async (_req, res, next) => {
+    try {
+      const items = await fetchCreditUsage(config.cloudBaseUrl);
+      res.json({ data: items });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/", async (_req, res, next) => {
     try {
@@ -92,3 +113,86 @@ function parseValue(value: string, type: string): unknown {
   }
   return value;
 }
+
+async function fetchCreditUsage(cloudBaseUrl: string): Promise<CreditUsageItem[]> {
+  const primary = await settingsService.getSetting("firecrawl_api_key");
+  const primaryKey = primary?.value?.trim() || "";
+  const fallbackRecord = await settingsService.getSetting("fallback_firecrawl_api_keys");
+  let fallbackKeys: string[] = [];
+  try {
+    const parsed = fallbackRecord?.value ? (JSON.parse(fallbackRecord.value) as unknown) : [];
+    fallbackKeys = Array.isArray(parsed)
+      ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
+      : [];
+  } catch {
+    fallbackKeys = [];
+  }
+
+  const keys = [...(primaryKey ? [primaryKey] : []), ...fallbackKeys];
+  const results: CreditUsageItem[] = [];
+
+  for (const key of keys) {
+    results.push(await fetchCreditUsageForKey(cloudBaseUrl, key));
+  }
+
+  return results;
+}
+
+async function fetchCreditUsageForKey(
+  cloudBaseUrl: string,
+  apiKey: string,
+): Promise<CreditUsageItem> {
+  const keyPrefix = `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let response: Response;
+    try {
+      response = await fetch(`${cloudBaseUrl}/v2/team/credit-usage`, {
+        headers: { authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      return {
+        keyPrefix,
+        remainingCredits: null,
+        planCredits: null,
+        billingPeriodStart: null,
+        billingPeriodEnd: null,
+        error: `HTTP ${response.status}: ${body || response.statusText}`,
+      };
+    }
+
+    const json = (await response.json()) as {
+      data?: {
+        remainingCredits?: number;
+        planCredits?: number;
+        billingPeriodStart?: string | null;
+        billingPeriodEnd?: string | null;
+      };
+    };
+
+    return {
+      keyPrefix,
+      remainingCredits: json.data?.remainingCredits ?? null,
+      planCredits: json.data?.planCredits ?? null,
+      billingPeriodStart: json.data?.billingPeriodStart ?? null,
+      billingPeriodEnd: json.data?.billingPeriodEnd ?? null,
+    };
+  } catch (error) {
+    return {
+      keyPrefix,
+      remainingCredits: null,
+      planCredits: null,
+      billingPeriodStart: null,
+      billingPeriodEnd: null,
+      error: (error as Error).message,
+    };
+  }
+}
+
