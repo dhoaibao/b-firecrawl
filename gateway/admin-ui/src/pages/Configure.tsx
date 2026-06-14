@@ -167,9 +167,7 @@ function SortableApiKeyRow({
             {usage.remainingCredits?.toLocaleString() ?? "—"} / {usage.planCredits?.toLocaleString() ?? "—"} credits
           </span>
           <span>
-            {usage.billingPeriodStart
-              ? new Date(usage.billingPeriodStart).toLocaleDateString()
-              : "—"} – {usage.billingPeriodEnd
+            Renews on {usage.billingPeriodEnd
               ? new Date(usage.billingPeriodEnd).toLocaleDateString()
               : "—"}
           </span>
