@@ -58,14 +58,14 @@ export interface ApiResponse<T> {
 
 /** Settings record from admin API */
 export interface SettingsData {
-  firecrawl_api_key?: string
+  firecrawl_api_keys?: string[]
   user_inactivity_suspend_days?: number
   api_key_inactivity_revoke_days?: number
-  fallback_firecrawl_api_keys?: string[]
 }
 
 /** Credit usage item for a single API key */
 export interface CreditUsageItem {
+  keyIndex: number
   keyPrefix: string
   remainingCredits: number | null
   planCredits: number | null

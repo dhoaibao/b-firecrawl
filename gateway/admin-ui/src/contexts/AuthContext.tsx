@@ -42,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Restore session on mount: standard React pattern for loading authenticated state.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchUser();
   }, [fetchUser]);
 

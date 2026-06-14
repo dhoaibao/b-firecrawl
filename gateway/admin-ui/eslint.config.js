@@ -23,6 +23,7 @@ export default defineConfig([
         'error',
         { allowExportNames: ['useAuth', 'useToastContext', 'useConfirmDialog'] },
       ],
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

@@ -44,13 +44,13 @@ describe("GET /settings", () => {
   it("lists parsed settings", async () => {
     mockListSettings.mockResolvedValue([
       { key: "user_inactivity_suspend_days", value: "30", updated_at: new Date().toISOString() },
-      { key: "fallback_firecrawl_api_keys", value: '["fc_key1"]', updated_at: new Date().toISOString() },
+      { key: "firecrawl_api_keys", value: '["fc_key1"]', updated_at: new Date().toISOString() },
     ]);
     const app = createApp();
     const res = await request(app).get("/settings").expect(200);
     expect(res.body.data).toEqual({
       user_inactivity_suspend_days: 30,
-      fallback_firecrawl_api_keys: ["fc_key1"],
+      firecrawl_api_keys: ["fc_key1"],
     });
   });
 });
@@ -60,7 +60,7 @@ describe("PUT /settings", () => {
     vi.clearAllMocks();
   });
 
-  it("saves firecrawl_api_key as a string", async () => {
+  it("saves firecrawl_api_keys as json", async () => {
     mockSetSetting.mockImplementation(async (key: string, value: string) => ({
       key,
       value,
@@ -69,10 +69,10 @@ describe("PUT /settings", () => {
     const app = createApp();
     const res = await request(app)
       .put("/settings")
-      .send({ firecrawl_api_key: "fc_secret_key" })
+      .send({ firecrawl_api_keys: ["fc_secret_key"] })
       .expect(200);
-    expect(mockSetSetting).toHaveBeenCalledWith("firecrawl_api_key", "fc_secret_key");
-    expect(res.body.data.firecrawl_api_key).toBe("fc_secret_key");
+    expect(mockSetSetting).toHaveBeenCalledWith("firecrawl_api_keys", '["fc_secret_key"]');
+    expect(res.body.data.firecrawl_api_keys).toEqual(["fc_secret_key"]);
   });
 
   it("rejects invalid setting keys", async () => {
@@ -87,13 +87,10 @@ describe("GET /settings/credit-usage", () => {
     vi.clearAllMocks();
   });
 
-  it("returns credit usage for primary and fallback keys", async () => {
+  it("returns credit usage for all configured keys", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
-      if (key === "firecrawl_api_key") {
-        return { key, value: "fc_primary_key", updated_at: new Date().toISOString() };
-      }
-      if (key === "fallback_firecrawl_api_keys") {
-        return { key, value: '["fc_fallback_key"]', updated_at: new Date().toISOString() };
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["fc_key1","fc_key2"]', updated_at: new Date().toISOString() };
       }
       return null;
     });
@@ -123,8 +120,8 @@ describe("GET /settings/credit-usage", () => {
 
   it("returns error details for failed credit usage fetch", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
-      if (key === "firecrawl_api_key") {
-        return { key, value: "fc_bad_key", updated_at: new Date().toISOString() };
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["fc_bad_key"]', updated_at: new Date().toISOString() };
       }
       return null;
     });

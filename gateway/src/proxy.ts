@@ -34,25 +34,14 @@ const hopByHopHeaders = new Set([
   "content-length",
 ]);
 
-async function getPrimaryCloudApiKey(): Promise<string | undefined> {
+async function getCloudApiKeys(): Promise<string[]> {
   try {
-    const record = await settingsService.getSetting("firecrawl_api_key");
+    const record = await settingsService.getSetting("firecrawl_api_keys");
     if (record?.value) {
-      const trimmed = record.value.trim();
-      return trimmed.length > 0 ? trimmed : undefined;
-    }
-  } catch {
-    // ignore errors
-  }
-  return undefined;
-}
-
-async function getFallbackCloudApiKeys(): Promise<string[]> {
-  try {
-    const record = await settingsService.getSetting("fallback_firecrawl_api_keys");
-    if (record?.value) {
-      const parsed = JSON.parse(record.value) as string[];
-      return Array.isArray(parsed) ? parsed.filter((k) => typeof k === "string" && k.length > 0) : [];
+      const parsed = JSON.parse(record.value) as unknown;
+      return Array.isArray(parsed)
+        ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
+        : [];
     }
   } catch {
     // ignore parse errors
@@ -288,7 +277,8 @@ export function createProxyHandler({
     };
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
-    const primaryCloudApiKey = await getPrimaryCloudApiKey();
+    const cloudApiKeys = await getCloudApiKeys();
+    const primaryCloudApiKey = cloudApiKeys[0];
 
     if (initialBackend === "cloud" && !primaryCloudApiKey) {
       const statusCode = 502;
@@ -395,27 +385,27 @@ export function createProxyHandler({
       });
     }
 
-    // Try fallback cloud API keys on auth/rate-limit errors
+    // Try next cloud API keys on auth/rate-limit errors
     if (
       result.backend === "cloud" &&
       result.kind === "response" &&
       result.response &&
       RETRYABLE_CLOUD_STATUS.has(result.response.status)
     ) {
-      const fallbackKeys = await getFallbackCloudApiKeys();
-      if (fallbackKeys.length > 0) {
+      const remainingKeys = cloudApiKeys.slice(1);
+      if (remainingKeys.length > 0) {
         log.warn(
-          { status: result.response.status, fallback_keys: fallbackKeys.length },
-          "cloud returned retryable status, trying fallback keys",
+          { status: result.response.status, fallback_keys: remainingKeys.length },
+          "cloud returned retryable status, trying next keys",
         );
-        for (const fallbackKey of fallbackKeys) {
+        for (const nextKey of remainingKeys) {
           const fallbackResult = await proxyToBackend({
             backend: "cloud",
             req,
             bodyBuffer,
             targetUrl: backendUrl("cloud", requestUrl, config),
             config,
-            apiKey: fallbackKey,
+            apiKey: nextKey,
           });
           if (
             fallbackResult.kind === "response" &&
@@ -423,7 +413,7 @@ export function createProxyHandler({
             !RETRYABLE_CLOUD_STATUS.has(fallbackResult.response.status)
           ) {
             fallbackUsed = true;
-            fallbackReason = `primary cloud key failed with ${result.response.status}, fallback succeeded`;
+            fallbackReason = `primary cloud key failed with ${result.response.status}, next key succeeded`;
             result = fallbackResult;
             break;
           }

@@ -65,7 +65,6 @@ export default function ApiKeys() {
 
   useEffect(() => {
     // Load API keys on mount: standard React pattern for loading authenticated data.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchKeys();
   }, [fetchKeys]);
 

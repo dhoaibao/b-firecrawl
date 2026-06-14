@@ -3,20 +3,19 @@ import type { GatewayConfig } from "../types";
 import * as settingsService from "./service";
 
 const VALID_SETTINGS = [
-  "firecrawl_api_key",
+  "firecrawl_api_keys",
   "user_inactivity_suspend_days",
   "api_key_inactivity_revoke_days",
-  "fallback_firecrawl_api_keys",
 ] as const;
 
 const SETTING_TYPES: Record<string, "string" | "number" | "boolean" | "json"> = {
-  firecrawl_api_key: "string",
+  firecrawl_api_keys: "json",
   user_inactivity_suspend_days: "number",
   api_key_inactivity_revoke_days: "number",
-  fallback_firecrawl_api_keys: "json",
 };
 
 export interface CreditUsageItem {
+  keyIndex: number;
   keyPrefix: string;
   remainingCredits: number | null;
   planCredits: number | null;
@@ -115,31 +114,32 @@ function parseValue(value: string, type: string): unknown {
 }
 
 async function fetchCreditUsage(cloudBaseUrl: string): Promise<CreditUsageItem[]> {
-  const primary = await settingsService.getSetting("firecrawl_api_key");
-  const primaryKey = primary?.value?.trim() || "";
-  const fallbackRecord = await settingsService.getSetting("fallback_firecrawl_api_keys");
-  let fallbackKeys: string[] = [];
-  try {
-    const parsed = fallbackRecord?.value ? (JSON.parse(fallbackRecord.value) as unknown) : [];
-    fallbackKeys = Array.isArray(parsed)
-      ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
-      : [];
-  } catch {
-    fallbackKeys = [];
-  }
-
-  const keys = [...(primaryKey ? [primaryKey] : []), ...fallbackKeys];
+  const keys = await getFirecrawlApiKeys();
   const results: CreditUsageItem[] = [];
 
-  for (const key of keys) {
-    results.push(await fetchCreditUsageForKey(cloudBaseUrl, key));
+  for (let i = 0; i < keys.length; i++) {
+    results.push(await fetchCreditUsageForKey(cloudBaseUrl, i, keys[i]));
   }
 
   return results;
 }
 
+async function getFirecrawlApiKeys(): Promise<string[]> {
+  const record = await settingsService.getSetting("firecrawl_api_keys");
+  if (!record?.value) return [];
+  try {
+    const parsed = JSON.parse(record.value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 async function fetchCreditUsageForKey(
   cloudBaseUrl: string,
+  keyIndex: number,
   apiKey: string,
 ): Promise<CreditUsageItem> {
   const keyPrefix = `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
@@ -159,6 +159,7 @@ async function fetchCreditUsageForKey(
     if (!response.ok) {
       const body = await response.text();
       return {
+        keyIndex,
         keyPrefix,
         remainingCredits: null,
         planCredits: null,
@@ -178,6 +179,7 @@ async function fetchCreditUsageForKey(
     };
 
     return {
+      keyIndex,
       keyPrefix,
       remainingCredits: json.data?.remainingCredits ?? null,
       planCredits: json.data?.planCredits ?? null,
@@ -186,6 +188,7 @@ async function fetchCreditUsageForKey(
     };
   } catch (error) {
     return {
+      keyIndex,
       keyPrefix,
       remainingCredits: null,
       planCredits: null,
