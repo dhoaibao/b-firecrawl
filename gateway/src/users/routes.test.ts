@@ -130,6 +130,26 @@ describe("POST /users", () => {
       .expect(409);
     expect(res.body.error).toContain("already exists");
   });
+
+  it("normalizes email to lowercase", async () => {
+    mockGetUserByEmail.mockResolvedValue(null);
+    mockCreateUser.mockResolvedValue(makeUser({ email: "new@example.com" }));
+    const app = createApp({ id: "admin-1", is_admin: true });
+    await request(app)
+      .post("/users")
+      .send({ email: "New@Example.com", name: "New User", password: "password123" })
+      .expect(201);
+    expect(mockCreateUser).toHaveBeenCalledWith("new@example.com", "New User", expect.any(String), false);
+  });
+
+  it("returns 400 for password exceeding max length", async () => {
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app)
+      .post("/users")
+      .send({ email: "new@example.com", name: "User", password: "a".repeat(129) })
+      .expect(400);
+    expect(res.body.error).toContain("at most");
+  });
 });
 
 describe("PATCH /users/:id", () => {
@@ -150,6 +170,46 @@ describe("PATCH /users/:id", () => {
     const app = createApp({ id: "admin-1", is_admin: true });
     const res = await request(app).patch("/users/user-1").send({ suspended_until: "not-a-date" }).expect(400);
     expect(res.body.error).toContain("suspended_until");
+  });
+
+  it("prevents self-revocation of admin rights", async () => {
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app).patch("/users/admin-1").send({ is_admin: false }).expect(400);
+    expect(res.body.error).toContain("Cannot revoke your own admin rights");
+  });
+
+  it("prevents self-blocking", async () => {
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app).patch("/users/admin-1").send({ status: "blocked" }).expect(400);
+    expect(res.body.error).toContain("Cannot block or suspend yourself");
+  });
+
+  it("prevents self-suspension via patch", async () => {
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app).patch("/users/admin-1").send({ status: "suspended" }).expect(400);
+    expect(res.body.error).toContain("Cannot block or suspend yourself");
+  });
+
+  it("prevents self-suspension via suspended_until", async () => {
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app).patch("/users/admin-1").send({ suspended_until: future }).expect(400);
+    expect(res.body.error).toContain("Cannot suspend yourself");
+  });
+
+  it("allows clearing own suspended_until", async () => {
+    mockUpdateUser.mockResolvedValue(makeUser({ id: "admin-1", suspended_until: null }));
+    const app = createApp({ id: "admin-1", is_admin: true });
+    await request(app).patch("/users/admin-1").send({ suspended_until: null }).expect(200);
+    expect(mockUpdateUser).toHaveBeenCalledWith("admin-1", expect.objectContaining({ suspended_until: null }));
+  });
+
+  it("normalizes email on update", async () => {
+    mockGetUserByEmail.mockResolvedValue(null);
+    mockUpdateUser.mockResolvedValue(makeUser({ email: "updated@example.com" }));
+    const app = createApp({ id: "admin-1", is_admin: true });
+    await request(app).patch("/users/user-1").send({ email: "Updated@Example.com" }).expect(200);
+    expect(mockUpdateUser).toHaveBeenCalledWith("user-1", expect.objectContaining({ email: "updated@example.com" }));
   });
 });
 
@@ -212,5 +272,11 @@ describe("DELETE /users/:id", () => {
     mockDeleteUser.mockResolvedValue(false);
     const app = createApp({ id: "admin-1", is_admin: true });
     await request(app).delete("/users/missing").expect(404);
+  });
+
+  it("prevents self-deletion", async () => {
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app).delete("/users/admin-1").expect(400);
+    expect(res.body.error).toContain("Cannot delete yourself");
   });
 });

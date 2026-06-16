@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   DndContext,
   closestCenter,
@@ -105,8 +105,8 @@ function maskKey(key: string): string {
   return `${key.slice(0, 8)}...${key.slice(-4)}`
 }
 
-function makeRows(keys: string[]): ApiKeyRow[] {
-  return keys.map((key, index) => ({ id: `${index}-${key.slice(0, 8)}`, key }))
+function makeRows(keys: string[], idCounter: { current: number }): ApiKeyRow[] {
+  return keys.map((key) => ({ id: `key-${idCounter.current++}`, key }))
 }
 
 function SortableApiKeyRow({
@@ -184,6 +184,7 @@ export default function Configure() {
   const [apiKeyRows, setApiKeyRows] = useState<ApiKeyRow[]>([])
   const [newKey, setNewKey] = useState("")
   const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
+  const idCounter = useRef(0)
   const { addToast } = useToast()
   const { confirm: confirmReset, dialog: resetDialog } = useConfirmDialog()
 
@@ -212,7 +213,8 @@ export default function Configure() {
       const json = await api.get<{ data: SettingsData }>("/admin/api/settings")
       const data = json.data || {}
       setSettings(data)
-      setApiKeyRows(makeRows(data.firecrawl_api_keys || []))
+      idCounter.current = 0
+      setApiKeyRows(makeRows(data.firecrawl_api_keys || [], idCounter))
     } catch (err) {
       addToast(err instanceof Error ? err.message : "Failed to load settings", "error")
     } finally {
@@ -243,7 +245,7 @@ export default function Configure() {
       addToast("This key is already in the list", "error")
       return
     }
-    setApiKeyRows((prev) => [...prev, { id: `${prev.length}-${trimmed.slice(0, 8)}`, key: trimmed }])
+    setApiKeyRows((prev) => [...prev, { id: `key-${idCounter.current++}`, key: trimmed }])
     setNewKey("")
   }
 
@@ -267,8 +269,9 @@ export default function Configure() {
     try {
       const payload: Partial<SettingsData> = {
         firecrawl_api_keys: apiKeyRows.map((row) => row.key),
-        user_inactivity_suspend_days: settings.user_inactivity_suspend_days,
-        api_key_inactivity_revoke_days: settings.api_key_inactivity_revoke_days,
+        default_route_mode: settings.default_route_mode ?? DEFAULT_ROUTE_MODE,
+        user_inactivity_suspend_days: settings.user_inactivity_suspend_days ?? 0,
+        api_key_inactivity_revoke_days: settings.api_key_inactivity_revoke_days ?? 0,
       }
 
       await api.put<{ data: SettingsData }>("/admin/api/settings", payload)

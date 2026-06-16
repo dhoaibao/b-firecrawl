@@ -4,7 +4,7 @@
   "description": "Hybrid Firecrawl Gateway with Express and TypeScript",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/db/schema.sql dist/db/schema.sql",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "typecheck": "tsc --noEmit",

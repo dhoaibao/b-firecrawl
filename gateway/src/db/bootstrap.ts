@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { rootLogger } from "../logger";
 import { withClient } from "./index";
 
 export async function bootstrapAdminUser(
@@ -18,6 +19,6 @@ export async function bootstrapAdminUser(
       [crypto.randomUUID(), email, name, passwordHash],
     );
 
-    console.log(`Admin user created: ${email}`);
+    rootLogger.info(`Admin user created: ${email}`);
   });
 }

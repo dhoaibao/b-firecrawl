@@ -170,8 +170,8 @@ Two-job workflow triggered on push to `main` (when `gateway/`, `docker-compose.p
 
 ## Important Notes
 
-- The `gateway/dist/` directory is **committed to git** — it contains the compiled TypeScript output.
 - The gateway runs on **Node 22+**.
+- Run `npm run build` in `gateway/` to produce `gateway/dist/` before `npm start`; the Docker build copies `src/db/schema.sql` into the dist folder automatically.
 - TypeScript `strict` mode is enabled.
 - The `BCRYPT_ROUNDS` env var controls password hashing cost (default 12).
 - Graceful shutdown handles SIGTERM/SIGINT with a 10s connection drain and 15s hard timeout.

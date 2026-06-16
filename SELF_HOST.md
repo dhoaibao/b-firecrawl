@@ -50,7 +50,7 @@ With default `.env.example` ports:
 
 - Gateway API: `http://localhost:8080`
 - Gateway admin UI: `http://localhost:8080/admin`
-- Gateway JSON logs: `http://localhost:8080/admin/logs`
+- Gateway JSON logs: `http://localhost:8080/admin/api/logs`
 - Direct local Firecrawl API: `http://localhost:3002`
 - Bull queue UI: `http://localhost:3002/admin/<BULL_AUTH_KEY>/queues`
 
@@ -69,7 +69,7 @@ The gateway operates in two modes:
 
 ### Admin User
 
-On first boot, if `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, an admin user is automatically created. Use these credentials to log in to the admin UI.
+On first boot, if `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set and no user with that email exists, an admin user is automatically created. Use these credentials to log in to the admin UI. Changing `ADMIN_EMAIL` can create additional admins.
 
 ### Virtual API Keys
 
@@ -164,7 +164,7 @@ Cloud-only features are routed to Firecrawl Cloud:
 - browser sessions
 - scrape interact
 - monitor
-- research proxy
+- research
 - search feedback
 - stealth / enhanced proxy
 

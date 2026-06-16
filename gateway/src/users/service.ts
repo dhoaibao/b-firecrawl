@@ -166,16 +166,20 @@ export function checkUserAccess(user: User): { allowed: true } | { allowed: fals
   if (user.status === "blocked") {
     return { allowed: false, reason: "Account blocked" };
   }
-  if (user.status === "suspended" && user.suspended_until) {
-    const until = new Date(user.suspended_until);
-    const now = Date.now();
-    if (until.getTime() > now) {
-      const diff = until.getTime() - now;
-      const hours = Math.ceil(diff / (1000 * 60 * 60));
-      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-      const label = days > 1 ? `${days} days` : `${hours} hour${hours > 1 ? "s" : ""}`;
-      return { allowed: false, reason: `Account suspended. Try again in ${label}.` };
+  if (user.status === "suspended") {
+    if (user.suspended_until) {
+      const until = new Date(user.suspended_until);
+      const now = Date.now();
+      if (until.getTime() > now) {
+        const diff = until.getTime() - now;
+        const hours = Math.ceil(diff / (1000 * 60 * 60));
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        const label = days > 1 ? `${days} days` : `${hours} hour${hours > 1 ? "s" : ""}`;
+        return { allowed: false, reason: `Account suspended. Try again in ${label}.` };
+      }
     }
+    // Auto-suspension (suspended_until = NULL) or any other suspended state blocks access.
+    return { allowed: false, reason: "Account suspended" };
   }
   return { allowed: true };
 }

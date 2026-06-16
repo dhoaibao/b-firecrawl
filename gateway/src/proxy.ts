@@ -53,14 +53,17 @@ function sanitizeHeaders(
   headers: Record<string, string | string[] | undefined>,
   backend: string,
   apiKey?: string,
+  authEnabled?: boolean,
 ): Record<string, string> {
   const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     const lower = key.toLowerCase();
     if (hopByHopHeaders.has(lower)) continue;
     if (lower === "x-firecrawl-route-mode") continue;
-    // Strip the virtual API key before forwarding; only send auth to cloud
-    if (lower === "authorization" && backend !== "cloud") continue;
+    // Strip the virtual API key before forwarding; only send auth to cloud.
+    // In auth-disabled mode the Authorization header belongs to the client and
+    // must be preserved for the local backend (transparent proxy behavior).
+    if (lower === "authorization" && backend !== "cloud" && authEnabled) continue;
     if (value === undefined) continue;
     next[key] = Array.isArray(value) ? value.join(", ") : value;
   }
@@ -124,7 +127,7 @@ async function proxyToBackend({
   try {
     const response = await fetch(targetUrl, {
       method: req.method,
-      headers: sanitizeHeaders(req.headers, backend, apiKey),
+      headers: sanitizeHeaders(req.headers, backend, apiKey, config.authEnabled),
       body:
         req.method === "GET" || req.method === "HEAD" ? undefined : bodyBuffer,
       redirect: "manual",
@@ -439,7 +442,11 @@ export function createProxyHandler({
       user_id: userId,
       request_id: req.requestId,
     };
-    await auditStore.appendAudit(auditEntry);
+    try {
+      await auditStore.appendAudit(auditEntry);
+    } catch (auditErr) {
+      log.warn({ err: auditErr }, "Failed to write audit entry; continuing request");
+    }
 
     sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
   };

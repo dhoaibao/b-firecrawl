@@ -5,9 +5,14 @@ import * as userService from "./service";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
 
 function getBcryptRounds(): number {
   return Number(process.env.BCRYPT_ROUNDS || 12);
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 export function createUsersRouter() {
@@ -37,7 +42,8 @@ export function createUsersRouter() {
 
   router.post("/", async (req, res, next) => {
     try {
-      const { email, name, password, is_admin } = req.body;
+      const email = normalizeEmail(req.body.email || "");
+      const { name, password, is_admin } = req.body;
       if (!email || !name || !password) {
         res.status(400).json({ success: false, error: "Email, name, and password are required" });
         return;
@@ -50,6 +56,11 @@ export function createUsersRouter() {
 
       if (password.length < MIN_PASSWORD_LENGTH) {
         res.status(400).json({ success: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+        return;
+      }
+
+      if (password.length > MAX_PASSWORD_LENGTH) {
+        res.status(400).json({ success: false, error: `Password must be at most ${MAX_PASSWORD_LENGTH} characters` });
         return;
       }
 
@@ -72,22 +83,48 @@ export function createUsersRouter() {
   router.patch("/:id", async (req, res, next) => {
     try {
       const updates: { name?: string; email?: string; password_hash?: string; is_admin?: boolean; status?: string; suspended_until?: string | null } = {};
+      const adminUser = req.user as User | undefined;
+
+      // Prevent self-destructive role/status changes.
+      if (adminUser?.id === req.params.id) {
+        if (req.body.is_admin === false) {
+          res.status(400).json({ success: false, error: "Cannot revoke your own admin rights" });
+          return;
+        }
+        if (req.body.status === "blocked" || req.body.status === "suspended") {
+          res.status(400).json({ success: false, error: "Cannot block or suspend yourself" });
+          return;
+        }
+        if (req.body.suspended_until) {
+          const date = new Date(req.body.suspended_until);
+          if (!Number.isNaN(date.getTime()) && date.getTime() > Date.now()) {
+            res.status(400).json({ success: false, error: "Cannot suspend yourself" });
+            return;
+          }
+        }
+      }
+
       if (req.body.name !== undefined) updates.name = req.body.name;
       if (req.body.email !== undefined) {
-        if (!EMAIL_REGEX.test(req.body.email)) {
+        const normalized = normalizeEmail(req.body.email);
+        if (!EMAIL_REGEX.test(normalized)) {
           res.status(400).json({ success: false, error: "Invalid email format" });
           return;
         }
-        const existing = await userService.getUserByEmail(req.body.email);
+        const existing = await userService.getUserByEmail(normalized);
         if (existing && existing.id !== req.params.id) {
           res.status(409).json({ success: false, error: "User with this email already exists" });
           return;
         }
-        updates.email = req.body.email;
+        updates.email = normalized;
       }
       if (req.body.password !== undefined) {
         if (req.body.password.length < MIN_PASSWORD_LENGTH) {
           res.status(400).json({ success: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+          return;
+        }
+        if (req.body.password.length > MAX_PASSWORD_LENGTH) {
+          res.status(400).json({ success: false, error: `Password must be at most ${MAX_PASSWORD_LENGTH} characters` });
           return;
         }
         updates.password_hash = await bcrypt.hash(req.body.password, getBcryptRounds());
@@ -197,6 +234,12 @@ export function createUsersRouter() {
 
   router.delete("/:id", async (req, res, next) => {
     try {
+      const adminUser = req.user as User | undefined;
+      if (adminUser?.id === req.params.id) {
+        res.status(400).json({ success: false, error: "Cannot delete yourself" });
+        return;
+      }
+
       const deleted = await userService.deleteUser(req.params.id);
       if (!deleted) {
         res.status(404).json({ success: false, error: "User not found" });

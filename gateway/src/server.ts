@@ -28,7 +28,12 @@ async function main() {
 
   // Bootstrap admin user if auth is enabled and credentials are configured
   if (config.authEnabled && config.adminEmail && config.adminPassword) {
-    const rounds = Number(process.env.BCRYPT_ROUNDS || 12);
+    const roundsRaw = process.env.BCRYPT_ROUNDS;
+    const rounds = roundsRaw ? Number(roundsRaw) : 12;
+    if (!Number.isInteger(rounds) || rounds < 4 || rounds > 31) {
+      rootLogger.error("BCRYPT_ROUNDS must be an integer between 4 and 31");
+      process.exit(1);
+    }
     const adminHash = await bcrypt.hash(config.adminPassword, rounds);
     await bootstrapAdminUser(config.adminEmail, "Admin", adminHash);
   }
@@ -43,8 +48,11 @@ async function main() {
   // Security middleware
   app.use(helmet());
   app.use(cors({
+    // Reflect any origin only when no explicit origin is configured. Credentials are
+    // allowed only when a specific origin is configured, to prevent arbitrary websites
+    // from making authenticated cross-origin requests with the admin session cookie.
     origin: process.env.CORS_ORIGIN || true,
-    credentials: true,
+    credentials: Boolean(process.env.CORS_ORIGIN),
   }));
   app.use(compression());
 
@@ -83,15 +91,14 @@ async function main() {
     app.use("/admin/api/auth", express.json(), createAuthRouter());
   }
 
-  // Admin routes
+  // Admin routes are only available when auth is enabled. In no-auth mode there is no
+  // session-based admin authentication, so exposing these routes would leak settings,
+  // API keys, and audit logs.
   if (config.authEnabled) {
     app.use("/admin/api", requireAuth, adminRouter);
     app.use("/admin/api/users", express.json(), requireAdmin, createUsersRouter());
     app.use("/admin/api/api-keys", express.json(), requireAuth, createApiKeysRouter());
     app.use("/admin/api/settings", express.json(), requireAdmin, createSettingsRouter(config));
-  } else {
-    app.use("/admin/api", adminRouter);
-    app.use("/admin/api/settings", express.json(), createSettingsRouter(config));
   }
 
   // Serve static files from admin-ui dist
@@ -173,11 +180,7 @@ async function main() {
 
     stopJobs();
 
-    server.close(async (err) => {
-      if (err) {
-        rootLogger.error({ err }, "Error closing server");
-        process.exit(1);
-      }
+    server.close(async () => {
       rootLogger.info("HTTP server closed");
 
       try {
