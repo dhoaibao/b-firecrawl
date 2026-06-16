@@ -18,9 +18,11 @@ interface CacheEntry {
 }
 
 const settingsCache = new Map<string, CacheEntry>();
+const inFlightSettings = new Map<string, Promise<SettingRecord | null>>();
 
 export function clearSettingsCache(): void {
   settingsCache.clear();
+  inFlightSettings.clear();
 }
 
 function getCachedSetting(key: string): SettingRecord | null | undefined {
@@ -39,13 +41,17 @@ function setCachedSetting(key: string, value: SettingRecord | null): void {
 
 function invalidateCachedSetting(key: string): void {
   settingsCache.delete(key);
+  inFlightSettings.delete(key);
 }
 
 export async function getSetting(key: string): Promise<SettingRecord | null> {
   const cached = getCachedSetting(key);
   if (cached !== undefined) return cached;
 
-  const value = await withClient(async (client) => {
+  const existing = inFlightSettings.get(key);
+  if (existing) return existing;
+
+  const promise = withClient(async (client) => {
     const result = await client.query<SettingRecord>(
       "SELECT key, value, updated_at FROM settings WHERE key = $1",
       [key],
@@ -53,8 +59,22 @@ export async function getSetting(key: string): Promise<SettingRecord | null> {
     return result.rows[0] || null;
   });
 
-  setCachedSetting(key, value);
-  return value;
+  inFlightSettings.set(key, promise);
+
+  try {
+    const value = await promise;
+    // Only cache if our in-flight request is still the active one. If the
+    // setting was written while we were fetching, invalidateCachedSetting will
+    // have removed the in-flight entry and we must not overwrite the new value.
+    if (inFlightSettings.get(key) === promise) {
+      setCachedSetting(key, value);
+    }
+    return value;
+  } finally {
+    if (inFlightSettings.get(key) === promise) {
+      inFlightSettings.delete(key);
+    }
+  }
 }
 
 export async function listSettings(): Promise<SettingRecord[]> {

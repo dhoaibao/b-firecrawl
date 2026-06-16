@@ -78,22 +78,34 @@ export async function validateApiKey(key: string): Promise<ApiKey | null> {
 const TOUCH_DEBOUNCE_MS = 60_000;
 const TOUCH_TRACKER_MAX_SIZE = 10_000;
 
+// Map maintains insertion order, so we can use it as a simple LRU cache:
+// deleting and re-inserting a key moves it to the end (most-recent), and the
+// first entry is the least-recent when we need to evict.
 const lastTouchById = new Map<string, number>();
 
 export function clearTouchDebouncer(): void {
   lastTouchById.clear();
 }
 
+function recordTouch(id: string, timestamp: number): void {
+  if (lastTouchById.has(id)) {
+    lastTouchById.delete(id);
+  } else if (lastTouchById.size >= TOUCH_TRACKER_MAX_SIZE) {
+    const oldest = lastTouchById.keys().next().value;
+    if (oldest !== undefined) {
+      lastTouchById.delete(oldest);
+    }
+  }
+  lastTouchById.set(id, timestamp);
+}
+
 export async function touchApiKey(id: string): Promise<void> {
   const now = Date.now();
   const lastTouch = lastTouchById.get(id);
   if (lastTouch && now - lastTouch < TOUCH_DEBOUNCE_MS) {
+    // Refresh LRU position without touching the database.
+    recordTouch(id, lastTouch);
     return;
-  }
-
-  // Prevent unbounded memory growth for long-lived gateways with many keys.
-  if (lastTouchById.size >= TOUCH_TRACKER_MAX_SIZE) {
-    lastTouchById.clear();
   }
 
   await withClient(async (client) => {
@@ -103,7 +115,7 @@ export async function touchApiKey(id: string): Promise<void> {
     );
   });
 
-  lastTouchById.set(id, now);
+  recordTouch(id, now);
 }
 
 function generateApiKey(): string {
