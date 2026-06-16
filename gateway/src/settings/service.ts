@@ -10,14 +10,51 @@ export interface SettingRecord {
   updated_at: string;
 }
 
+const CACHE_TTL_MS = 5000;
+
+interface CacheEntry {
+  value: SettingRecord | null;
+  expiresAt: number;
+}
+
+const settingsCache = new Map<string, CacheEntry>();
+
+export function clearSettingsCache(): void {
+  settingsCache.clear();
+}
+
+function getCachedSetting(key: string): SettingRecord | null | undefined {
+  const entry = settingsCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    settingsCache.delete(key);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function setCachedSetting(key: string, value: SettingRecord | null): void {
+  settingsCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+function invalidateCachedSetting(key: string): void {
+  settingsCache.delete(key);
+}
+
 export async function getSetting(key: string): Promise<SettingRecord | null> {
-  return withClient(async (client) => {
+  const cached = getCachedSetting(key);
+  if (cached !== undefined) return cached;
+
+  const value = await withClient(async (client) => {
     const result = await client.query<SettingRecord>(
       "SELECT key, value, updated_at FROM settings WHERE key = $1",
       [key],
     );
     return result.rows[0] || null;
   });
+
+  setCachedSetting(key, value);
+  return value;
 }
 
 export async function listSettings(): Promise<SettingRecord[]> {
@@ -33,7 +70,7 @@ export async function setSetting(
   key: string,
   value: string,
 ): Promise<SettingRecord> {
-  return withClient(async (client) => {
+  const record = await withClient(async (client) => {
     const result = await client.query<SettingRecord>(
       `INSERT INTO settings (key, value, updated_at)
        VALUES ($1, $2, NOW())
@@ -43,16 +80,22 @@ export async function setSetting(
     );
     return result.rows[0];
   });
+  invalidateCachedSetting(key);
+  return record;
 }
 
 export async function deleteSetting(key: string): Promise<boolean> {
-  return withClient(async (client) => {
+  const deleted = await withClient(async (client) => {
     const result = await client.query(
       "DELETE FROM settings WHERE key = $1",
       [key],
     );
     return result.rowCount !== null && result.rowCount > 0;
   });
+  if (deleted) {
+    invalidateCachedSetting(key);
+  }
+  return deleted;
 }
 
 export async function getDefaultRouteMode(

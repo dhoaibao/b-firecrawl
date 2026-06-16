@@ -75,13 +75,35 @@ export async function validateApiKey(key: string): Promise<ApiKey | null> {
   });
 }
 
+const TOUCH_DEBOUNCE_MS = 60_000;
+const TOUCH_TRACKER_MAX_SIZE = 10_000;
+
+const lastTouchById = new Map<string, number>();
+
+export function clearTouchDebouncer(): void {
+  lastTouchById.clear();
+}
+
 export async function touchApiKey(id: string): Promise<void> {
-  return withClient(async (client) => {
+  const now = Date.now();
+  const lastTouch = lastTouchById.get(id);
+  if (lastTouch && now - lastTouch < TOUCH_DEBOUNCE_MS) {
+    return;
+  }
+
+  // Prevent unbounded memory growth for long-lived gateways with many keys.
+  if (lastTouchById.size >= TOUCH_TRACKER_MAX_SIZE) {
+    lastTouchById.clear();
+  }
+
+  await withClient(async (client) => {
     await client.query(
       "UPDATE api_keys SET last_used_at = NOW() WHERE id = $1",
       [id],
     );
   });
+
+  lastTouchById.set(id, now);
 }
 
 function generateApiKey(): string {

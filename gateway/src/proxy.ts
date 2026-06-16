@@ -442,12 +442,12 @@ export function createProxyHandler({
       user_id: userId,
       request_id: req.requestId,
     };
+    sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
+
     try {
       await auditStore.appendAudit(auditEntry);
     } catch (auditErr) {
       log.warn({ err: auditErr }, "Failed to write audit entry; continuing request");
     }
-
-    sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
   };
 }

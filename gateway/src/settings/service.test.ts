@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getDefaultRouteMode } from "./service";
+import { getDefaultRouteMode, clearSettingsCache } from "./service";
 
 const mockQuery = vi.hoisted(() => vi.fn());
 const mockRelease = vi.hoisted(() => vi.fn());
@@ -24,6 +24,7 @@ vi.mock("../db", () => ({
 describe("getDefaultRouteMode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearSettingsCache();
   });
 
   it("returns the stored value when valid", async () => {
