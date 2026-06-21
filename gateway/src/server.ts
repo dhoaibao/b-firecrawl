@@ -101,20 +101,32 @@ async function main() {
     app.use("/admin/api/settings", express.json(), requireAdmin, createSettingsRouter(config));
   }
 
-  // Serve static files from admin-ui dist
   const adminUiPath = path.join(__dirname, "../admin-ui/dist");
-  app.use("/admin", express.static(adminUiPath));
+  if (config.authEnabled) {
+    // Serve static files from admin-ui dist
+    app.use("/admin", express.static(adminUiPath));
 
-  // Fallback to index.html for SPA routes
-  app.get("/admin", (_req, res) => {
-    res.sendFile(path.join(adminUiPath, "index.html"));
-  });
-  app.get("/admin/*", (req, res, next) => {
-    if (req.path.startsWith("/admin/api/") || req.path === "/admin/api") {
-      return next();
-    }
-    res.sendFile(path.join(adminUiPath, "index.html"));
-  });
+    // Fallback to index.html for SPA routes
+    app.get("/admin", (_req, res) => {
+      res.sendFile(path.join(adminUiPath, "index.html"));
+    });
+    app.get("/admin/*", (req, res, next) => {
+      if (req.path.startsWith("/admin/api/") || req.path === "/admin/api") {
+        return next();
+      }
+      res.sendFile(path.join(adminUiPath, "index.html"));
+    });
+  } else {
+    const respondAdminUiDisabled = (_req: express.Request, res: express.Response) => {
+      res.status(404).json({
+        success: false,
+        error: "Admin UI is unavailable when AUTH_ENABLED=false.",
+      });
+    };
+
+    app.get("/admin", respondAdminUiDisabled);
+    app.get("/admin/*", respondAdminUiDisabled);
+  }
 
   // Proxy routes
   app.use(async (req, res, next) => {
@@ -129,9 +141,12 @@ async function main() {
   });
 
   app.use((_req, res) => {
+    const handledPaths = config.authEnabled
+      ? "/v1/*, /v2/*, /health, /ready, and /admin"
+      : "/v1/*, /v2/*, /health, and /ready";
     res.status(404).json({
       success: false,
-      error: "Only /v1/*, /v2/*, /health, /ready, and /admin are handled.",
+      error: `Only ${handledPaths} are handled.`,
     });
   });
 

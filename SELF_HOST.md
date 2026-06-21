@@ -49,8 +49,8 @@ docker compose up -d --build
 With default `.env.example` ports:
 
 - Gateway API: `http://localhost:8080`
-- Gateway admin UI: `http://localhost:8080/admin`
-- Gateway JSON logs: `http://localhost:8080/admin/api/logs`
+- Gateway admin UI: `http://localhost:8080/admin` when `AUTH_ENABLED=true`
+- Gateway JSON logs: `http://localhost:8080/admin/api/logs` when `AUTH_ENABLED=true`
 - Direct local Firecrawl API: `http://localhost:3002`
 - Bull queue UI: `http://localhost:3002/admin/<BULL_AUTH_KEY>/queues`
 
@@ -65,7 +65,7 @@ http://localhost:<GATEWAY_PORT>/admin
 The gateway operates in two modes:
 
 - **Auth enabled** (`AUTH_ENABLED=true`, default): All API requests must include a valid virtual API key in the `Authorization: Bearer <key>` header. The admin UI requires login.
-- **Auth disabled** (`AUTH_ENABLED=false`): The gateway behaves as a transparent proxy without authentication.
+- **Auth disabled** (`AUTH_ENABLED=false`): The gateway behaves as a transparent proxy without authentication, and the session-based admin UI/API are unavailable.
 
 ### Admin User
 

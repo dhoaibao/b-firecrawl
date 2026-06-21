@@ -12,7 +12,7 @@ Professional Express.js + TypeScript gateway for deployment-only Firecrawl self-
 
 - `GET /health` — health check
 - `GET /ready` — readiness check (includes database connectivity)
-- `GET /admin` — React admin dashboard SPA
+- `GET /admin` — React admin dashboard SPA when `AUTH_ENABLED=true`
 - `GET /admin/api/logs` — request history JSON
 - `GET /admin/api/data` — request history with totals
 - `/v1/*` and `/v2/*` — proxied to local Firecrawl or Firecrawl Cloud

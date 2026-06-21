@@ -15,12 +15,12 @@ docker compose up -d --build
 Default endpoints:
 
 - Gateway API: `http://localhost:8080`
-- Admin UI: `http://localhost:8080/admin`
+- Admin UI: `http://localhost:8080/admin` when `AUTH_ENABLED=true` (default)
 - Direct local API: `http://localhost:3002`
 
 ## Admin Dashboard
 
-The included web dashboard provides real-time visibility into request routing, success rates, latency metrics, and traffic distribution between local and cloud backends. Access it at `http://localhost:8080/admin` after starting the services.
+The included web dashboard provides real-time visibility into request routing, success rates, latency metrics, and traffic distribution between local and cloud backends. Access it at `http://localhost:8080/admin` when authentication is enabled.
 
 ![Admin UI Dashboard](assets/admin.png)
 
