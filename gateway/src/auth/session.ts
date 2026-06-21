@@ -4,12 +4,13 @@ import crypto from "node:crypto";
 import { getPool } from "../db";
 import { rootLogger } from "../logger";
 
-function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
-  if (value === undefined || value.trim() === "") return defaultValue;
+export function parseCookieSecure(value: string | undefined): boolean | "auto" {
+  if (value === undefined || value.trim() === "") return "auto";
   const s = value.toLowerCase().trim();
   if (s === "false" || s === "0" || s === "no" || s === "off") return false;
   if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
-  return defaultValue;
+  if (s === "auto") return "auto";
+  return "auto";
 }
 
 export function createSessionMiddleware(sessionSecret: string) {
@@ -33,7 +34,7 @@ export function createSessionMiddleware(sessionSecret: string) {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       httpOnly: true,
-      secure: parseBooleanEnv(process.env.SESSION_SECURE, process.env.NODE_ENV === "production"),
+      secure: parseCookieSecure(process.env.SESSION_SECURE),
       sameSite: "lax",
     },
   });
