@@ -107,6 +107,34 @@ describe("PUT /settings", () => {
     const res = await request(app).put("/settings").send({ unknown_key: "value" }).expect(400);
     expect(res.body.error).toContain("Invalid setting key");
   });
+
+  it("rejects firecrawl_api_keys that is not an array", async () => {
+    const app = createApp();
+    const res = await request(app)
+      .put("/settings")
+      .send({ firecrawl_api_keys: "fc_key" })
+      .expect(400);
+    expect(res.body.error).toContain("must be an array");
+  });
+
+  it("rejects too many firecrawl_api_keys", async () => {
+    const app = createApp();
+    const keys = Array.from({ length: 11 }, (_, i) => `fc_key_${i}`);
+    const res = await request(app)
+      .put("/settings")
+      .send({ firecrawl_api_keys: keys })
+      .expect(400);
+    expect(res.body.error).toContain("at most");
+  });
+
+  it("rejects firecrawl_api_keys with short or non-string entries", async () => {
+    const app = createApp();
+    const res = await request(app)
+      .put("/settings")
+      .send({ firecrawl_api_keys: ["fc_key", ""] })
+      .expect(400);
+    expect(res.body.error).toContain("at least");
+  });
 });
 
 describe("GET /settings/credit-usage", () => {

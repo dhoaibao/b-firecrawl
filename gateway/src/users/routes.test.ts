@@ -12,7 +12,7 @@ const mockUpdateUser = vi.hoisted(() => vi.fn());
 const mockSuspendUser = vi.hoisted(() => vi.fn());
 const mockBlockUser = vi.hoisted(() => vi.fn());
 const mockActivateUser = vi.hoisted(() => vi.fn());
-const mockDeleteUser = vi.hoisted(() => vi.fn());
+const mockDeleteUserSafely = vi.hoisted(() => vi.fn());
 
 vi.mock("./service", () => ({
   listUsers: mockListUsers,
@@ -23,7 +23,7 @@ vi.mock("./service", () => ({
   suspendUser: mockSuspendUser,
   blockUser: mockBlockUser,
   activateUser: mockActivateUser,
-  deleteUser: mockDeleteUser,
+  deleteUserSafely: mockDeleteUserSafely,
 }));
 
 function createApp(user: { id: string; is_admin: boolean }) {
@@ -263,13 +263,13 @@ describe("POST /users/:id/activate", () => {
 
 describe("DELETE /users/:id", () => {
   it("deletes a user", async () => {
-    mockDeleteUser.mockResolvedValue(true);
+    mockDeleteUserSafely.mockResolvedValue("deleted");
     const app = createApp({ id: "admin-1", is_admin: true });
     await request(app).delete("/users/user-1").expect(204);
   });
 
   it("returns 404 for missing user", async () => {
-    mockDeleteUser.mockResolvedValue(false);
+    mockDeleteUserSafely.mockResolvedValue("not_found");
     const app = createApp({ id: "admin-1", is_admin: true });
     await request(app).delete("/users/missing").expect(404);
   });
@@ -278,5 +278,12 @@ describe("DELETE /users/:id", () => {
     const app = createApp({ id: "admin-1", is_admin: true });
     const res = await request(app).delete("/users/admin-1").expect(400);
     expect(res.body.error).toContain("Cannot delete yourself");
+  });
+
+  it("prevents deleting the last admin", async () => {
+    mockDeleteUserSafely.mockResolvedValue("last_admin");
+    const app = createApp({ id: "admin-1", is_admin: true });
+    const res = await request(app).delete("/users/user-1").expect(400);
+    expect(res.body.error).toContain("last admin");
   });
 });

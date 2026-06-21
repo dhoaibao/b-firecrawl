@@ -143,6 +143,27 @@ describe("createProxyHandler route mode resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("returns 400 for an invalid request URL", async () => {
+    const handler = createProxyHandler({ config: baseConfig, auditStore });
+    const req = {
+      method: "POST",
+      url: "http://[::1",
+      originalUrl: "http://[::1",
+      headers: {},
+      requestId: "req-bad-url",
+    } as unknown as import("express").Request;
+
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    } as unknown as import("express").Response;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "Invalid request URL" }));
+  });
+
   it("uses the env default as the resolved route mode when database setting is unset", async () => {
     mockGetDefaultRouteMode.mockResolvedValue("local-only");
 

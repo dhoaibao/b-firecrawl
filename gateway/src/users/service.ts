@@ -184,13 +184,41 @@ export function checkUserAccess(user: User): { allowed: true } | { allowed: fals
   return { allowed: true };
 }
 
-export async function deleteUser(id: string): Promise<boolean> {
+export type DeleteUserResult = "deleted" | "not_found" | "last_admin";
+const ADMIN_DELETE_GUARD_LOCK = 4_271_001;
+
+export async function deleteUserSafely(id: string): Promise<DeleteUserResult> {
   return withClient(async (client) => {
-    const result = await client.query(
-      "DELETE FROM users WHERE id = $1",
-      [id],
-    );
-    return (result.rowCount ?? 0) > 0;
+    await client.query("BEGIN");
+    try {
+      const targetResult = await client.query<Pick<User, "id" | "is_admin">>(
+        "SELECT id, is_admin FROM users WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      const target = targetResult.rows[0];
+      if (!target) {
+        await client.query("ROLLBACK");
+        return "not_found";
+      }
+
+      if (target.is_admin) {
+        await client.query("SELECT pg_advisory_xact_lock($1)", [ADMIN_DELETE_GUARD_LOCK]);
+        const adminCount = await client.query<{ count: string }>(
+          "SELECT COUNT(*) as count FROM users WHERE is_admin = true",
+        );
+        if (parseInt(adminCount.rows[0].count, 10) <= 1) {
+          await client.query("ROLLBACK");
+          return "last_admin";
+        }
+      }
+
+      await client.query("DELETE FROM users WHERE id = $1", [id]);
+      await client.query("COMMIT");
+      return "deleted";
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
   });
 }
 
@@ -198,6 +226,15 @@ export async function countUsers(): Promise<number> {
   return withClient(async (client) => {
     const result = await client.query<{ count: string }>(
       "SELECT COUNT(*) as count FROM users",
+    );
+    return parseInt(result.rows[0].count, 10);
+  });
+}
+
+export async function countAdmins(): Promise<number> {
+  return withClient(async (client) => {
+    const result = await client.query<{ count: string }>(
+      "SELECT COUNT(*) as count FROM users WHERE is_admin = true",
     );
     return parseInt(result.rows[0].count, 10);
   });

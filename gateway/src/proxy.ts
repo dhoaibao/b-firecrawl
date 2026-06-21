@@ -225,7 +225,13 @@ export function createProxyHandler({
     const log = getRequestLogger(req);
     const started = Date.now();
     const requestUrl = req.originalUrl || req.url;
-    const parsedUrl = new URL(requestUrl, "http://gateway.local");
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(requestUrl, "http://gateway.local");
+    } catch {
+      res.status(400).json({ success: false, error: "Invalid request URL" });
+      return;
+    }
     const defaultRouteMode = await settingsService.getDefaultRouteMode(config.defaultRouteMode);
     const routeMode = getRouteMode(
       requestUrl,

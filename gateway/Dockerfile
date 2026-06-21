@@ -18,22 +18,26 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
+RUN npm prune --omit=dev
 
 # Stage 3: Runtime
 FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy gateway package files and install production deps
-COPY package*.json ./
-RUN npm ci --omit=dev
+# Create a non-root user to run the gateway
+RUN addgroup -g 1001 -S gateway && adduser -S gateway -u 1001
 
-# Copy built gateway
-COPY --from=gateway-builder /app/dist/ ./dist/
-COPY --from=gateway-builder /app/src/db/schema.sql ./dist/db/schema.sql
+# Copy built gateway and production dependencies from the builder stage
+COPY --from=gateway-builder --chown=gateway:gateway /app/node_modules ./node_modules
+COPY --from=gateway-builder --chown=gateway:gateway /app/package*.json ./
+COPY --from=gateway-builder --chown=gateway:gateway /app/dist/ ./dist/
+COPY --from=gateway-builder --chown=gateway:gateway /app/src/db/schema.sql ./dist/db/schema.sql
 
 # Copy built admin UI
-COPY --from=admin-builder /app/admin-ui/dist/ ./admin-ui/dist/
+COPY --from=admin-builder --chown=gateway:gateway /app/admin-ui/dist/ ./admin-ui/dist/
+
+USER gateway
 
 ENV NODE_ENV=production
 ENV PORT=8080

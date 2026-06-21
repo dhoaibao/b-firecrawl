@@ -240,9 +240,13 @@ export function createUsersRouter() {
         return;
       }
 
-      const deleted = await userService.deleteUser(req.params.id);
-      if (!deleted) {
+      const result = await userService.deleteUserSafely(req.params.id);
+      if (result === "not_found") {
         res.status(404).json({ success: false, error: "User not found" });
+        return;
+      }
+      if (result === "last_admin") {
+        res.status(400).json({ success: false, error: "Cannot delete the last admin user" });
         return;
       }
       res.status(204).send();

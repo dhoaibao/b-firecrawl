@@ -13,6 +13,10 @@ class ApiErrorClass extends Error {
 export { ApiErrorClass as ApiError }
 
 async function parseError(response: Response): Promise<string> {
+  const contentType = response.headers.get("content-type") || ""
+  if (!contentType.includes("application/json")) {
+    return `Request failed with ${response.status}`
+  }
   try {
     const json = (await response.json()) as ApiError
     return json.error || `Request failed with ${response.status}`
@@ -26,6 +30,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
     credentials: "include",
     headers: {
+      Accept: "application/json",
       ...(options?.headers || {}),
     },
   })

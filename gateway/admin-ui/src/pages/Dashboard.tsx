@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
   BarChart3,
@@ -111,12 +111,15 @@ export default function Dashboard() {
   const [deleteFilter, setDeleteFilter] = useState<"today" | "week" | "month" | "all">("today")
   const [deleting, setDeleting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const fetchingRef = useRef(false)
 
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
 
   const { addToast } = useToast()
 
   const fetchData = useCallback(async () => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     setRefreshing(true)
     try {
       const json = await api.get<{
@@ -130,6 +133,7 @@ export default function Dashboard() {
       const msg = err instanceof Error ? err.message : "Failed to load audit data"
       addToast(msg, "error")
     } finally {
+      fetchingRef.current = false
       setLoading(false)
       setRefreshing(false)
     }

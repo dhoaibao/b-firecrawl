@@ -64,6 +64,15 @@ function statusBorderColor(status: number): string {
   return "bg-danger"
 }
 
+function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, window.location.href)
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
 interface LogTableRowProps {
   entry: AuditEntry
   users?: UserData[]
@@ -149,14 +158,20 @@ export const LogTableRow = React.memo(function LogTableRow({
       </TableCell>
       <TableCell className="max-w-[320px] whitespace-normal break-all pr-5 font-mono text-xs font-medium">
         {entry.target_url ? (
-          <a
-            href={entry.target_url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-foreground underline-offset-4 transition-colors hover:text-white hover:underline"
-          >
-            {entry.target_url}
-          </a>
+          isSafeExternalUrl(entry.target_url) ? (
+            <a
+              href={entry.target_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline-offset-4 transition-colors hover:text-white hover:underline"
+            >
+              {entry.target_url}
+            </a>
+          ) : (
+            <span className="text-muted-foreground" title="Unsafe URL">
+              {entry.target_url}
+            </span>
+          )
         ) : (
           <span className="text-muted-foreground">none</span>
         )}

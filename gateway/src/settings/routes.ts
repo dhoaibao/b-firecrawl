@@ -17,6 +17,9 @@ const SETTING_TYPES: Record<string, "string" | "number" | "boolean" | "json"> = 
   default_route_mode: "string",
 };
 
+const MAX_CLOUD_API_KEYS = 10;
+const MIN_API_KEY_LENGTH = 8;
+
 export interface CreditUsageItem {
   keyIndex: number;
   keyPrefix: string;
@@ -83,6 +86,22 @@ export function createSettingsRouter(config: GatewayConfig) {
           }
           value = rawValue;
         } else if (type === "json") {
+          if (key === "firecrawl_api_keys") {
+            if (!Array.isArray(rawValue)) {
+              res.status(400).json({ success: false, error: `${key} must be an array of API keys` });
+              return;
+            }
+            if (rawValue.length > MAX_CLOUD_API_KEYS) {
+              res.status(400).json({ success: false, error: `${key} may contain at most ${MAX_CLOUD_API_KEYS} keys` });
+              return;
+            }
+            for (const k of rawValue) {
+              if (typeof k !== "string" || k.length < MIN_API_KEY_LENGTH) {
+                res.status(400).json({ success: false, error: `${key} must be an array of API key strings with at least ${MIN_API_KEY_LENGTH} characters` });
+                return;
+              }
+            }
+          }
           value = JSON.stringify(rawValue);
         } else if (type === "boolean") {
           value = String(rawValue === true || rawValue === "true");
