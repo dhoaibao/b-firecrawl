@@ -54,7 +54,10 @@ docker compose logs gateway
 - `docker-compose.yaml` — full stack with local gateway build
 - `docker-compose.prebuilt.yaml` — stack using published image
 - `.env.example` — environment variables
+- `README.md` — project overview and quick start
+- `QUICKSTART.md` — no-clone pre-built image guide
 - `SELF_HOST.md` — deployment guide
+- `docs/DESIGN.md` — Admin UI design standard
 
 ## Safety / Do-Not-Assume
 
@@ -81,4 +84,6 @@ docker compose logs gateway
 - `gateway/admin-ui/package.json` — frontend scripts and dependencies
 - `gateway/src/db/schema.sql` — database schema
 - `.env.example` — environment variable reference
+- `docs/DESIGN.md` — Admin UI design standard
+- `README.md` and `QUICKSTART.md` — user-facing documentation
 <!-- b-init-managed:end -->
