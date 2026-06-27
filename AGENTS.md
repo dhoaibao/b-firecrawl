@@ -43,17 +43,25 @@ docker compose logs gateway
 
 ## Codebase Map
 
-- `gateway/src/server.ts` — Express app, middleware, routes, shutdown
+- `gateway/src/server.ts` — Express app setup, middleware stack, routes, shutdown
 - `gateway/src/proxy.ts` — request proxying, fallback logic, API key handling
 - `gateway/src/policy.ts` — cloud-vs-local routing policy
 - `gateway/src/config.ts` — environment configuration
-- `gateway/src/middleware.ts` — logging, rate limiting
-- `gateway/src/audit-store.ts` — JSONL audit log
-- `gateway/src/auth/`, `api-keys/`, `users/`, `db/` — auth, keys, users, DB
-- `gateway/admin-ui/src/` — React admin dashboard
+- `gateway/src/middleware.ts` — request ID, logging, rate limiting
+- `gateway/src/audit-store.ts` — JSONL audit log read/write/purge
+- `gateway/src/admin-api.ts` — admin-only audit/logs/data endpoints
+- `gateway/src/auth/{session,passport,middleware,routes}.ts` — session auth and guards
+- `gateway/src/users/{service,routes}.ts` — user management
+- `gateway/src/api-keys/{service,routes}.ts` — virtual API key management
+- `gateway/src/settings/{service,routes}.ts` — routing policy and inactivity settings
+- `gateway/src/jobs/index.ts` — background jobs (auto-suspend, auto-revoke)
+- `gateway/src/db/{index,bootstrap}.ts` — PostgreSQL pool and schema bootstrap
+- `gateway/src/utils.ts` — shared helpers and utilities
+- `gateway/admin-ui/src/` — React admin dashboard (basename `/admin`)
 - `docker-compose.yaml` — full stack with local gateway build
-- `docker-compose.prebuilt.yaml` — stack using published image
+- `docker-compose.prebuilt.yaml` — stack using published `dhoaibao/firecrawl-gateway:latest` image
 - `.env.example` — environment variables
+- `.github/workflows/deploy.yml` — CI/CD build and deploy
 - `README.md` — project overview and quick start
 - `QUICKSTART.md` — no-clone pre-built image guide
 - `SELF_HOST.md` — deployment guide
@@ -62,12 +70,14 @@ docker compose logs gateway
 ## Safety / Do-Not-Assume
 
 - The gateway listens on `GATEWAY_PORT` (default 8080). Direct local Firecrawl API is on port 3002.
+- The admin UI is served under `/admin`; the admin API is under `/admin/api/*`.
 - Auth is enabled by default (`AUTH_ENABLED=true`). API requests need `Authorization: Bearer <virtual-key>`; admin UI uses session login.
 - Virtual API keys are SHA-256 hashed, `fc_` prefixed, and shown only once on creation.
 - Routing mode defaults are seeded from `DEFAULT_ROUTE_MODE` but live values are stored in the database via the admin UI.
 - Cloud-only features include `agent`, `browser`, `monitor`, `research`, `scrape/*/interact`, `search/*/feedback`, `actions`, screenshot/branding/changeTracking formats, and `proxy: stealth|enhanced`.
 - `gateway/dist/` and `gateway/admin-ui/dist/` are build outputs; source edits must go through build steps.
 - Schema migrations in `gateway/src/db/schema.sql` use `IF NOT EXISTS` and are applied automatically on startup.
+- Tests use Vitest and live next to the files they test (e.g., `*.test.ts`).
 
 ## Maintainer Guide
 
