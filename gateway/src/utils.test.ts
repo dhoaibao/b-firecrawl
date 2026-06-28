@@ -8,6 +8,7 @@ import {
   walk,
   findObjectsByKey,
   cryptoRandomId,
+  shuffleArray,
 } from "./utils";
 
 describe("hasPrivateTargetUrl", () => {
@@ -143,5 +144,23 @@ describe("cryptoRandomId", () => {
   it("returns a UUID v4 string", () => {
     const id = cryptoRandomId();
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  });
+});
+
+describe("shuffleArray", () => {
+  it("returns a new array with the same elements", () => {
+    const original = ["a", "b", "c", "d", "e"];
+    const shuffled = shuffleArray(original);
+    expect(shuffled).not.toBe(original);
+    expect(shuffled).toHaveLength(original.length);
+    expect(shuffled.sort()).toEqual(original.sort());
+  });
+
+  it("handles empty arrays", () => {
+    expect(shuffleArray([])).toEqual([]);
+  });
+
+  it("handles single-element arrays", () => {
+    expect(shuffleArray(["only"])).toEqual(["only"]);
   });
 });

@@ -1,22 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import {
   Settings,
   Save,
   RotateCcw,
@@ -24,7 +7,7 @@ import {
   Trash2,
   Shield,
   CreditCard,
-  GripVertical,
+  RefreshCw,
   Route,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -109,43 +92,19 @@ function makeRows(keys: string[], idCounter: { current: number }): ApiKeyRow[] {
   return keys.map((key) => ({ id: `key-${idCounter.current++}`, key }))
 }
 
-function SortableApiKeyRow({
+function ApiKeyRow({
   row,
-  index,
   usage,
   onRemove,
 }: {
   row: ApiKeyRow
-  index: number
   usage: CreditUsageItem | undefined
   onRemove: () => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3 ${isDragging ? "opacity-50" : ""}`}
-    >
+    <div className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="size-4" />
-          </button>
-          <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-            {index + 1}
-          </span>
           <code className="truncate text-sm font-mono text-foreground" title={row.key}>
             {maskKey(row.key)}
           </code>
@@ -184,54 +143,59 @@ export default function Configure() {
   const [apiKeyRows, setApiKeyRows] = useState<ApiKeyRow[]>([])
   const [newKey, setNewKey] = useState("")
   const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
+  const [creditUsageLoading, setCreditUsageLoading] = useState(false)
   const idCounter = useRef(0)
   const { addToast } = useToast()
   const { confirm: confirmReset, dialog: resetDialog } = useConfirmDialog()
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
 
   useEffect(() => {
     document.title = "Configure — Firecrawl Gateway"
   }, [])
 
-  const fetchCreditUsage = useCallback(async () => {
+  const fetchCreditUsage = useCallback(async (signal?: AbortSignal) => {
+    setCreditUsageLoading(true)
     try {
-      const json = await api.get<{ data: CreditUsageItem[] }>("/admin/api/settings/credit-usage")
+      const json = await api.get<{ data: CreditUsageItem[] }>("/admin/api/settings/credit-usage", { signal })
+      if (signal?.aborted) return
       setCreditUsage(json.data || [])
     } catch (err) {
+      if (signal?.aborted) return
       addToast(err instanceof Error ? err.message : "Failed to load credit usage", "error")
+    } finally {
+      if (!signal?.aborted) {
+        setCreditUsageLoading(false)
+      }
     }
   }, [addToast])
 
-  const fetchSettings = useCallback(async () => {
+  const fetchSettings = useCallback(async (signal?: AbortSignal) => {
     try {
-      const json = await api.get<{ data: SettingsData }>("/admin/api/settings")
+      const json = await api.get<{ data: SettingsData }>("/admin/api/settings", { signal })
+      if (signal?.aborted) return
       const data = json.data || {}
       setSettings(data)
       idCounter.current = 0
       setApiKeyRows(makeRows(data.firecrawl_api_keys || [], idCounter))
     } catch (err) {
+      if (signal?.aborted) return
       addToast(err instanceof Error ? err.message : "Failed to load settings", "error")
     } finally {
-      setLoading(false)
+      if (!signal?.aborted) {
+        setLoading(false)
+      }
     }
   }, [addToast])
 
   useEffect(() => {
-    void fetchSettings()
+    const controller = new AbortController()
+    void fetchSettings(controller.signal)
+    return () => controller.abort()
   }, [fetchSettings])
 
   useEffect(() => {
-    void fetchCreditUsage()
-    const interval = setInterval(() => {
-      void fetchCreditUsage()
-    }, 60_000)
-    return () => clearInterval(interval)
+    const controller = new AbortController()
+    void fetchCreditUsage(controller.signal)
+    return () => controller.abort()
   }, [fetchCreditUsage])
 
   function updateSetting(key: SettingKey, value: unknown) {
@@ -251,17 +215,6 @@ export default function Configure() {
 
   function removeApiKey(index: number) {
     setApiKeyRows((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (over && active.id !== over.id) {
-      setApiKeyRows((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over.id)
-        return arrayMove(items, oldIndex, newIndex)
-      })
-    }
   }
 
   async function handleSave() {
@@ -345,7 +298,7 @@ export default function Configure() {
                 </CardHeader>
                 <div className="space-y-4 px-5 py-4">
                   <p className="text-sm text-muted-foreground">
-                    Add Firecrawl API keys in priority order. The gateway uses the first key and tries the next ones on rate limits or auth errors. Drag to reorder.
+                    Add Firecrawl API keys. The gateway selects one randomly for each request and tries the remaining keys on rate limits or auth errors.
                   </p>
                   <div className="flex gap-2">
                     <input
@@ -360,33 +313,32 @@ export default function Configure() {
                       <Plus className="size-4 mr-1" /> Add
                     </Button>
                   </div>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={apiKeyRows.map((row) => row.id)}
-                      strategy={verticalListSortingStrategy}
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void fetchCreditUsage()}
+                      disabled={creditUsageLoading}
                     >
-                      <div className="space-y-2">
-                        {apiKeyRows.length === 0 && (
-                          <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3 text-sm text-muted-foreground">
-                            No API keys configured. Cloud fallback and cloud-first routing will not work until you add at least one key.
-                          </div>
-                        )}
-                        {apiKeyRows.map((row, i) => (
-                          <SortableApiKeyRow
-                            key={row.id}
-                            row={row}
-                            index={i}
-                            usage={creditUsage[i]}
-                          onRemove={() => removeApiKey(i)}
-                          />
-                        ))}
+                      <RefreshCw className={`size-4 mr-1 ${creditUsageLoading ? "animate-spin" : ""}`} />
+                      {creditUsageLoading ? "Refreshing..." : "Refresh usage"}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {apiKeyRows.length === 0 && (
+                      <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3 text-sm text-muted-foreground">
+                        No API keys configured. Cloud fallback and cloud-first routing will not work until you add at least one key.
                       </div>
-                    </SortableContext>
-                  </DndContext>
+                    )}
+                    {apiKeyRows.map((row, i) => (
+                      <ApiKeyRow
+                        key={row.id}
+                        row={row}
+                        usage={creditUsage[i]}
+                        onRemove={() => removeApiKey(i)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </Card>
             )

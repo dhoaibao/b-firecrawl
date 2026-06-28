@@ -15,6 +15,7 @@ import {
   hasPrivateTargetUrl,
   inspectBody,
   nowIso,
+  shuffleArray,
 } from "./utils";
 import * as apiKeyService from "./api-keys/service";
 import * as userService from "./users/service";
@@ -357,7 +358,7 @@ export function createProxyHandler({
     };
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
-    const cloudApiKeys = await getCloudApiKeys();
+    const cloudApiKeys = shuffleArray(await getCloudApiKeys());
     const primaryCloudApiKey = cloudApiKeys[0];
 
     if (initialBackend === "cloud" && !primaryCloudApiKey) {
