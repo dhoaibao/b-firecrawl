@@ -30,7 +30,7 @@ export default function ApiKeys() {
 
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "revoked">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "revoked">("active");
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -160,11 +160,11 @@ export default function ApiKeys() {
             <SelectItem value="revoked">Revoked</SelectItem>
           </SelectContent>
         </Select>
-        {(searchQuery || statusFilter !== "all") && (
+        {(searchQuery || statusFilter !== "active") && (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setSearchQuery(""); setStatusFilter("all"); setPage(1); }}
+            onClick={() => { setSearchQuery(""); setStatusFilter("active"); setPage(1); }}
           >
             Clear
           </Button>
