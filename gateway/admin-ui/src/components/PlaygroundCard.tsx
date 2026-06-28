@@ -65,7 +65,7 @@ export default function PlaygroundCard({
             )}
             <Button
               type="submit"
-              variant="brand"
+              variant="default"
               size="sm"
               disabled={loading || disabled}
               className="h-8 px-4 text-xs font-semibold"

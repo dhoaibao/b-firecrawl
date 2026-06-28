@@ -11,17 +11,15 @@ import PageLayout from "@/components/PageLayout"
 import PlaygroundCard from "@/components/PlaygroundCard"
 import PlaygroundResult from "@/components/PlaygroundResult"
 import { playgroundSearch, type SearchRequest } from "@/lib/playground"
-import { DEFAULT_ROUTE_MODE, ROUTE_MODES, type RouteMode } from "@/lib/routing"
 import { useToast } from "@/hooks/useToast"
 
 const RESULT_OPTIONS = ["5", "10", "20", "50"]
 
 export default function SearchPage() {
   const [query, setQuery] = useState("")
-  const [limit, setLimit] = useState("")
+  const [limit, setLimit] = useState("default")
   const [lang, setLang] = useState("")
   const [country, setCountry] = useState("")
-  const [routeMode, setRouteMode] = useState<RouteMode>(DEFAULT_ROUTE_MODE)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<unknown>(undefined)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +31,7 @@ export default function SearchPage() {
 
   function buildBody(): SearchRequest {
     const body: SearchRequest = { query: query.trim() }
-    if (limit) body.limit = Number(limit)
+    if (limit && limit !== "default") body.limit = Number(limit)
     if (lang) body.lang = lang.trim()
     if (country) body.country = country.trim()
     return body
@@ -41,12 +39,8 @@ export default function SearchPage() {
 
   function getCode() {
     const body = buildBody()
-    const headers = [
-      '-H "Content-Type: application/json"',
-      routeMode ? ` -H "X-Firecrawl-Route-Mode: ${routeMode}"` : "",
-    ].join(" ")
     const code = `curl -X POST "${window.location.origin}/admin/api/playground/v1/search" \\
-${headers} \\
+-H "Content-Type: application/json" \\
 -d '${JSON.stringify(body, null, 2)}'`
     void navigator.clipboard.writeText(code)
     addToast("cURL copied to clipboard", "success")
@@ -65,7 +59,7 @@ ${headers} \\
     setResult(undefined)
 
     try {
-      const json = await playgroundSearch(buildBody(), routeMode, controller.signal)
+      const json = await playgroundSearch(buildBody(), undefined, controller.signal)
       setResult(json)
     } catch (err) {
       if (controller.signal.aborted) return
@@ -111,7 +105,7 @@ ${headers} \\
                   <SelectValue placeholder="Default" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Default</SelectItem>
+                  <SelectItem value="default">Default</SelectItem>
                   {RESULT_OPTIONS.map((value) => (
                     <SelectItem key={value} value={value}>
                       {value}
@@ -148,23 +142,6 @@ ${headers} \\
                   placeholder="US"
                   className="h-9 w-full rounded-md border border-white/[0.08] bg-surface-1 px-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
                 />
-              </div>
-              <div className="md:col-span-2">
-                <label htmlFor="search-route-mode" className="mb-1 block text-xs font-medium text-foreground">
-                  Route Mode
-                </label>
-                <Select value={routeMode} onValueChange={(value) => setRouteMode(value as RouteMode)}>
-                  <SelectTrigger id="search-route-mode" className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROUTE_MODES.map((mode) => (
-                      <SelectItem key={mode.value} value={mode.value}>
-                        {mode.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </>
           }

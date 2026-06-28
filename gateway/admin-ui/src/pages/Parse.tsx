@@ -12,7 +12,6 @@ import PageLayout from "@/components/PageLayout"
 import PlaygroundCard from "@/components/PlaygroundCard"
 import PlaygroundResult from "@/components/PlaygroundResult"
 import { playgroundParse, type ParseRequest } from "@/lib/playground"
-import { DEFAULT_ROUTE_MODE, ROUTE_MODES, type RouteMode } from "@/lib/routing"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/useToast"
 
@@ -25,7 +24,6 @@ export default function ParsePage() {
   const [url, setUrl] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [format, setFormat] = useState("markdown")
-  const [routeMode, setRouteMode] = useState<RouteMode>(DEFAULT_ROUTE_MODE)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<unknown>(undefined)
   const [error, setError] = useState<string | null>(null)
@@ -59,8 +57,6 @@ export default function ParsePage() {
 
   function getCode() {
     const params = buildParams()
-    const headers: Record<string, string> = {}
-    if (routeMode) headers["X-Firecrawl-Route-Mode"] = routeMode
 
     let code: string
     if (file) {
@@ -69,13 +65,12 @@ formData.append("file", file)
 formData.append("formats", '${JSON.stringify(params.formats)}')
 await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
   method: "POST",
-  headers: ${JSON.stringify(headers, null, 2)},
   body: formData,
 })`
     } else {
       code = `await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
   method: "POST",
-  headers: ${JSON.stringify({ "Content-Type": "application/json", ...headers }, null, 2)},
+  headers: { "Content-Type": "application/json" },
   body: JSON.stringify(${JSON.stringify(params, null, 2)}),
 })`
     }
@@ -97,7 +92,7 @@ await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
     setResult(undefined)
 
     try {
-      const json = await playgroundParse(file, buildParams(), routeMode, controller.signal)
+      const json = await playgroundParse(file, buildParams(), undefined, controller.signal)
       setResult(json)
     } catch (err) {
       if (controller.signal.aborted) return
@@ -222,23 +217,6 @@ await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
                   disabled={Boolean(file)}
                   className="h-9 w-full rounded-md border border-white/[0.08] bg-surface-1 px-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
                 />
-              </div>
-              <div>
-                <label htmlFor="parse-route-mode" className="mb-1 block text-xs font-medium text-foreground">
-                  Route Mode
-                </label>
-                <Select value={routeMode} onValueChange={(value) => setRouteMode(value as RouteMode)}>
-                  <SelectTrigger id="parse-route-mode" className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROUTE_MODES.map((mode) => (
-                      <SelectItem key={mode.value} value={mode.value}>
-                        {mode.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </>
           }

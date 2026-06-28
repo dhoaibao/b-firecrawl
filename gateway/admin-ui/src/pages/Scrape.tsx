@@ -11,7 +11,6 @@ import PageLayout from "@/components/PageLayout"
 import PlaygroundCard from "@/components/PlaygroundCard"
 import PlaygroundResult from "@/components/PlaygroundResult"
 import { playgroundScrape, type ScrapeRequest } from "@/lib/playground"
-import { DEFAULT_ROUTE_MODE, ROUTE_MODES, type RouteMode } from "@/lib/routing"
 import { useToast } from "@/hooks/useToast"
 
 const FORMAT_OPTIONS = [
@@ -27,7 +26,6 @@ export default function ScrapePage() {
   const [format, setFormat] = useState("markdown")
   const [onlyMainContent, setOnlyMainContent] = useState(true)
   const [waitFor, setWaitFor] = useState("")
-  const [routeMode, setRouteMode] = useState<RouteMode>(DEFAULT_ROUTE_MODE)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<unknown>(undefined)
   const [error, setError] = useState<string | null>(null)
@@ -47,12 +45,8 @@ export default function ScrapePage() {
 
   function getCode() {
     const body = buildBody()
-    const headers = [
-      '-H "Content-Type: application/json"',
-      routeMode ? ` -H "X-Firecrawl-Route-Mode: ${routeMode}"` : "",
-    ].join(" ")
     const code = `curl -X POST "${window.location.origin}/admin/api/playground/v1/scrape" \\
-${headers} \\
+-H "Content-Type: application/json" \\
 -d '${JSON.stringify(body, null, 2)}'`
     void navigator.clipboard.writeText(code)
     addToast("cURL copied to clipboard", "success")
@@ -71,7 +65,7 @@ ${headers} \\
     setResult(undefined)
 
     try {
-      const json = await playgroundScrape(buildBody(), routeMode, controller.signal)
+      const json = await playgroundScrape(buildBody(), undefined, controller.signal)
       setResult(json)
     } catch (err) {
       if (controller.signal.aborted) return
@@ -158,23 +152,6 @@ ${headers} \\
                   placeholder="0"
                   className="h-9 w-full rounded-md border border-white/[0.08] bg-surface-1 px-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
                 />
-              </div>
-              <div>
-                <label htmlFor="scrape-route-mode" className="mb-1 block text-xs font-medium text-foreground">
-                  Route Mode
-                </label>
-                <Select value={routeMode} onValueChange={(value) => setRouteMode(value as RouteMode)}>
-                  <SelectTrigger id="scrape-route-mode" className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROUTE_MODES.map((mode) => (
-                      <SelectItem key={mode.value} value={mode.value}>
-                        {mode.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </>
           }
