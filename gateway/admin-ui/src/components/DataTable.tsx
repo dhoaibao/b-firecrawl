@@ -33,10 +33,9 @@ export default function DataTable<T>({
               <th
                 key={col.key}
                 className={cn(
-                  "px-4 py-3 font-semibold",
+                  "px-4 py-3 text-left font-semibold",
                   col.align === "right" && "text-right",
                   col.align === "center" && "text-center",
-                  col.align === "left" && "text-left",
                   col.className,
                 )}
               >
@@ -56,7 +55,7 @@ export default function DataTable<T>({
                   <td
                     key={col.key}
                     className={cn(
-                      "px-4 py-3",
+                      "px-4 py-3 text-left",
                       colIndex === 0 && "relative",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
