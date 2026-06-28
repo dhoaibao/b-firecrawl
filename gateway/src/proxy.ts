@@ -232,36 +232,91 @@ export function createProxyHandler({
       res.status(400).json({ success: false, error: "Invalid request URL" });
       return;
     }
+    let userId: string | undefined;
+    let primaryTargetUrl = "";
+    let routeMode: string = config.defaultRouteMode;
+    const appendAuditEntry = async ({
+      backendUsed,
+      statusCode,
+      fallbackUsed = false,
+      fallbackReason = "",
+    }: {
+      backendUsed: string;
+      statusCode: number;
+      fallbackUsed?: boolean;
+      fallbackReason?: string;
+    }): Promise<void> => {
+      const auditEntry: AuditEntry = {
+        id: cryptoRandomId(),
+        created_at: nowIso(),
+        method: req.method,
+        path: parsedUrl.pathname,
+        route_mode: routeMode,
+        backend_used: backendUsed,
+        fallback_used: fallbackUsed,
+        fallback_reason: fallbackReason,
+        status_code: statusCode,
+        duration_ms: Date.now() - started,
+        target_url: primaryTargetUrl,
+        user_id: userId,
+        request_id: req.requestId,
+      };
+      try {
+        await auditStore.appendAudit(auditEntry);
+      } catch (auditErr) {
+        log.warn({ err: auditErr }, "Failed to write audit entry; continuing request");
+      }
+    };
+
     const defaultRouteMode = await settingsService.getDefaultRouteMode(config.defaultRouteMode);
-    const routeMode = getRouteMode(
+    routeMode = getRouteMode(
       requestUrl,
       req.headers,
       defaultRouteMode,
     );
 
     // Validate virtual API key when auth is enabled
-    let userId: string | undefined;
     if (config.authEnabled) {
       const authHeader = String(req.headers.authorization || "");
       const match = authHeader.match(/^Bearer\s+(.+)$/i);
       if (!match) {
+        await appendAuditEntry({
+          backendUsed: "none",
+          statusCode: 401,
+          fallbackReason: "Missing or invalid API key",
+        });
         res.status(401).json({ success: false, error: "Missing or invalid API key" });
         return;
       }
       const apiKey = match[1];
       const validKey = await apiKeyService.validateApiKey(apiKey);
       if (!validKey) {
+        await appendAuditEntry({
+          backendUsed: "none",
+          statusCode: 401,
+          fallbackReason: "Invalid or revoked API key",
+        });
         res.status(401).json({ success: false, error: "Invalid or revoked API key" });
         return;
       }
 
       const keyOwner = await userService.getUserById(validKey.user_id);
       if (!keyOwner) {
+        await appendAuditEntry({
+          backendUsed: "none",
+          statusCode: 401,
+          fallbackReason: "API key owner not found",
+        });
         res.status(401).json({ success: false, error: "API key owner not found" });
         return;
       }
       const access = userService.checkUserAccess(keyOwner);
       if (!access.allowed) {
+        await appendAuditEntry({
+          backendUsed: "none",
+          statusCode: 403,
+          fallbackReason: access.reason,
+        });
         res.status(403).json({ success: false, error: access.reason });
         return;
       }
@@ -272,14 +327,29 @@ export function createProxyHandler({
       });
     }
 
-    const bodyBuffer = await readRequestBody(req, config.maxBodyBytes);
+    let bodyBuffer: Buffer;
+    try {
+      bodyBuffer = await readRequestBody(req, config.maxBodyBytes);
+    } catch (error) {
+      await appendAuditEntry({
+        backendUsed: "none",
+        statusCode: (error as Error & { statusCode?: number }).statusCode || 500,
+        fallbackReason: (error as Error).message || "Gateway error",
+      });
+      throw error;
+    }
     const { json, parseError } = inspectBody(bodyBuffer, req.headers);
     if (parseError) {
+      await appendAuditEntry({
+        backendUsed: "none",
+        statusCode: 400,
+        fallbackReason: parseError,
+      });
       res.status(400).json({ success: false, error: "Invalid JSON body", details: parseError });
       return;
     }
     const targetUrls = collectTargetUrls(json);
-    const primaryTargetUrl = targetUrls[0] || "";
+    primaryTargetUrl = targetUrls[0] || "";
     const privacyHeaders = headersForPrivacyCheck(req.headers, config.authEnabled);
     const privacy = {
       hasSensitiveHeaders: hasSensitiveHeaders(privacyHeaders, json),
@@ -296,22 +366,11 @@ export function createProxyHandler({
         { reason: needsCloud.reason },
         "request requires Firecrawl Cloud but no primary API key configured",
       );
-      const auditEntry: AuditEntry = {
-        id: cryptoRandomId(),
-        created_at: nowIso(),
-        method: req.method,
-        path: parsedUrl.pathname,
-        route_mode: routeMode,
-        backend_used: "none",
-        fallback_used: false,
-        fallback_reason: "No Firecrawl Cloud API key configured",
-        status_code: statusCode,
-        duration_ms: Date.now() - started,
-        target_url: primaryTargetUrl,
-        user_id: userId,
-        request_id: req.requestId,
-      };
-      await auditStore.appendAudit(auditEntry);
+      await appendAuditEntry({
+        backendUsed: "none",
+        statusCode,
+        fallbackReason: "No Firecrawl Cloud API key configured",
+      });
       res.status(statusCode).json({
         success: false,
         error: "No Firecrawl Cloud API key configured. Add one in Settings.",
@@ -335,22 +394,11 @@ export function createProxyHandler({
         { reason: needsCloud.reason },
         "request rejected: requires cloud in local-only mode",
       );
-      const auditEntry: AuditEntry = {
-        id: cryptoRandomId(),
-        created_at: nowIso(),
-        method: req.method,
-        path: parsedUrl.pathname,
-        route_mode: routeMode,
-        backend_used: "none",
-        fallback_used: false,
-        fallback_reason: needsCloud.reason,
-        status_code: statusCode,
-        duration_ms: Date.now() - started,
-        target_url: primaryTargetUrl,
-        user_id: userId,
-        request_id: req.requestId,
-      };
-      await auditStore.appendAudit(auditEntry);
+      await appendAuditEntry({
+        backendUsed: "none",
+        statusCode,
+        fallbackReason: needsCloud.reason,
+      });
       res.status(statusCode).json({
         success: false,
         error:
@@ -433,26 +481,12 @@ export function createProxyHandler({
 
     const statusCode =
       result.kind === "network-error" ? 502 : result.response?.status || 502;
-    const auditEntry: AuditEntry = {
-      id: cryptoRandomId(),
-      created_at: nowIso(),
-      method: req.method,
-      path: parsedUrl.pathname,
-      route_mode: routeMode,
-      backend_used: result.backend,
-      fallback_used: fallbackUsed,
-      fallback_reason: fallbackReason || needsCloud.reason || "",
-      status_code: statusCode,
-      duration_ms: Date.now() - started,
-      target_url: primaryTargetUrl,
-      user_id: userId,
-      request_id: req.requestId,
-    };
-    try {
-      await auditStore.appendAudit(auditEntry);
-    } catch (auditErr) {
-      log.warn({ err: auditErr }, "Failed to write audit entry; continuing request");
-    }
+    await appendAuditEntry({
+      backendUsed: result.backend,
+      statusCode,
+      fallbackUsed,
+      fallbackReason: fallbackReason || needsCloud.reason || "",
+    });
     sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
   };
 }

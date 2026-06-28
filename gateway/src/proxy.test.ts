@@ -144,6 +144,50 @@ describe("createProxyHandler route mode resolution", () => {
     vi.unstubAllGlobals();
   });
 
+  it("writes an audit entry when a cloud-first request is rejected for invalid JSON", async () => {
+    mockGetDefaultRouteMode.mockResolvedValue("cloud-first");
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: baseConfig, auditStore });
+    const req = {
+      method: "POST",
+      url: "/v1/scrape",
+      originalUrl: "/v1/scrape",
+      headers: { "content-type": "application/json" },
+      requestId: "req-invalid-json",
+      [Symbol.asyncIterator]: async function* () {
+        yield Buffer.from('{"url":');
+      },
+      on: vi.fn(),
+      pipe: vi.fn(),
+    } as unknown as import("express").Request;
+
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    } as unknown as import("express").Response;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: "Invalid JSON body" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(auditStore.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route_mode: "cloud-first",
+        backend_used: "none",
+        status_code: 400,
+        request_id: "req-invalid-json",
+      }),
+    );
+
+    vi.unstubAllGlobals();
+  });
+
   it("returns 400 for an invalid request URL", async () => {
     const handler = createProxyHandler({ config: baseConfig, auditStore });
     const req = {
