@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { FileText, Play, Upload, X } from "lucide-react"
+import { FileText, Upload, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -10,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import PageLayout from "@/components/PageLayout"
+import PlaygroundCard from "@/components/PlaygroundCard"
 import PlaygroundResult from "@/components/PlaygroundResult"
 import { playgroundParse, type ParseRequest } from "@/lib/playground"
 import { DEFAULT_ROUTE_MODE, ROUTE_MODES, type RouteMode } from "@/lib/routing"
@@ -24,7 +24,7 @@ const FORMAT_OPTIONS = [
 export default function ParsePage() {
   const [url, setUrl] = useState("")
   const [file, setFile] = useState<File | null>(null)
-  const [formats, setFormats] = useState<string[]>(["markdown"])
+  const [format, setFormat] = useState("markdown")
   const [routeMode, setRouteMode] = useState<RouteMode>(DEFAULT_ROUTE_MODE)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<unknown>(undefined)
@@ -36,14 +36,7 @@ export default function ParsePage() {
     document.title = "Parse a File — Firecrawl Gateway"
   }, [])
 
-  function toggleFormat(value: string) {
-    setFormats((prev) =>
-      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value],
-    )
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0]
+  function handleFileChange(selected: File | null) {
     if (selected) {
       setFile(selected)
       setUrl("")
@@ -57,7 +50,41 @@ export default function ParsePage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function buildParams(): ParseRequest {
+    const params: ParseRequest = {}
+    if (url.trim()) params.url = url.trim()
+    params.formats = [format]
+    return params
+  }
+
+  function getCode() {
+    const params = buildParams()
+    const headers: Record<string, string> = {}
+    if (routeMode) headers["X-Firecrawl-Route-Mode"] = routeMode
+
+    let code: string
+    if (file) {
+      code = `const formData = new FormData()
+formData.append("file", file)
+formData.append("formats", '${JSON.stringify(params.formats)}')
+await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
+  method: "POST",
+  headers: ${JSON.stringify(headers, null, 2)},
+  body: formData,
+})`
+    } else {
+      code = `await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
+  method: "POST",
+  headers: ${JSON.stringify({ "Content-Type": "application/json", ...headers }, null, 2)},
+  body: JSON.stringify(${JSON.stringify(params, null, 2)}),
+})`
+    }
+
+    void navigator.clipboard.writeText(code)
+    addToast("Code snippet copied to clipboard", "success")
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!file && !url.trim()) {
       addToast("URL or file is required", "error")
@@ -69,12 +96,8 @@ export default function ParsePage() {
     setError(null)
     setResult(undefined)
 
-    const params: ParseRequest = {}
-    if (url.trim()) params.url = url.trim()
-    if (formats.length > 0) params.formats = formats
-
     try {
-      const json = await playgroundParse(file, params, routeMode, controller.signal)
+      const json = await playgroundParse(file, buildParams(), routeMode, controller.signal)
       setResult(json)
     } catch (err) {
       if (controller.signal.aborted) return
@@ -89,120 +112,137 @@ export default function ParsePage() {
   return (
     <PageLayout title="Parse a File" icon={FileText}>
       <div className="space-y-4">
-        <Card className="border-white/[0.06] bg-surface-2 shadow-none">
-          <CardContent className="px-5 py-5">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <label htmlFor="parse-url" className="mb-1 block text-sm font-medium text-foreground">
-                    URL
-                  </label>
-                  <input
-                    id="parse-url"
-                    type="url"
-                    value={url}
-                    onChange={(e) => {
-                      setUrl(e.target.value)
-                      if (e.target.value) setFile(null)
-                    }}
-                    placeholder="https://example.com/document.pdf"
-                    disabled={Boolean(file)}
-                    className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-foreground">Or upload a file</label>
-                  <div
-                    className={`flex items-center justify-center rounded-lg border border-dashed px-4 py-6 transition-colors ${
-                      file
-                        ? "border-success-muted bg-success-muted/10"
-                        : "border-white/[0.08] bg-surface-1 hover:border-white/12"
-                    }`}
-                  >
-                    {file ? (
-                      <div className="flex w-full items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="size-4 text-success-fg shrink-0" />
-                          <span className="truncate text-sm text-foreground" title={file.name}>
-                            {file.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            ({(file.size / 1024).toFixed(1)} KB)
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs shrink-0"
-                          onClick={clearFile}
-                        >
-                          <X className="size-3.5 mr-1" /> Remove
-                        </Button>
-                      </div>
-                    ) : (
-                      <label className="flex cursor-pointer flex-col items-center gap-2">
-                        <Upload className="size-5 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Click to upload PDF, DOCX, or HTML</span>
-                        <input
-                          ref={inputRef}
-                          type="file"
-                          accept=".pdf,.docx,.doc,.html,.htm,.txt"
-                          onChange={handleFileChange}
-                          className="sr-only"
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-foreground">Formats</label>
-                  <div className="flex flex-wrap gap-2">
-                    {FORMAT_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={formats.includes(option.value)}
-                        onClick={() => toggleFormat(option.value)}
-                        className={cn(
-                          "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                          formats.includes(option.value)
-                            ? "border-ring bg-ring/20 text-foreground"
-                            : "border-white/[0.08] bg-surface-1 text-muted-foreground hover:bg-surface-3 hover:text-foreground",
-                        )}
-                      >
-                        {option.label}
-                      </button>
+        <PlaygroundCard
+          submitLabel="Start parsing"
+          submitLoadingLabel="Parsing..."
+          loading={loading}
+          disabled={(!url.trim() && !file)}
+          onSubmit={handleSubmit}
+          onGetCode={getCode}
+          inputSection={
+            <>
+              <label htmlFor="parse-file" className="sr-only">
+                Upload file
+              </label>
+              <label
+                htmlFor="parse-file"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  handleFileChange(e.dataTransfer.files?.[0] ?? null)
+                }}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-xl border border-dashed px-5 py-5 transition-colors",
+                  file
+                    ? "border-success-muted bg-success-muted/10"
+                    : "border-white/[0.08] bg-surface-1 hover:border-white/12",
+                )}
+              >
+                {file ? (
+                  <>
+                    <span className="rounded-md border border-white/[0.12] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+                      File
+                    </span>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="truncate text-sm text-foreground" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        ({(file.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        clearFile()
+                      }}
+                    >
+                      <X className="size-3.5 mr-1" /> Remove
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="rounded-md border border-white/[0.12] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+                      File
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      Drop a file or click to upload — PDF, DOCX, XLSX, HTML
+                    </span>
+                    <Upload className="ml-auto size-4 text-muted-foreground" />
+                  </>
+                )}
+                <input
+                  ref={inputRef}
+                  id="parse-file"
+                  type="file"
+                  accept=".pdf,.docx,.doc,.xlsx,.xls,.html,.htm,.txt"
+                  onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+                  className="sr-only"
+                />
+              </label>
+            </>
+          }
+          toolbarExtras={
+            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-surface-1 px-2 py-1">
+              <FileText className="size-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Format:</span>
+              <Select value={format} onValueChange={(value) => setFormat(value)}>
+                <SelectTrigger className="h-auto border-0 bg-transparent p-0 text-xs font-medium text-foreground focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORMAT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          }
+          advanced={
+            <>
+              <div className="md:col-span-2">
+                <label htmlFor="parse-url" className="mb-1 block text-xs font-medium text-foreground">
+                  Or parse from URL
+                </label>
+                <input
+                  id="parse-url"
+                  type="url"
+                  value={url}
+                  onChange={(e) => {
+                    setUrl(e.target.value)
+                    if (e.target.value) setFile(null)
+                  }}
+                  placeholder="https://example.com/document.pdf"
+                  disabled={Boolean(file)}
+                  className="h-9 w-full rounded-md border border-white/[0.08] bg-surface-1 px-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label htmlFor="parse-route-mode" className="mb-1 block text-xs font-medium text-foreground">
+                  Route Mode
+                </label>
+                <Select value={routeMode} onValueChange={(value) => setRouteMode(value as RouteMode)}>
+                  <SelectTrigger id="parse-route-mode" className="h-9 w-full text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROUTE_MODES.map((mode) => (
+                      <SelectItem key={mode.value} value={mode.value}>
+                        {mode.label}
+                      </SelectItem>
                     ))}
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="parse-route-mode" className="mb-1 block text-sm font-medium text-foreground">
-                    Route Mode
-                  </label>
-                  <Select value={routeMode} onValueChange={(value) => setRouteMode(value as RouteMode)}>
-                    <SelectTrigger id="parse-route-mode" className="h-10 w-full text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROUTE_MODES.map((mode) => (
-                        <SelectItem key={mode.value} value={mode.value}>
-                          {mode.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex items-center justify-end">
-                <Button type="submit" disabled={loading || (!url.trim() && !file)}>
-                  <Play className="size-4 mr-1" />
-                  {loading ? "Parsing..." : "Run Parse"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+            </>
+          }
+        />
         <PlaygroundResult loading={loading} error={error} result={result} />
       </div>
     </PageLayout>

@@ -30,6 +30,10 @@
   --color-input: hsl(230 8% 18%);
   --color-ring: hsl(215 20% 55%);
 
+  /* Brand accent */
+  --color-brand: hsl(16 100% 50%);
+  --color-brand-foreground: hsl(0 0% 100%);
+
   /* Semantic palette — cooler, more intentional */
   --color-success: hsl(155 58% 45%);
   --color-success-muted: hsl(155 40% 20%);
