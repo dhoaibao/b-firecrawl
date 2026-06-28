@@ -10,6 +10,9 @@ const Login = lazy(() => import("@/pages/Login"))
 const Users = lazy(() => import("@/pages/Users"))
 const ApiKeys = lazy(() => import("@/pages/ApiKeys"))
 const Configure = lazy(() => import("@/pages/Configure"))
+const Search = lazy(() => import("@/pages/Search"))
+const Scrape = lazy(() => import("@/pages/Scrape"))
+const Parse = lazy(() => import("@/pages/Parse"))
 
 function LoadingScreen() {
   return (
@@ -96,6 +99,21 @@ export default function App() {
               <Route path="/api-keys" element={
                 <Suspense fallback={<LoadingScreen />}>
                   <ApiKeys />
+                </Suspense>
+              } />
+              <Route path="/search" element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <Search />
+                </Suspense>
+              } />
+              <Route path="/scrape" element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <Scrape />
+                </Suspense>
+              } />
+              <Route path="/parse" element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <Parse />
                 </Suspense>
               } />
               <Route

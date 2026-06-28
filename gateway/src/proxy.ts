@@ -216,14 +216,17 @@ const RETRYABLE_CLOUD_STATUS = new Set([401, 403, 429]);
 export function createProxyHandler({
   config,
   auditStore,
+  getTrustedUserId,
 }: {
   config: GatewayConfig;
   auditStore: AuditStore;
+  getTrustedUserId?: (req: Request) => string | undefined;
 }) {
   return async function handleProxy(
     req: Request,
     res: Response,
   ): Promise<void> {
+    const trustedUserId = getTrustedUserId?.(req);
     const log = getRequestLogger(req);
     const started = Date.now();
     const requestUrl = req.originalUrl || req.url;
@@ -277,8 +280,8 @@ export function createProxyHandler({
       defaultRouteMode,
     );
 
-    // Validate virtual API key when auth is enabled
-    if (config.authEnabled) {
+    // Validate virtual API key when auth is enabled and request is not from a trusted session caller
+    if (config.authEnabled && !trustedUserId) {
       const authHeader = String(req.headers.authorization || "");
       const match = authHeader.match(/^Bearer\s+(.+)$/i);
       if (!match) {
@@ -327,6 +330,8 @@ export function createProxyHandler({
       apiKeyService.touchApiKey(validKey.id).catch((err) => {
         log.warn({ err }, "Failed to update API key last used timestamp");
       });
+    } else if (trustedUserId) {
+      userId = trustedUserId;
     }
 
     let bodyBuffer: Buffer;

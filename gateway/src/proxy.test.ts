@@ -89,6 +89,70 @@ describe("headersForPrivacyCheck", () => {
   });
 });
 
+describe("createProxyHandler trusted session caller", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+    mockGetSetting.mockImplementation(async (key: string) => {
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["fc_test_key"]', updated_at: new Date().toISOString() };
+      }
+      return null;
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses trusted user id and skips api key validation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true })),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const trustedUserId = "session-user-123";
+    const handler = createProxyHandler({
+      config: { ...baseConfig, authEnabled: true },
+      auditStore,
+      getTrustedUserId: () => trustedUserId,
+    });
+
+    const req = {
+      method: "POST",
+      url: "/v1/scrape",
+      originalUrl: "/v1/scrape",
+      headers: { "content-type": "application/json" },
+      requestId: "req-trusted",
+      [Symbol.asyncIterator]: async function* () {
+        yield Buffer.from(JSON.stringify({ url: "https://example.com" }));
+      },
+      on: vi.fn(),
+      pipe: vi.fn(),
+    } as unknown as import("express").Request;
+
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      end: vi.fn().mockReturnThis(),
+    } as unknown as import("express").Response;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(auditStore.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: trustedUserId,
+        backend_used: "local",
+      }),
+    );
+  });
+});
+
 describe("createProxyHandler route mode resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();

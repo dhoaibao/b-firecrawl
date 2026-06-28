@@ -41,6 +41,11 @@ async function main() {
   const app = express();
   const auditStore = createAuditStore(config.logFile);
   const handleProxy = createProxyHandler({ config, auditStore });
+  const handlePlaygroundProxy = createProxyHandler({
+    config,
+    auditStore,
+    getTrustedUserId: (req) => (req.user as Express.User | undefined)?.id,
+  });
   const adminRouter = createAdminRouter(auditStore);
 
   app.set("trust proxy", config.trustProxy);
@@ -99,6 +104,24 @@ async function main() {
     app.use("/admin/api/users", express.json(), requireAdmin, createUsersRouter());
     app.use("/admin/api/api-keys", express.json(), requireAuth, createApiKeysRouter());
     app.use("/admin/api/settings", express.json(), requireAdmin, createSettingsRouter(config));
+
+    // Session-authenticated playground proxy for the admin UI.
+    // Lets logged-in users call Firecrawl endpoints without a virtual API key.
+    app.use("/admin/api/playground", requireAuth, async (req, res, next) => {
+      // Only proxy Firecrawl API paths; req.url is already relative to the mount point.
+      if (!/^\/v[12]\//.test(req.url)) {
+        res.status(404).json({ success: false, error: "Only /v1/* and /v2/* are supported" });
+        return;
+      }
+      // Strip the mount prefix from originalUrl so the proxy sees the Firecrawl path
+      // and query string; req.url is already relative.
+      req.originalUrl = req.originalUrl.replace(/^\/admin\/api\/playground/, "") || "/";
+      try {
+        await handlePlaygroundProxy(req, res);
+      } catch (error) {
+        next(error);
+      }
+    });
   }
 
   const adminUiPath = path.join(__dirname, "../admin-ui/dist");
