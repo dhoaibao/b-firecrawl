@@ -153,3 +153,11 @@ export function isFallbackEligible(result: {
       text.includes("branding"))
   );
 }
+
+export function isCloudQuotaFallbackAllowed(
+  routeMode: string,
+  needsCloud: NeedsCloudResult,
+): boolean {
+  if (routeMode !== "cloud-first") return false;
+  return !needsCloud.required;
+}

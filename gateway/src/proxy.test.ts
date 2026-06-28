@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { hasSensitiveHeaders } from "./policy";
 import { headersForPrivacyCheck, createProxyHandler } from "./proxy";
 import type { AuditStore } from "./audit-store";
@@ -25,6 +25,28 @@ vi.mock("./users/service", () => ({
   getUserById: vi.fn(),
   checkUserAccess: vi.fn().mockReturnValue({ allowed: true }),
 }));
+
+const baseConfig: GatewayConfig = {
+  port: 8080,
+  localBaseUrl: "http://localhost:3002",
+  cloudBaseUrl: "https://api.firecrawl.dev",
+  defaultRouteMode: "local-first",
+  requestTimeoutMs: 120_000,
+  logFile: "/tmp/test.log",
+  maxBodyBytes: 5_242_880,
+  authEnabled: false,
+  databaseUrl: "postgresql://localhost/test",
+  sessionSecret: "secret",
+  adminEmail: "",
+  adminPassword: "",
+  trustProxy: false,
+};
+
+const auditStore: AuditStore = {
+  appendAudit: vi.fn().mockResolvedValue(undefined),
+  readAuditEntries: vi.fn().mockResolvedValue([]),
+  deleteAuditEntries: vi.fn().mockResolvedValue(0),
+};
 
 describe("headersForPrivacyCheck", () => {
   it("ignores gateway bearer auth when product auth is enabled", () => {
@@ -68,28 +90,6 @@ describe("headersForPrivacyCheck", () => {
 });
 
 describe("createProxyHandler route mode resolution", () => {
-  const baseConfig: GatewayConfig = {
-    port: 8080,
-    localBaseUrl: "http://localhost:3002",
-    cloudBaseUrl: "https://api.firecrawl.dev",
-    defaultRouteMode: "local-first",
-    requestTimeoutMs: 120_000,
-    logFile: "/tmp/test.log",
-    maxBodyBytes: 5_242_880,
-    authEnabled: false,
-    databaseUrl: "postgresql://localhost/test",
-    sessionSecret: "secret",
-    adminEmail: "",
-    adminPassword: "",
-    trustProxy: false,
-  };
-
-  const auditStore: AuditStore = {
-    appendAudit: vi.fn().mockResolvedValue(undefined),
-    readAuditEntries: vi.fn().mockResolvedValue([]),
-    deleteAuditEntries: vi.fn().mockResolvedValue(0),
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetDefaultRouteMode.mockResolvedValue("local-first");
@@ -246,5 +246,178 @@ describe("createProxyHandler route mode resolution", () => {
     expect(mockGetDefaultRouteMode).toHaveBeenCalledWith("local-only");
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe("createProxyHandler cloud quota fallback to local", () => {
+  const cloudFirstConfig: GatewayConfig = { ...baseConfig, defaultRouteMode: "cloud-first" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetDefaultRouteMode.mockResolvedValue("cloud-first");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeRequest(body?: object) {
+    return {
+      method: "POST",
+      url: "/v1/scrape",
+      originalUrl: "/v1/scrape",
+      headers: { "content-type": "application/json" },
+      requestId: "req-cloud-quota",
+      [Symbol.asyncIterator]: async function* () {
+        yield Buffer.from(JSON.stringify(body ?? { url: "https://example.com" }));
+      },
+      on: vi.fn(),
+      pipe: vi.fn(),
+    } as unknown as import("express").Request;
+  }
+
+  function makeResponse() {
+    return {
+      status: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      end: vi.fn().mockReturnThis(),
+    } as unknown as import("express").Response;
+  }
+
+  it("falls back to local when every cloud API key returns 429", async () => {
+    mockGetSetting.mockImplementation(async (key: string) => {
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["key1","key2"]', updated_at: new Date().toISOString() };
+      }
+      return null;
+    });
+
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.firecrawl.dev")) {
+        return {
+          ok: false,
+          status: 429,
+          headers: new Headers(),
+          arrayBuffer: async () => Buffer.from(JSON.stringify({ success: false, error: "Quota exceeded" })),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true, local: true })),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: cloudFirstConfig, auditStore });
+    const res = makeResponse();
+    await handler(makeRequest(), res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const localCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
+    expect(localCall).toBeDefined();
+    expect(res.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "x-hybrid-firecrawl-backend": "local",
+        "x-hybrid-firecrawl-fallback": "true",
+      }),
+    );
+  });
+
+  it("does not fall back to local when a later cloud key succeeds", async () => {
+    mockGetSetting.mockImplementation(async (key: string) => {
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["key1","key2"]', updated_at: new Date().toISOString() };
+      }
+      return null;
+    });
+
+    let cloudCall = 0;
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("api.firecrawl.dev")) {
+        cloudCall += 1;
+        if (cloudCall === 1) {
+          return {
+            ok: false,
+            status: 429,
+            headers: new Headers(),
+            arrayBuffer: async () => Buffer.from(JSON.stringify({ success: false, error: "Quota exceeded" })),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true })),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true, local: true })),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: cloudFirstConfig, auditStore });
+    const res = makeResponse();
+    await handler(makeRequest(), res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const localCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
+    expect(localCall).toBeUndefined();
+  });
+
+  it("does not fall back to local for non-quota cloud errors", async () => {
+    mockGetSetting.mockImplementation(async (key: string) => {
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["key1"]', updated_at: new Date().toISOString() };
+      }
+      return null;
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      headers: new Headers(),
+      arrayBuffer: async () => Buffer.from(JSON.stringify({ success: false, error: "Unauthorized" })),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: cloudFirstConfig, auditStore });
+    const res = makeResponse();
+    await handler(makeRequest(), res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fall back to local for cloud-only requests", async () => {
+    mockGetSetting.mockImplementation(async (key: string) => {
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["key1"]', updated_at: new Date().toISOString() };
+      }
+      return null;
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers(),
+      arrayBuffer: async () => Buffer.from(JSON.stringify({ success: false, error: "Quota exceeded" })),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: cloudFirstConfig, auditStore });
+    const res = makeResponse();
+    await handler(makeRequest({ actions: [{ type: "click" }] }), res);
+
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

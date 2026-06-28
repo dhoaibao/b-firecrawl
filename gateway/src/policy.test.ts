@@ -5,6 +5,7 @@ import {
   chooseInitialBackend,
   isFallbackAllowed,
   isFallbackEligible,
+  isCloudQuotaFallbackAllowed,
   hasSensitiveHeaders,
 } from "./policy";
 
@@ -207,5 +208,28 @@ describe("hasSensitiveHeaders", () => {
 
   it("returns false for safe headers", () => {
     expect(hasSensitiveHeaders({ "content-type": "application/json" }, null)).toBe(false);
+  });
+});
+
+describe("isCloudQuotaFallbackAllowed", () => {
+  it("allows fallback in cloud-first mode for requests that do not need cloud", () => {
+    expect(
+      isCloudQuotaFallbackAllowed("cloud-first", { required: false, reason: "" }),
+    ).toBe(true);
+  });
+
+  it("denies fallback outside cloud-first", () => {
+    expect(
+      isCloudQuotaFallbackAllowed("local-first", { required: false, reason: "" }),
+    ).toBe(false);
+    expect(
+      isCloudQuotaFallbackAllowed("local-only", { required: false, reason: "" }),
+    ).toBe(false);
+  });
+
+  it("denies fallback when the request requires cloud features", () => {
+    expect(
+      isCloudQuotaFallbackAllowed("cloud-first", { required: true, reason: "actions" }),
+    ).toBe(false);
   });
 });

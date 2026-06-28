@@ -7,6 +7,7 @@ import {
   hasSensitiveHeaders,
   isFallbackAllowed,
   isFallbackEligible,
+  isCloudQuotaFallbackAllowed,
   requestNeedsCloud,
 } from "./policy";
 import {
@@ -445,6 +446,7 @@ export function createProxyHandler({
     }
 
     // Try next cloud API keys on auth/rate-limit errors
+    let allCloudKeysQuotaLimited = false;
     if (
       result.backend === "cloud" &&
       result.kind === "response" &&
@@ -452,7 +454,13 @@ export function createProxyHandler({
       RETRYABLE_CLOUD_STATUS.has(result.response.status)
     ) {
       const remainingKeys = cloudApiKeys.slice(1);
-      if (remainingKeys.length > 0) {
+      let quotaLimitedAttempts = result.response.status === 429 ? 1 : 0;
+      let totalAttempts = 1;
+      const firstCloudStatus = result.response.status;
+
+      if (remainingKeys.length === 0) {
+        allCloudKeysQuotaLimited = result.response.status === 429;
+      } else {
         log.warn(
           { status: result.response.status, fallback_keys: remainingKeys.length },
           "cloud returned retryable status, trying next keys",
@@ -466,18 +474,49 @@ export function createProxyHandler({
             config,
             apiKey: nextKey,
           });
+          totalAttempts += 1;
           if (
             fallbackResult.kind === "response" &&
-            fallbackResult.response &&
-            !RETRYABLE_CLOUD_STATUS.has(fallbackResult.response.status)
+            fallbackResult.response
           ) {
-            fallbackUsed = true;
-            fallbackReason = `primary cloud key failed with ${result.response.status}, next key succeeded`;
-            result = fallbackResult;
-            break;
+            if (fallbackResult.response.status === 429) {
+              quotaLimitedAttempts += 1;
+            }
+            if (!RETRYABLE_CLOUD_STATUS.has(fallbackResult.response.status)) {
+              fallbackUsed = true;
+              fallbackReason = `primary cloud key failed with ${firstCloudStatus}, next key succeeded`;
+              result = fallbackResult;
+              break;
+            }
           }
+          result = fallbackResult;
         }
+        allCloudKeysQuotaLimited =
+          quotaLimitedAttempts === totalAttempts &&
+          totalAttempts === cloudApiKeys.length;
       }
+    }
+
+    if (
+      allCloudKeysQuotaLimited &&
+      result.backend === "cloud" &&
+      result.kind === "response" &&
+      result.response?.status === 429 &&
+      isCloudQuotaFallbackAllowed(routeMode, needsCloud)
+    ) {
+      fallbackUsed = true;
+      fallbackReason = `all ${cloudApiKeys.length} cloud API key(s) returned 429; falling back to local`;
+      log.warn(
+        { fallback_reason: fallbackReason },
+        "falling back from cloud to local",
+      );
+      result = await proxyToBackend({
+        backend: "local",
+        req,
+        bodyBuffer,
+        targetUrl: backendUrl("local", requestUrl, config),
+        config,
+      });
     }
 
     const statusCode =
