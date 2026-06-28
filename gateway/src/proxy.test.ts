@@ -139,6 +139,7 @@ describe("createProxyHandler route mode resolution", () => {
     expect(fetchMock).toHaveBeenCalled();
     const callUrl = fetchMock.mock.calls[0]?.[0];
     expect(callUrl).toContain("api.firecrawl.dev");
+    expect(auditStore.appendAudit).toHaveBeenCalledTimes(1);
 
     vi.unstubAllGlobals();
   });
