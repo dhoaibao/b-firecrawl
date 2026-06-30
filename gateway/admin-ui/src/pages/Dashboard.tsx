@@ -43,7 +43,7 @@ import { LogTableRow } from "@/components/LogTableRow"
 import MetricsGrid from "@/components/MetricsGrid"
 import FilterBar from "@/components/FilterBar"
 import DeleteHistoryDialog from "@/components/DeleteHistoryDialog"
-import type { AuditEntry, UserData, BackendFilter, StatusFilter, DateRange } from "@/types"
+import type { AuditEntry, UserData, BackendFilter, StatusFilter, DateRange, CreditUsageItem } from "@/types"
 
 const datePresets: Array<{ label: string; value: DateRange }> = [
   { label: "All", value: "all" },
@@ -111,6 +111,7 @@ export default function Dashboard() {
   const [deleteFilter, setDeleteFilter] = useState<"today" | "week" | "month" | "all">("today")
   const [deleting, setDeleting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
   const fetchingRef = useRef(false)
 
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
@@ -139,6 +140,16 @@ export default function Dashboard() {
     }
   }, [addToast])
 
+  const fetchCreditUsage = useCallback(async () => {
+    try {
+      const json = await api.get<{ data: CreditUsageItem[] }>("/admin/api/settings/credit-usage")
+      setCreditUsage(Array.isArray(json.data) ? json.data : [])
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load credit usage"
+      addToast(msg, "error")
+    }
+  }, [addToast])
+
   const handleDeleteHistory = useCallback(async () => {
     setDeleting(true)
     try {
@@ -164,6 +175,7 @@ export default function Dashboard() {
   useEffect(() => {
     const initialLoad = window.setTimeout(() => {
       void fetchData()
+      void fetchCreditUsage()
     }, 0)
 
     let interval: number | undefined
@@ -177,7 +189,7 @@ export default function Dashboard() {
       window.clearTimeout(initialLoad)
       if (interval) window.clearInterval(interval)
     }
-  }, [fetchData, live])
+  }, [fetchData, fetchCreditUsage, live])
 
   const filteredEntries = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -324,7 +336,10 @@ export default function Dashboard() {
                   "group relative overflow-hidden border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-all hover:-translate-y-px hover:border-white/15 hover:bg-surface-4",
                   refreshing && "border-info-muted bg-info-muted text-info-fg",
                 )}
-                onClick={() => void fetchData()}
+                onClick={() => {
+                  void fetchData()
+                  void fetchCreditUsage()
+                }}
                 disabled={refreshing}
               >
                 <span
@@ -391,7 +406,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <MetricsGrid metrics={metrics} loading={loading} />
+          <MetricsGrid metrics={metrics} loading={loading} creditUsage={creditUsage} />
 
           {lastUpdated && (
             <div className="flex justify-end">
