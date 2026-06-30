@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Check, Copy, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,6 +9,7 @@ interface PlaygroundResultProps {
   error?: string | null
   result?: unknown
   className?: string
+  children?: ReactNode
 }
 
 export default function PlaygroundResult({
@@ -16,6 +17,7 @@ export default function PlaygroundResult({
   error,
   result,
   className,
+  children,
 }: PlaygroundResultProps) {
   const [copied, setCopied] = useState(false)
   const [expanded, setExpanded] = useState(true)
@@ -47,6 +49,8 @@ export default function PlaygroundResult({
                 <AlertCircle className="size-4 text-danger-fg" />
                 <span className="text-sm font-medium text-danger-fg">Error</span>
               </>
+            ) : children !== undefined ? (
+              children
             ) : (
               <>
                 <Check className="size-4 text-success-fg" />

@@ -11,6 +11,7 @@ import {
 import PageLayout from "@/components/PageLayout"
 import PlaygroundCard from "@/components/PlaygroundCard"
 import PlaygroundResult from "@/components/PlaygroundResult"
+import ParseResultViewer from "@/components/ParseResultViewer"
 import { playgroundParse, type ParseRequest } from "@/lib/playground"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/useToast"
@@ -221,7 +222,9 @@ await fetch("${window.location.origin}/admin/api/playground/v2/parse", {
             </>
           }
         />
-        <PlaygroundResult loading={loading} error={error} result={result} />
+        <PlaygroundResult loading={loading} error={error} result={result}>
+          {result !== undefined ? <ParseResultViewer preferredFormat={format} result={result} /> : undefined}
+        </PlaygroundResult>
       </div>
     </PageLayout>
   )
