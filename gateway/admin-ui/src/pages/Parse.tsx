@@ -62,13 +62,13 @@ export default function ParsePage() {
     if (file) {
       code = `const formData = new FormData()
 formData.append("file", file)
-formData.append("formats", '${JSON.stringify(params.formats)}')
-await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
+formData.append("options", '${JSON.stringify({ formats: params.formats })}')
+await fetch("${window.location.origin}/admin/api/playground/v2/parse", {
   method: "POST",
   body: formData,
 })`
     } else {
-      code = `await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
+      code = `await fetch("${window.location.origin}/admin/api/playground/v2/scrape", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(${JSON.stringify(params, null, 2)}),
@@ -174,7 +174,7 @@ await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
                   ref={inputRef}
                   id="parse-file"
                   type="file"
-                  accept=".pdf,.docx,.doc,.xlsx,.xls,.html,.htm,.txt"
+                  accept=".pdf,.docx,.doc,.odt,.rtf,.xlsx,.xls,.html,.htm"
                   onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
                   className="sr-only"
                 />
@@ -203,7 +203,7 @@ await fetch("${window.location.origin}/admin/api/playground/v1/parse", {
             <>
               <div className="md:col-span-2">
                 <label htmlFor="parse-url" className="mb-1 block text-xs font-medium text-foreground">
-                  Or parse from URL
+                  Or parse a public document URL
                 </label>
                 <input
                   id="parse-url"

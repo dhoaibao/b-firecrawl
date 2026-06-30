@@ -148,6 +148,7 @@ export function isFallbackEligible(result: {
       text.includes("not configured") ||
       text.includes("not supported") ||
       text.includes("unsupported") ||
+      text.includes("cannot post") ||
       text.includes("actions") ||
       text.includes("screenshot") ||
       text.includes("branding"))

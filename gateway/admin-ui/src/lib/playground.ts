@@ -19,9 +19,9 @@ export async function playgroundParse(
     const formData = new FormData()
     formData.append("file", file)
     if (params.formats) {
-      formData.append("formats", JSON.stringify(params.formats))
+      formData.append("options", JSON.stringify({ formats: params.formats }))
     }
-    const res = await fetch("/admin/api/playground/v1/parse", {
+    const res = await fetch("/admin/api/playground/v2/parse", {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -43,7 +43,7 @@ export async function playgroundParse(
     return res.json()
   }
 
-  return api.post<unknown>("/admin/api/playground/v1/parse", params, {
+  return api.post<unknown>("/admin/api/playground/v2/scrape", params, {
     signal,
     headers: routeModeHeaders(routeMode),
   })

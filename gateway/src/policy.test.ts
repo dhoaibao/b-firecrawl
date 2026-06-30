@@ -176,6 +176,16 @@ describe("isFallbackEligible", () => {
     ).toBe(false);
   });
 
+  it("is eligible when the local backend does not expose a POST route", () => {
+    expect(
+      isFallbackEligible({
+        kind: "response",
+        response: new Response("", { status: 404 }),
+        body: Buffer.from("Cannot POST /v2/parse"),
+      }),
+    ).toBe(true);
+  });
+
   it("not eligible on 2xx", () => {
     expect(
       isFallbackEligible({
