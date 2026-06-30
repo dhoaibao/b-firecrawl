@@ -130,19 +130,19 @@ describe("/admin/api/playground", () => {
     const { app, auditStore } = await buildApp({ logFile, fetchMock });
 
     await request(app)
-      .post("/admin/api/playground/v2/parse")
+      .post("/admin/api/playground/v2/scrape")
       .set("content-type", "application/json")
       .send(JSON.stringify({ url: "https://example.com" }))
       .expect(200);
 
     const calls = fetchMock.mock.calls;
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.[0]).toContain("/v2/parse");
+    expect(calls[0]?.[0]).toContain("/v2/scrape");
     expect(calls[0]?.[0]).not.toContain("/admin/api/playground");
 
     const entries = await auditStore.readAuditEntries(10);
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.path).toBe("/v2/parse");
+    expect(entries[0]?.path).toBe("/v2/scrape");
     expect(entries[0]?.user_id).toBe("user-1");
   });
 
@@ -157,13 +157,13 @@ describe("/admin/api/playground", () => {
     const { app } = await buildApp({ logFile, fetchMock });
 
     await request(app)
-      .post("/admin/api/playground/v2/parse?timeout=30000")
+      .post("/admin/api/playground/v2/scrape?timeout=30000")
       .set("content-type", "application/json")
-      .send(JSON.stringify({ url: "https://example.com/file.pdf" }))
+      .send(JSON.stringify({ url: "https://example.com" }))
       .expect(200);
 
     const callUrl = fetchMock.mock.calls[0]?.[0] as string;
-    expect(callUrl).toContain("/v2/parse");
+    expect(callUrl).toContain("/v2/scrape");
     expect(callUrl).toContain("timeout=30000");
   });
 

@@ -9,7 +9,6 @@ import {
   X,
   Shield,
   Settings,
-  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -23,7 +22,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Parse a File", href: "/parse", icon: FileText },
   { label: "API Keys", href: "/api-keys", icon: Key },
   { label: "Users", href: "/users", icon: Users, adminOnly: true },
   { label: "Configure", href: "/configure", icon: Settings, adminOnly: true },
