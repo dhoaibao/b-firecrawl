@@ -130,19 +130,19 @@ describe("/admin/api/playground", () => {
     const { app, auditStore } = await buildApp({ logFile, fetchMock });
 
     await request(app)
-      .post("/admin/api/playground/v1/scrape")
+      .post("/admin/api/playground/v1/parse")
       .set("content-type", "application/json")
       .send(JSON.stringify({ url: "https://example.com" }))
       .expect(200);
 
     const calls = fetchMock.mock.calls;
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.[0]).toContain("/v1/scrape");
+    expect(calls[0]?.[0]).toContain("/v1/parse");
     expect(calls[0]?.[0]).not.toContain("/admin/api/playground");
 
     const entries = await auditStore.readAuditEntries(10);
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.path).toBe("/v1/scrape");
+    expect(entries[0]?.path).toBe("/v1/parse");
     expect(entries[0]?.user_id).toBe("user-1");
   });
 
@@ -157,14 +157,14 @@ describe("/admin/api/playground", () => {
     const { app } = await buildApp({ logFile, fetchMock });
 
     await request(app)
-      .post("/admin/api/playground/v1/search?limit=5")
+      .post("/admin/api/playground/v1/parse?timeout=30000")
       .set("content-type", "application/json")
-      .send(JSON.stringify({ query: "firecrawl" }))
+      .send(JSON.stringify({ url: "https://example.com/file.pdf" }))
       .expect(200);
 
     const callUrl = fetchMock.mock.calls[0]?.[0] as string;
-    expect(callUrl).toContain("/v1/search");
-    expect(callUrl).toContain("limit=5");
+    expect(callUrl).toContain("/v1/parse");
+    expect(callUrl).toContain("timeout=30000");
   });
 
   it("rejects non-Firecrawl paths", async () => {

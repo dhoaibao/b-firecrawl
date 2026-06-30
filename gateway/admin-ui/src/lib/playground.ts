@@ -1,24 +1,5 @@
 import { api } from "@/lib/api"
 
-export interface SearchRequest {
-  query: string
-  limit?: number
-  lang?: string
-  country?: string
-  scrapeOptions?: Record<string, unknown>
-}
-
-export interface ScrapeRequest {
-  url: string
-  formats?: Array<string | { type: string }>
-  onlyMainContent?: boolean
-  includeTags?: string[]
-  excludeTags?: string[]
-  headers?: Record<string, string>
-  waitFor?: number
-  timeout?: number
-}
-
 export interface ParseRequest {
   url?: string
   formats?: Array<string | { type: string }>
@@ -26,28 +7,6 @@ export interface ParseRequest {
 
 function routeModeHeaders(routeMode?: string): Record<string, string> {
   return routeMode ? { "X-Firecrawl-Route-Mode": routeMode } : {}
-}
-
-export async function playgroundSearch(
-  body: SearchRequest,
-  routeMode?: string,
-  signal?: AbortSignal,
-): Promise<unknown> {
-  return api.post<unknown>("/admin/api/playground/v1/search", body, {
-    signal,
-    headers: routeModeHeaders(routeMode),
-  })
-}
-
-export async function playgroundScrape(
-  body: ScrapeRequest,
-  routeMode?: string,
-  signal?: AbortSignal,
-): Promise<unknown> {
-  return api.post<unknown>("/admin/api/playground/v1/scrape", body, {
-    signal,
-    headers: routeModeHeaders(routeMode),
-  })
 }
 
 export async function playgroundParse(

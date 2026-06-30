@@ -9,8 +9,6 @@ import {
   X,
   Shield,
   Settings,
-  Search,
-  Globe,
   FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -25,8 +23,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Search the Web", href: "/search", icon: Search },
-  { label: "Scrape a Web Page", href: "/scrape", icon: Globe },
   { label: "Parse a File", href: "/parse", icon: FileText },
   { label: "API Keys", href: "/api-keys", icon: Key },
   { label: "Users", href: "/users", icon: Users, adminOnly: true },
