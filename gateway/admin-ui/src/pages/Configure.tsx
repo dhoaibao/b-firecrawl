@@ -147,6 +147,17 @@ export default function Configure() {
   const idCounter = useRef(0)
   const { addToast } = useToast()
   const { confirm: confirmReset, dialog: resetDialog } = useConfirmDialog()
+  const successfulCreditUsage = creditUsage.filter(
+    (usage) => !usage.error && typeof usage.remainingCredits === "number",
+  )
+  const totalRemainingCredits = successfulCreditUsage.reduce(
+    (total, usage) => total + (usage.remainingCredits ?? 0),
+    0,
+  )
+  const totalPlanCredits = successfulCreditUsage.reduce(
+    (total, usage) => total + (usage.planCredits ?? 0),
+    0,
+  )
 
   useEffect(() => {
     document.title = "Configure — Firecrawl Gateway"
@@ -228,6 +239,7 @@ export default function Configure() {
       }
 
       await api.put<{ data: SettingsData }>("/admin/api/settings", payload)
+      await fetchCreditUsage()
       addToast("Settings saved successfully", "success")
     } catch (err) {
       addToast(err instanceof Error ? err.message : "Failed to save settings", "error")
@@ -313,10 +325,40 @@ export default function Configure() {
                       <Plus className="size-4 mr-1" /> Add
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 rounded-lg border border-white/[0.06] bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="rounded-md border border-white/[0.06] bg-white/[0.04] p-2 text-muted-foreground">
+                        <CreditCard className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Total available credits
+                        </p>
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="font-mono text-xl font-semibold tabular-nums text-foreground">
+                            {creditUsageLoading && creditUsage.length === 0
+                              ? "—"
+                              : totalRemainingCredits.toLocaleString()}
+                          </span>
+                          {!creditUsageLoading && successfulCreditUsage.length > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              of {totalPlanCredits.toLocaleString()} combined plan credits
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {creditUsageLoading
+                            ? "Refreshing credit balances..."
+                            : creditUsage.length === 0
+                              ? "No saved API keys"
+                              : `${successfulCreditUsage.length} of ${creditUsage.length} key balances included${successfulCreditUsage.length < creditUsage.length ? ` · ${creditUsage.length - successfulCreditUsage.length} unavailable` : ""}`}
+                        </p>
+                      </div>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
+                      className="shrink-0"
                       onClick={() => void fetchCreditUsage()}
                       disabled={creditUsageLoading}
                     >
