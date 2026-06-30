@@ -37,11 +37,13 @@ COPY --from=gateway-builder --chown=gateway:gateway /app/src/db/schema.sql ./dis
 # Copy built admin UI
 COPY --from=admin-builder --chown=gateway:gateway /app/admin-ui/dist/ ./admin-ui/dist/
 
-USER gateway
+COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
 EXPOSE 8080
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]

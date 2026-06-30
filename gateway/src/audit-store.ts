@@ -60,6 +60,7 @@ export function createAuditStore(logFile: string): AuditStore {
       await fs.appendFile(logFile, JSON.stringify(entry) + "\n", "utf8");
     } catch (err) {
       rootLogger.error({ err, entry }, "Failed to write audit entry");
+      throw err;
     }
   }
 
