@@ -29,8 +29,9 @@ Default is `local-first`.
 
 ## Policy
 
-- Basic public scrape/search/crawl/map/parse goes local first.
-- Cloud-only features go to Cloud: actions, screenshot, branding, agent, browser, monitor, research, scrape interact, search feedback.
+- Core scrape/search/crawl/map/parse and open-source output formats go local first.
+- Cloud-managed features go to Cloud: actions, agent, browser/interact, monitor, research index, support and team APIs, feedback, enterprise search options, and enhanced proxies.
+- Configuration-dependent formats such as branding are attempted locally and may fall back to Cloud when the local instance reports them unsupported or unconfigured.
 - Local failures can fallback to Cloud for timeouts, connection errors, 5xx, and known unsupported-feature errors.
 - Fallback is disabled for `local-only`, sensitive headers/cookies, and private/local target URLs.
 

@@ -153,20 +153,22 @@ Local-first handles basic public web use cases locally:
 - map
 - search
 - parse
+- screenshot and change-tracking formats
 
 Cloud-only features are routed to Firecrawl Cloud:
 
 - actions
-- screenshots
-- branding
-- changeTracking
 - agent
 - browser sessions
 - scrape interact
 - monitor
-- research
-- search feedback
+- research index
+- support and team/account APIs
+- endpoint and search feedback
+- enterprise search options
 - stealth / enhanced proxy
+
+Configuration-dependent formats such as branding and other AI-generated output are attempted locally first. In `local-first` mode, unsupported or unconfigured responses can fall back to Cloud when the request passes the privacy checks.
 
 Fallback is blocked for requests with sensitive auth/cookie headers or private/local target URLs.
 

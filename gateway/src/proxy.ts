@@ -428,6 +428,7 @@ export function createProxyHandler({
 
     if (
       initialBackend === "local" &&
+      Boolean(primaryCloudApiKey) &&
       isFallbackEligible(result) &&
       isFallbackAllowed(routeMode, privacy)
     ) {

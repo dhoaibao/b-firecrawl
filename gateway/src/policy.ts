@@ -7,16 +7,14 @@ const cloudOnlyPathPatterns = [
   /^\/v\d+\/agent(?:\/|$)/,
   /^\/v\d+\/browser(?:\/|$)/,
   /^\/v\d+\/monitor(?:\/|$)/,
+  /^\/v\d+\/search\/research(?:\/|$)/,
   /^\/v\d+\/research(?:\/|$)/,
+  /^\/v\d+\/support(?:\/|$)/,
+  /^\/v\d+\/team(?:\/|$)/,
+  /^\/v\d+\/feedback(?:\/|$)/,
   /^\/v\d+\/scrape\/[^/]+\/interact(?:\/|$)/,
   /^\/v\d+\/search\/[^/]+\/feedback(?:\/|$)/,
 ];
-
-const cloudOnlyFormatTypes = new Set([
-  "screenshot",
-  "branding",
-  "changeTracking",
-]);
 
 export function getRouteMode(
   reqUrl: string,
@@ -88,20 +86,10 @@ export function requestNeedsCloud(
       return;
     }
 
-    const formats = Array.isArray((value as Record<string, unknown>).formats)
-      ? (value as Record<string, unknown[]>).formats
-      : [];
-    for (const format of formats) {
-      const type =
-        typeof format === "string"
-          ? format
-          : format && typeof format === "object"
-            ? (format as Record<string, string>).type
-            : "";
-      if (cloudOnlyFormatTypes.has(type)) {
-        reason = `${type} format is not supported by default self-host`;
-        return;
-      }
+    const enterprise = (value as Record<string, unknown>).enterprise;
+    if (Array.isArray(enterprise) && enterprise.length > 0) {
+      reason = "enterprise search options require Firecrawl Cloud";
+      return;
     }
 
     const proxy = (value as Record<string, unknown>).proxy;
@@ -148,7 +136,7 @@ export function isFallbackEligible(result: {
       text.includes("not configured") ||
       text.includes("not supported") ||
       text.includes("unsupported") ||
-      text.includes("cannot post") ||
+      /\bcannot\s+(?:get|post|put|patch|delete|head|options)\b/.test(text) ||
       text.includes("actions") ||
       text.includes("screenshot") ||
       text.includes("branding"))

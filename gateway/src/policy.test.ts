@@ -47,9 +47,14 @@ describe("requestNeedsCloud", () => {
     expect(result.required).toBe(true);
   });
 
-  it("requires cloud for research paths", () => {
-    const result = requestNeedsCloud("/v1/research", null);
-    expect(result.required).toBe(true);
+  it.each([
+    "/v2/search/research/papers",
+    "/v2/research",
+    "/v2/support/ask",
+    "/v2/team/activity",
+    "/v2/feedback",
+  ])("requires cloud for managed path %s", (path) => {
+    expect(requestNeedsCloud(path, null).required).toBe(true);
   });
 
   it("requires cloud for scrape interact paths", () => {
@@ -72,13 +77,15 @@ describe("requestNeedsCloud", () => {
     expect(result.required).toBe(true);
   });
 
-  it("requires cloud for screenshot format", () => {
-    const result = requestNeedsCloud("/v1/scrape", { formats: ["screenshot"] });
-    expect(result.required).toBe(true);
-  });
+  it.each(["screenshot", "changeTracking", "branding"])(
+    "allows the local backend to attempt the %s format",
+    (format) => {
+      expect(requestNeedsCloud("/v2/scrape", { formats: [format] }).required).toBe(false);
+    },
+  );
 
-  it("requires cloud for branding format object", () => {
-    const result = requestNeedsCloud("/v1/scrape", { formats: [{ type: "branding" }] });
+  it("requires cloud for enterprise search options", () => {
+    const result = requestNeedsCloud("/v2/search", { enterprise: ["zdr"] });
     expect(result.required).toBe(true);
   });
 
@@ -176,15 +183,18 @@ describe("isFallbackEligible", () => {
     ).toBe(false);
   });
 
-  it("is eligible when the local backend does not expose a POST route", () => {
-    expect(
-      isFallbackEligible({
-        kind: "response",
-        response: new Response("", { status: 404 }),
-        body: Buffer.from("Cannot POST /v2/parse"),
-      }),
-    ).toBe(true);
-  });
+  it.each(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])(
+    "is eligible when the local backend does not expose a %s route",
+    (method) => {
+      expect(
+        isFallbackEligible({
+          kind: "response",
+          response: new Response("", { status: 404 }),
+          body: Buffer.from(`Cannot ${method} /v2/example`),
+        }),
+      ).toBe(true);
+    },
+  );
 
   it("not eligible on 2xx", () => {
     expect(

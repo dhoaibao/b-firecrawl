@@ -2,7 +2,7 @@
 
 This repository orchestrates official Firecrawl container images behind an intelligent Hybrid Gateway that routes requests between your local instance and Firecrawl Cloud based on feature availability and your configured policy.
 
-**Why Hybrid?** Basic scraping, crawling, and parsing run locally at no cost. Advanced features—actions, screenshots, agent extraction, browser sessions, monitoring, and more—are seamlessly forwarded to Firecrawl Cloud. You get the best of both worlds without managing two separate integrations.
+**Why Hybrid?** Core scraping, crawling, parsing, and supported output formats run locally at no cost. Managed features—actions, agent extraction, browser sessions, monitoring, and more—are seamlessly forwarded to Firecrawl Cloud. You get the best of both worlds without managing two separate integrations.
 
 ## Quick Start
 
