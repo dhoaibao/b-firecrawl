@@ -26,8 +26,8 @@ describe("getRouteMode", () => {
     );
   });
 
-  it("defaults to local-first when default is invalid", () => {
-    expect(getRouteMode("/v1/scrape", {}, "invalid" as string)).toBe("local-first");
+  it("defaults to cloud-first when default is invalid", () => {
+    expect(getRouteMode("/v1/scrape", {}, "invalid" as string)).toBe("cloud-first");
   });
 });
 

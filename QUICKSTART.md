@@ -12,7 +12,7 @@ Run the gateway with a pre-built image. Firecrawl and PostgreSQL are external se
 
 ```bash
 cp .env.example .env
-# Set LOCAL_FIRECRAWL_URL and DATABASE_URL in .env
+# Set DATABASE_URL and the remaining required credentials in .env
 docker compose -f docker-compose.prebuilt.yaml up -d
 ```
 
@@ -30,7 +30,7 @@ docker compose up -d --build
 | Gateway Admin UI | `http://localhost:8080/admin` |
 | Gateway readiness | `http://localhost:8080/ready` |
 
-When authentication is enabled, log in to the Admin UI and create a virtual API key before sending API requests through the gateway.
+When authentication is enabled, log in to the Admin UI, configure the external Firecrawl URL under Configure, and create a virtual API key before sending API requests through the gateway.
 
 ## Update the image
 

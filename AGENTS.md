@@ -69,11 +69,11 @@ docker compose logs gateway
 
 ## Safety / Do-Not-Assume
 
-- The container listens on `PORT=8080`; Compose maps host `GATEWAY_PORT` (default 8080) to it. `LOCAL_FIRECRAWL_URL` and `DATABASE_URL` must point to externally managed services.
+- The container listens on `PORT=8080`; Compose maps host `GATEWAY_PORT` (default 8080) to it. The external Firecrawl URL is configured in the Admin UI; `DATABASE_URL` must point to an externally managed service.
 - The admin UI is served under `/admin`; the admin API is under `/admin/api/*`.
 - Auth is enabled by default (`AUTH_ENABLED=true`). API requests need `Authorization: Bearer <virtual-key>`; admin UI uses session login.
 - Virtual API keys are SHA-256 hashed, `fc_` prefixed, and shown only once on creation.
-- Routing mode defaults are seeded from `DEFAULT_ROUTE_MODE` but live values are stored in the database via the admin UI.
+- Routing defaults start cloud-first; live values are stored in the database via the admin UI.
 - Cloud-only features include `agent`, `browser`, `monitor`, `research`, `scrape/*/interact`, `search/*/feedback`, `actions`, screenshot/branding/changeTracking formats, and `proxy: stealth|enhanced`.
 - `gateway/dist/` and `gateway/admin-ui/dist/` are build outputs; source edits must go through build steps.
 - Schema migrations in `gateway/src/db/schema.sql` use `IF NOT EXISTS` and are applied automatically on startup.

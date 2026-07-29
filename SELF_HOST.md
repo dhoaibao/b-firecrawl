@@ -5,8 +5,8 @@ This repository deploys only the Firecrawl Gateway. The Firecrawl API and Postgr
 ## Services
 
 - `gateway`: this repository's gateway and admin UI
-- External Firecrawl instance: configured with `LOCAL_FIRECRAWL_URL`
-- Firecrawl Cloud: configured with `FIRECRAWL_CLOUD_URL`
+- External Firecrawl instance: configured in the Admin UI under **Configure > Routing**
+- Firecrawl Cloud: uses `https://api.firecrawl.dev`
 - External PostgreSQL: configured with `DATABASE_URL`
 
 ## Configure
@@ -18,7 +18,6 @@ cp .env.example .env
 Set at least:
 
 ```dotenv
-LOCAL_FIRECRAWL_URL=https://your-firecrawl-instance.example.com
 DATABASE_URL=postgresql://user:password@postgres.example.com:5432/firecrawl_gateway
 SESSION_SECRET=replace-with-a-long-random-secret
 FIRECRAWL_KEYS_ENCRYPTION_KEY=replace-with-64-character-hex-key
@@ -26,7 +25,7 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=replace-with-a-strong-password
 ```
 
-If the gateway runs in Docker, `LOCAL_FIRECRAWL_URL` must be reachable from the container. Use a resolvable hostname rather than `localhost`.
+Configure the external Firecrawl URL in the Admin UI after startup. It must be reachable from the gateway container; use a resolvable hostname rather than `localhost`.
 
 ## Start
 
@@ -51,7 +50,7 @@ The gateway is available at `http://localhost:8080` by default. The admin UI is 
 - `cloud-first`: use Cloud first and fall back to the external Firecrawl instance when eligible.
 - `cloud-only`: use Cloud exclusively; never fall back to the external Firecrawl instance.
 
-Set the initial mode with `DEFAULT_ROUTE_MODE`, change the live setting in **Configure > Routing**, or override an individual request with:
+The gateway starts cloud-first. Change the live setting in **Configure > Routing**, or override an individual request with:
 
 ```text
 X-Firecrawl-Route-Mode: local-first | local-only | cloud-first | cloud-only

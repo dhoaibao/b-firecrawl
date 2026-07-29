@@ -194,7 +194,6 @@ async function main() {
     rootLogger.info(
       {
         port: config.port,
-        local: config.localBaseUrl,
         cloud: config.cloudBaseUrl,
         mode: config.defaultRouteMode,
         auth: config.authEnabled,

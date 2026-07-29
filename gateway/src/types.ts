@@ -30,7 +30,6 @@ export interface ProxyResult {
 
 export interface GatewayConfig {
   port: number;
-  localBaseUrl: string;
   cloudBaseUrl: string;
   defaultRouteMode: RouteMode;
   requestTimeoutMs: number;

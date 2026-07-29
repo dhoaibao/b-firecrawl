@@ -251,9 +251,9 @@ function backendUrl(
   backend: string,
   originalUrl: string,
   config: GatewayConfig,
+  localBaseUrl: string,
 ): string {
-  const base =
-    backend === "cloud" ? config.cloudBaseUrl : config.localBaseUrl;
+  const base = backend === "cloud" ? config.cloudBaseUrl : localBaseUrl;
   return `${base}${originalUrl}`;
 }
 
@@ -372,6 +372,8 @@ export function createProxyHandler({
     };
 
     const defaultRouteMode = await settingsService.getDefaultRouteMode(config.defaultRouteMode);
+    const localBaseUrl = (await settingsService.getSetting("local_firecrawl_url"))?.value
+      ?.replace(/\/+$/, "") || "";
     routeMode = getRouteMode(
       requestUrl,
       req.headers,
@@ -514,7 +516,7 @@ export function createProxyHandler({
       backend: initialBackend,
       req,
       bodyBuffer,
-      targetUrl: backendUrl(initialBackend, requestUrl, config),
+      targetUrl: backendUrl(initialBackend, requestUrl, config, localBaseUrl),
       config,
       apiKey: initialBackend === "cloud" ? primaryCloudApiKey : undefined,
     });
@@ -540,7 +542,7 @@ export function createProxyHandler({
         backend: "cloud",
         req,
         bodyBuffer,
-        targetUrl: backendUrl("cloud", requestUrl, config),
+        targetUrl: backendUrl("cloud", requestUrl, config, localBaseUrl),
         config,
         apiKey: primaryCloudApiKey,
       });
@@ -571,7 +573,7 @@ export function createProxyHandler({
             backend: "cloud",
             req,
             bodyBuffer,
-            targetUrl: backendUrl("cloud", requestUrl, config),
+            targetUrl: backendUrl("cloud", requestUrl, config, localBaseUrl),
             config,
             apiKey: nextKey,
           });
@@ -615,7 +617,7 @@ export function createProxyHandler({
         backend: "local",
         req,
         bodyBuffer,
-        targetUrl: backendUrl("local", requestUrl, config),
+        targetUrl: backendUrl("local", requestUrl, config, localBaseUrl),
         config,
       });
     }

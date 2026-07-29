@@ -20,7 +20,6 @@ function createApp() {
   app.use(express.json());
   const config: GatewayConfig = {
     port: 8080,
-    localBaseUrl: "http://localhost:3002",
     cloudBaseUrl: "https://api.firecrawl.dev",
     defaultRouteMode: "local-first",
     requestTimeoutMs: 120_000,

@@ -32,7 +32,6 @@ vi.mock("./users/service", () => ({
 
 const baseConfig: GatewayConfig = {
   port: 8080,
-  localBaseUrl: "http://localhost:3002",
   cloudBaseUrl: "https://api.firecrawl.dev",
   defaultRouteMode: "local-first",
   requestTimeoutMs: 120_000,
@@ -503,6 +502,9 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["key1","key2"]', updated_at: new Date().toISOString() };
+      }
+      if (key === "local_firecrawl_url") {
+        return { key, value: "http://localhost:3002", updated_at: new Date().toISOString() };
       }
       return null;
     });

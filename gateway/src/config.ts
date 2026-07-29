@@ -7,18 +7,12 @@ function stripTrailingSlash(value: string): string {
 
 const GatewayConfigSchema = z.object({
   port: z.coerce.number().int().positive().default(8080),
-  localBaseUrl: z
-    .string()
-    .min(1, "LOCAL_FIRECRAWL_URL is required")
-    .transform(stripTrailingSlash),
   cloudBaseUrl: z
     .string()
     .min(1)
     .default("https://api.firecrawl.dev")
     .transform(stripTrailingSlash),
-  defaultRouteMode: z
-    .enum(["local-first", "local-only", "cloud-first", "cloud-only"])
-    .default("local-first"),
+  defaultRouteMode: z.literal("cloud-first").default("cloud-first"),
   requestTimeoutMs: z.coerce.number().int().positive().default(120_000),
   logFile: z
     .string()
@@ -66,9 +60,8 @@ function loadConfig(): GatewayConfig {
   try {
     const parsed = GatewayConfigSchema.parse({
       port: process.env.PORT,
-      localBaseUrl: process.env.LOCAL_FIRECRAWL_URL,
-      cloudBaseUrl: process.env.FIRECRAWL_CLOUD_URL,
-      defaultRouteMode: process.env.DEFAULT_ROUTE_MODE,
+      cloudBaseUrl: "https://api.firecrawl.dev",
+      defaultRouteMode: "cloud-first",
       requestTimeoutMs: process.env.GATEWAY_REQUEST_TIMEOUT_MS,
       logFile: process.env.GATEWAY_LOG_FILE,
       maxBodyBytes: process.env.GATEWAY_MAX_BODY_BYTES,

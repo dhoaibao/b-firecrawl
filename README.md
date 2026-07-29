@@ -8,7 +8,7 @@ The gateway can route requests between an externally hosted Firecrawl instance a
 
 ```bash
 cp .env.example .env
-# Set LOCAL_FIRECRAWL_URL and DATABASE_URL, then:
+# Set DATABASE_URL and the remaining required credentials, then:
 docker compose up -d --build
 ```
 

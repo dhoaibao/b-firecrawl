@@ -9,6 +9,7 @@ const VALID_SETTINGS = [
   "user_inactivity_suspend_days",
   "api_key_inactivity_revoke_days",
   "default_route_mode",
+  "local_firecrawl_url",
 ] as const;
 
 const SETTING_TYPES: Record<string, "string" | "number" | "boolean" | "json"> = {
@@ -16,6 +17,7 @@ const SETTING_TYPES: Record<string, "string" | "number" | "boolean" | "json"> = 
   user_inactivity_suspend_days: "number",
   api_key_inactivity_revoke_days: "number",
   default_route_mode: "string",
+  local_firecrawl_url: "string",
 };
 
 const MAX_CLOUD_API_KEYS = 10;
@@ -92,6 +94,20 @@ export function createSettingsRouter(config: GatewayConfig) {
             return;
           }
           value = rawValue;
+        } else if (key === "local_firecrawl_url") {
+          const rawUrl = String(rawValue).trim();
+          if (!rawUrl) {
+            value = "";
+          } else {
+            try {
+              const url = new URL(rawUrl);
+              if (!/^https?:$/.test(url.protocol) || !url.hostname) throw new Error("invalid URL");
+              value = url.toString().replace(/\/+$/, "");
+            } catch {
+              res.status(400).json({ success: false, error: `${key} must be a valid HTTP(S) URL` });
+              return;
+            }
+          }
         } else if (type === "json") {
           if (key === "firecrawl_api_keys") {
             if (!Array.isArray(rawValue)) {

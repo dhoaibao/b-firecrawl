@@ -6,9 +6,6 @@ services:
     restart: unless-stopped
     environment:
       PORT: 8080
-      LOCAL_FIRECRAWL_URL: ${LOCAL_FIRECRAWL_URL:?Set LOCAL_FIRECRAWL_URL to the externally hosted Firecrawl API}
-      FIRECRAWL_CLOUD_URL: ${FIRECRAWL_CLOUD_URL:-https://api.firecrawl.dev}
-      DEFAULT_ROUTE_MODE: ${DEFAULT_ROUTE_MODE:-local-first}
       GATEWAY_REQUEST_TIMEOUT_MS: ${GATEWAY_REQUEST_TIMEOUT_MS:-120000}
       GATEWAY_LOG_FILE: /data/hybrid-firecrawl-requests.jsonl
       GATEWAY_MAX_BODY_BYTES: ${GATEWAY_MAX_BODY_BYTES:-5242880}

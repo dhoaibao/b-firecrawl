@@ -32,7 +32,7 @@ interface SettingField {
   key: SettingKey
   label: string
   description: string
-  type: "number" | "select"
+  type: "number" | "select" | "text"
   category: "security" | "cloud" | "routing"
   icon: React.ComponentType<{ className?: string }>
   min?: number
@@ -41,6 +41,14 @@ interface SettingField {
 }
 
 const FIELDS: SettingField[] = [
+  {
+    key: "local_firecrawl_url",
+    label: "External Firecrawl URL",
+    description: "URL of the externally hosted Firecrawl instance used for local routing.",
+    type: "text",
+    category: "routing",
+    icon: Route,
+  },
   {
     key: "default_route_mode",
     label: "Default Route Mode",
@@ -251,6 +259,7 @@ export default function Configure() {
     try {
       const payload: Partial<SettingsData> = {
         firecrawl_api_keys: apiKeyRows.map((row) => row.key),
+        local_firecrawl_url: settings.local_firecrawl_url ?? "",
         default_route_mode: settings.default_route_mode ?? DEFAULT_ROUTE_MODE,
         user_inactivity_suspend_days: settings.user_inactivity_suspend_days ?? 0,
         api_key_inactivity_revoke_days: settings.api_key_inactivity_revoke_days ?? 0,
@@ -445,6 +454,14 @@ export default function Configure() {
                           ))}
                         </SelectContent>
                       </Select>
+                    ) : field.type === "text" ? (
+                      <input
+                        type="url"
+                        value={settings[field.key] ?? ""}
+                        onChange={(e) => updateSetting(field.key, e.target.value)}
+                        placeholder="https://your-firecrawl-instance.example.com"
+                        className="h-10 w-full max-w-md rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                      />
                     ) : (
                       <input
                         type="number"

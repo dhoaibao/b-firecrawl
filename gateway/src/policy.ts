@@ -28,7 +28,7 @@ export function getRouteMode(
   const queryMode = parsed.searchParams.get("routeMode");
   if (queryMode && validRouteModes.has(queryMode)) return queryMode;
 
-  return validRouteModes.has(defaultRouteMode) ? defaultRouteMode : "local-first";
+  return validRouteModes.has(defaultRouteMode) ? defaultRouteMode : "cloud-first";
 }
 
 export function hasSensitiveHeaders(

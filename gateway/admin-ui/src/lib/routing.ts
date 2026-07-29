@@ -1,4 +1,4 @@
-export const DEFAULT_ROUTE_MODE = "local-first" as const
+export const DEFAULT_ROUTE_MODE = "cloud-first" as const
 
 export const ROUTE_MODES = [
   { value: "local-first" as const, label: "Local first (fallback to cloud)" },

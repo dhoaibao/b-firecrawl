@@ -19,13 +19,13 @@ Express.js + TypeScript gateway with a React admin dashboard. The gateway layer 
 
 ## Routing Modes
 
-Set the initial default with `DEFAULT_ROUTE_MODE`, manage the live default in the Admin UI under **Configure > Routing**, or override per request with:
+The gateway starts cloud-first. Manage the live default in the Admin UI under **Configure > Routing**, or override per request with:
 
 ```text
 X-Firecrawl-Route-Mode: local-first | local-only | cloud-first | cloud-only
 ```
 
-`LOCAL_FIRECRAWL_URL` and `DATABASE_URL` must point to externally managed services. The default route mode is `local-first`.
+The external Firecrawl URL is configured in the Admin UI. `DATABASE_URL` must point to an externally managed PostgreSQL service.
 
 ## Policy
 
