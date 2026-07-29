@@ -7,6 +7,8 @@ import type { GatewayConfig } from "./types";
 
 const mockGetDefaultRouteMode = vi.hoisted(() => vi.fn());
 const mockGetSetting = vi.hoisted(() => vi.fn());
+const mockValidateApiKeyWithUser = vi.hoisted(() => vi.fn());
+const mockTouchApiKey = vi.hoisted(() => vi.fn());
 
 vi.mock("./settings/service", () => ({
   getSetting: mockGetSetting,
@@ -19,7 +21,8 @@ vi.mock("./settings/service", () => ({
 
 vi.mock("./api-keys/service", () => ({
   validateApiKey: vi.fn().mockResolvedValue(null),
-  touchApiKey: vi.fn(),
+  validateApiKeyWithUser: mockValidateApiKeyWithUser,
+  touchApiKey: mockTouchApiKey,
 }));
 
 vi.mock("./users/service", () => ({
@@ -105,6 +108,66 @@ describe("createProxyHandler trusted session caller", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("authenticates a virtual API key with its owner in one service call", async () => {
+    mockTouchApiKey.mockResolvedValue(undefined);
+    mockValidateApiKeyWithUser.mockResolvedValue({
+      key: {
+        id: "key-1",
+        user_id: "user-1",
+      },
+      user: {
+        id: "user-1",
+        email: "user@example.com",
+        name: "Test User",
+        password_hash: "password-hash",
+        is_admin: false,
+        status: "active",
+        suspended_until: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true })),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({
+      config: { ...baseConfig, authEnabled: true },
+      auditStore,
+    });
+    const req = {
+      method: "POST",
+      url: "/v1/scrape",
+      originalUrl: "/v1/scrape",
+      headers: { authorization: "Bearer fc_test_key", "content-type": "application/json" },
+      requestId: "req-authenticated",
+      [Symbol.asyncIterator]: async function* () {
+        yield Buffer.from(JSON.stringify({ url: "https://example.com" }));
+      },
+      on: vi.fn(),
+      pipe: vi.fn(),
+    } as unknown as import("express").Request;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      end: vi.fn().mockReturnThis(),
+    } as unknown as import("express").Response;
+
+    await handler(req, res);
+
+    expect(mockValidateApiKeyWithUser).toHaveBeenCalledWith("fc_test_key");
+    expect(mockTouchApiKey).toHaveBeenCalledWith("key-1");
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(auditStore.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: "user-1", status_code: 200 }),
+    );
   });
 
   it("uses trusted user id and skips api key validation", async () => {

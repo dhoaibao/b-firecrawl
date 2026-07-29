@@ -392,8 +392,8 @@ export function createProxyHandler({
         return;
       }
       const apiKey = match[1];
-      const validKey = await apiKeyService.validateApiKey(apiKey);
-      if (!validKey) {
+      const authenticatedKey = await apiKeyService.validateApiKeyWithUser(apiKey);
+      if (!authenticatedKey) {
         await appendAuditEntry({
           backendUsed: "none",
           statusCode: 401,
@@ -403,16 +403,7 @@ export function createProxyHandler({
         return;
       }
 
-      const keyOwner = await userService.getUserById(validKey.user_id);
-      if (!keyOwner) {
-        await appendAuditEntry({
-          backendUsed: "none",
-          statusCode: 401,
-          fallbackReason: "API key owner not found",
-        });
-        res.status(401).json({ success: false, error: "API key owner not found" });
-        return;
-      }
+      const { key: validKey, user: keyOwner } = authenticatedKey;
       const access = userService.checkUserAccess(keyOwner);
       if (!access.allowed) {
         await appendAuditEntry({

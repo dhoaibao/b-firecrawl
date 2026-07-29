@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import { withClient } from "../db";
-import type { ApiKey } from "../types";
+import type { ApiKey, User } from "../types";
+
+export interface AuthenticatedApiKey {
+  key: ApiKey;
+  user: User;
+}
 
 export interface CreatedApiKey {
   id: string;
@@ -72,6 +77,72 @@ export async function validateApiKey(key: string): Promise<ApiKey | null> {
       [keyHash],
     );
     return result.rows[0] || null;
+  });
+}
+
+export async function validateApiKeyWithUser(key: string): Promise<AuthenticatedApiKey | null> {
+  const keyHash = hashApiKey(key);
+  return withClient(async (client) => {
+    const result = await client.query<ApiKey & {
+      owner_id: string;
+      owner_email: string;
+      owner_name: string;
+      owner_password_hash: string;
+      owner_is_admin: boolean;
+      owner_status: string;
+      owner_suspended_until: string | null;
+      owner_created_at: string;
+      owner_updated_at: string;
+      owner_expired_suspension: boolean;
+    }>(
+      `SELECT ak.*, u.id AS owner_id, u.email AS owner_email, u.name AS owner_name,
+              u.password_hash AS owner_password_hash, u.is_admin AS owner_is_admin,
+              CASE WHEN u.status = 'suspended' AND u.suspended_until <= NOW()
+                   THEN 'active' ELSE u.status END AS owner_status,
+              CASE WHEN u.status = 'suspended' AND u.suspended_until <= NOW()
+                   THEN NULL ELSE u.suspended_until END AS owner_suspended_until,
+              u.created_at AS owner_created_at, u.updated_at AS owner_updated_at,
+              (u.status = 'suspended' AND u.suspended_until <= NOW()) AS owner_expired_suspension
+       FROM api_keys ak
+       INNER JOIN users u ON u.id = ak.user_id
+       WHERE ak.key_hash = $1 AND ak.revoked = false`,
+      [keyHash],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+
+    const {
+      owner_id,
+      owner_email,
+      owner_name,
+      owner_password_hash,
+      owner_is_admin,
+      owner_status,
+      owner_suspended_until,
+      owner_created_at,
+      owner_updated_at,
+      owner_expired_suspension,
+      ...apiKey
+    } = row;
+    let user: User = {
+      id: owner_id,
+      email: owner_email,
+      name: owner_name,
+      password_hash: owner_password_hash,
+      is_admin: owner_is_admin,
+      status: owner_status,
+      suspended_until: owner_suspended_until,
+      created_at: owner_created_at,
+      updated_at: owner_updated_at,
+    };
+    if (owner_expired_suspension) {
+      const reactivated = await client.query<User>(
+        "UPDATE users SET status = 'active', suspended_until = NULL WHERE id = $1 RETURNING *",
+        [owner_id],
+      );
+      user = reactivated.rows[0] || user;
+    }
+    return { key: apiKey, user };
   });
 }
 

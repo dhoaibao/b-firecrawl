@@ -22,6 +22,7 @@ vi.mock("./settings/service", () => ({
 
 vi.mock("./api-keys/service", () => ({
   validateApiKey: vi.fn().mockResolvedValue(null),
+  validateApiKeyWithUser: vi.fn().mockResolvedValue(null),
   touchApiKey: vi.fn(),
 }));
 
