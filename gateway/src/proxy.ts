@@ -22,6 +22,7 @@ import * as apiKeyService from "./api-keys/service";
 import * as userService from "./users/service";
 import * as settingsService from "./settings/service";
 import { getRequestLogger } from "./logger";
+import { decryptSettingValue, encryptSettingValue } from "./settings/crypto";
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -36,17 +37,24 @@ const hopByHopHeaders = new Set([
   "content-length",
 ]);
 
-async function getCloudApiKeys(): Promise<string[]> {
+async function getCloudApiKeys(config: GatewayConfig): Promise<string[]> {
   try {
     const record = await settingsService.getSetting("firecrawl_api_keys");
     if (record?.value) {
-      const parsed = JSON.parse(record.value) as unknown;
+      const decrypted = decryptSettingValue(record.value, config.firecrawlKeysEncryptionKey);
+      if (!decrypted.encrypted) {
+        await settingsService.setSetting(
+          "firecrawl_api_keys",
+          encryptSettingValue(record.value, config.firecrawlKeysEncryptionKey),
+        );
+      }
+      const parsed = JSON.parse(decrypted.value) as unknown;
       return Array.isArray(parsed)
         ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
         : [];
     }
   } catch {
-    // ignore parse errors
+    // ignore parse errors and decryption errors
   }
   return [];
 }
@@ -364,7 +372,7 @@ export function createProxyHandler({
     };
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
-    const cloudApiKeys = shuffleArray(await getCloudApiKeys());
+    const cloudApiKeys = shuffleArray(await getCloudApiKeys(config));
     const primaryCloudApiKey = cloudApiKeys[0];
 
     if (initialBackend === "cloud" && !primaryCloudApiKey) {

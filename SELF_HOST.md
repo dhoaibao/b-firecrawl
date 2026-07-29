@@ -21,6 +21,7 @@ Set at least:
 LOCAL_FIRECRAWL_URL=https://your-firecrawl-instance.example.com
 DATABASE_URL=postgresql://user:password@postgres.example.com:5432/firecrawl_gateway
 SESSION_SECRET=replace-with-a-long-random-secret
+FIRECRAWL_KEYS_ENCRYPTION_KEY=replace-with-64-character-hex-key
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=replace-with-a-strong-password
 ```

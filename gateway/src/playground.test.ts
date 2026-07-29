@@ -41,6 +41,7 @@ const baseConfig: GatewayConfig = {
   authEnabled: true,
   databaseUrl: "postgresql://localhost/test",
   sessionSecret: "secret",
+  firecrawlKeysEncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   adminEmail: "",
   adminPassword: "",
   trustProxy: false,

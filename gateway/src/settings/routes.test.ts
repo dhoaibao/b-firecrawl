@@ -29,6 +29,7 @@ function createApp() {
     authEnabled: true,
     databaseUrl: "postgresql://localhost/test",
     sessionSecret: "secret",
+    firecrawlKeysEncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     adminEmail: "",
     adminPassword: "",
     trustProxy: false,
@@ -74,7 +75,7 @@ describe("PUT /settings", () => {
       .put("/settings")
       .send({ firecrawl_api_keys: ["fc_secret_key"] })
       .expect(200);
-    expect(mockSetSetting).toHaveBeenCalledWith("firecrawl_api_keys", '["fc_secret_key"]');
+    expect(mockSetSetting).toHaveBeenCalledWith("firecrawl_api_keys", expect.stringMatching(/^enc:v1:/));
     expect(res.body.data.firecrawl_api_keys).toEqual(["fc_secret_key"]);
   });
 

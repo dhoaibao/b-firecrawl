@@ -41,6 +41,9 @@ const GatewayConfigSchema = z.object({
   ),
   databaseUrl: z.string().min(1, "DATABASE_URL is required"),
   sessionSecret: z.string().default(""),
+  firecrawlKeysEncryptionKey: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "must be a 64-character hex string"),
   adminEmail: z.string().default(""),
   adminPassword: z.string().default(""),
   trustProxy: z.preprocess(
@@ -72,6 +75,7 @@ function loadConfig(): GatewayConfig {
       authEnabled: process.env.AUTH_ENABLED,
       databaseUrl: process.env.DATABASE_URL,
       sessionSecret: process.env.SESSION_SECRET,
+      firecrawlKeysEncryptionKey: process.env.FIRECRAWL_KEYS_ENCRYPTION_KEY,
       adminEmail: process.env.ADMIN_EMAIL,
       adminPassword: process.env.ADMIN_PASSWORD,
       trustProxy: process.env.TRUST_PROXY,

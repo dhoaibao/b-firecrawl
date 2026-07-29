@@ -12,6 +12,8 @@ describe("config parsing", () => {
   });
 
   async function loadConfigWithEnv(env: Record<string, string | undefined>) {
+    process.env.FIRECRAWL_KEYS_ENCRYPTION_KEY =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     for (const [key, value] of Object.entries(env)) {
       if (value === undefined) {
         delete process.env[key];

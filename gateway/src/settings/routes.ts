@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { GatewayConfig } from "../types";
 import * as settingsService from "./service";
 import { VALID_ROUTE_MODES } from "./service";
+import { decryptSettingValue, encryptSettingValue } from "./crypto";
 
 const VALID_SETTINGS = [
   "firecrawl_api_keys",
@@ -35,7 +36,7 @@ export function createSettingsRouter(config: GatewayConfig) {
 
   router.get("/credit-usage", async (_req, res, next) => {
     try {
-      const items = await fetchCreditUsage(config.cloudBaseUrl);
+      const items = await fetchCreditUsage(config);
       res.json({ data: items });
     } catch (error) {
       next(error);
@@ -47,7 +48,13 @@ export function createSettingsRouter(config: GatewayConfig) {
       const rows = await settingsService.listSettings();
       const settings: Record<string, unknown> = {};
       for (const row of rows) {
-        settings[row.key] = parseValue(row.value, SETTING_TYPES[row.key] || "string");
+        const value = row.key === "firecrawl_api_keys"
+          ? decryptSettingValue(row.value, config.firecrawlKeysEncryptionKey)
+          : { value: row.value, encrypted: false };
+        settings[row.key] = parseValue(value.value, SETTING_TYPES[row.key] || "string");
+        if (row.key === "firecrawl_api_keys" && !value.encrypted) {
+          await settingsService.setSetting(row.key, encryptSettingValue(row.value, config.firecrawlKeysEncryptionKey));
+        }
       }
       res.json({ data: settings });
     } catch (error) {
@@ -103,6 +110,9 @@ export function createSettingsRouter(config: GatewayConfig) {
             }
           }
           value = JSON.stringify(rawValue);
+          if (key === "firecrawl_api_keys") {
+            value = encryptSettingValue(value, config.firecrawlKeysEncryptionKey);
+          }
         } else if (type === "boolean") {
           value = String(rawValue === true || rawValue === "true");
         } else if (type === "number") {
@@ -117,7 +127,10 @@ export function createSettingsRouter(config: GatewayConfig) {
         }
 
         await settingsService.setSetting(key, value);
-        result[key] = parseValue(value, type);
+        const responseValue = key === "firecrawl_api_keys"
+          ? JSON.stringify(rawValue)
+          : value;
+        result[key] = parseValue(responseValue, type);
       }
 
       res.json({ data: result });
@@ -147,22 +160,29 @@ function parseValue(value: string, type: string): unknown {
   return value;
 }
 
-async function fetchCreditUsage(cloudBaseUrl: string): Promise<CreditUsageItem[]> {
-  const keys = await getFirecrawlApiKeys();
+async function fetchCreditUsage(config: GatewayConfig): Promise<CreditUsageItem[]> {
+  const keys = await getFirecrawlApiKeys(config);
   const results: CreditUsageItem[] = [];
 
   for (let i = 0; i < keys.length; i++) {
-    results.push(await fetchCreditUsageForKey(cloudBaseUrl, i, keys[i]));
+    results.push(await fetchCreditUsageForKey(config.cloudBaseUrl, i, keys[i]));
   }
 
   return results;
 }
 
-async function getFirecrawlApiKeys(): Promise<string[]> {
+async function getFirecrawlApiKeys(config: GatewayConfig): Promise<string[]> {
   const record = await settingsService.getSetting("firecrawl_api_keys");
   if (!record?.value) return [];
   try {
-    const parsed = JSON.parse(record.value) as unknown;
+    const decrypted = decryptSettingValue(record.value, config.firecrawlKeysEncryptionKey);
+    if (!decrypted.encrypted) {
+      await settingsService.setSetting(
+        "firecrawl_api_keys",
+        encryptSettingValue(record.value, config.firecrawlKeysEncryptionKey),
+      );
+    }
+    const parsed = JSON.parse(decrypted.value) as unknown;
     return Array.isArray(parsed)
       ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
       : [];

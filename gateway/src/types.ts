@@ -36,6 +36,7 @@ export interface GatewayConfig {
   authEnabled: boolean;
   databaseUrl: string;
   sessionSecret: string;
+  firecrawlKeysEncryptionKey: string;
   adminEmail: string;
   adminPassword: string;
   trustProxy: boolean | string;
