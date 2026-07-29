@@ -45,7 +45,6 @@ export default function Account() {
     <PageLayout
       title="Account"
       icon={KeyRound}
-      description="Manage your admin access and sign-in security."
     >
       <div className="grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
         <Card className="overflow-hidden border-white/[0.06] bg-surface-2 py-0">

@@ -296,7 +296,6 @@ export default function Configure() {
       <PageLayout
         title="Configure"
         icon={Settings}
-        description="Control routing, access policies, and Firecrawl Cloud capacity."
       >
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -313,7 +312,6 @@ export default function Configure() {
     <PageLayout
       title="Configure"
       icon={Settings}
-      description="Control routing, access policies, and Firecrawl Cloud capacity."
       actions={
         <>
           <Button
