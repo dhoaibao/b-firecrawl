@@ -60,6 +60,7 @@ async function readLastLines(filePath: string, lineCount: number): Promise<strin
 }
 
 const MAX_PENDING_AUDITS = 10_000;
+const DATABASE_AUDIT_BATCH_SIZE = 100;
 
 export function createAuditStore(logFile: string, options: AuditStoreOptions = {}): AuditStore {
   const pendingFileEntries: AuditEntry[] = [];
@@ -68,7 +69,7 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
   let databaseFlushPromise: Promise<void> | null = null;
   let discardPending = false;
 
-  async function persistAuditToDatabase(entry: AuditEntry): Promise<void> {
+  async function persistAuditEntryToDatabase(entry: AuditEntry): Promise<void> {
     try {
       await withClient((client) => client.query(
         `INSERT INTO audit_logs
@@ -94,6 +95,54 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
       ));
     } catch (err) {
       rootLogger.warn({ err, auditId: entry.id }, "Failed to write audit entry to database");
+    }
+  }
+
+  async function persistAuditBatchToDatabase(entries: AuditEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+
+    const values: unknown[] = [];
+    const placeholders = entries.map((entry, entryIndex) => {
+      const offset = entryIndex * 13;
+      values.push(
+        entry.id,
+        entry.created_at,
+        entry.method,
+        entry.path,
+        entry.route_mode,
+        entry.backend_used,
+        entry.fallback_used,
+        entry.fallback_reason,
+        entry.status_code,
+        entry.duration_ms,
+        entry.target_url,
+        entry.user_id ?? null,
+        entry.request_id ?? null,
+      );
+      return `(${Array.from({ length: 13 }, (_, valueIndex) => `$${offset + valueIndex + 1}`).join(", ")})`;
+    }).join(",\n           ");
+
+    try {
+      await withClient((client) => client.query(
+        `INSERT INTO audit_logs
+           (id, created_at, method, path, route_mode, backend_used, fallback_used,
+            fallback_reason, status_code, duration_ms, target_url, user_id, request_id)
+         VALUES ${placeholders}
+         ON CONFLICT (id) DO NOTHING`,
+        values,
+      ));
+    } catch (err) {
+      const errorCode = (err as { code?: string }).code;
+      rootLogger.warn(
+        { err, count: entries.length, retryIndividually: errorCode?.startsWith("23") === true },
+        "Failed to write audit batch to database",
+      );
+      if (!errorCode?.startsWith("23")) return;
+
+      for (const entry of entries) {
+        if (discardPending) break;
+        await persistAuditEntryToDatabase(entry);
+      }
     }
   }
 
@@ -127,9 +176,8 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
     databaseFlushPromise = (async () => {
       while (pendingDatabaseEntries.length > 0) {
         const entries = pendingDatabaseEntries.splice(0, pendingDatabaseEntries.length);
-        for (const entry of entries) {
-          if (discardPending) break;
-          await persistAuditToDatabase(entry);
+        for (let offset = 0; offset < entries.length && !discardPending; offset += DATABASE_AUDIT_BATCH_SIZE) {
+          await persistAuditBatchToDatabase(entries.slice(offset, offset + DATABASE_AUDIT_BATCH_SIZE));
         }
       }
     })().finally(() => {

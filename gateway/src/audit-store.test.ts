@@ -42,6 +42,57 @@ describe("createAuditStore", () => {
     );
   });
 
+  it("persists queued entries in database batches", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 100 });
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+    vi.spyOn(fs, "appendFile").mockResolvedValue(undefined);
+
+    const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
+    for (let index = 0; index < 101; index++) {
+      void store.appendAudit({ ...entry, id: `audit-${index}` });
+    }
+    await store.flush?.();
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls.map((call) => (call[1] as unknown[]).length).sort((a, b) => a - b))
+      .toEqual([13, 100 * 13]);
+  });
+
+  it("falls back to individual database writes when a batch fails", async () => {
+    const query = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("batch constraint failure"), { code: "23503" }))
+      .mockResolvedValue({ rowCount: 1 });
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+    vi.spyOn(fs, "appendFile").mockResolvedValue(undefined);
+
+    const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
+    void store.appendAudit(entry);
+    void store.appendAudit({ ...entry, id: "audit-second" });
+    await store.flush?.();
+
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.slice(1).every((call) => (call[1] as unknown[]).length === 13)).toBe(true);
+  });
+
+  it("does not amplify transient database failures with individual retries", async () => {
+    const query = vi.fn().mockRejectedValue(new Error("connection refused"));
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+    vi.spyOn(fs, "appendFile").mockResolvedValue(undefined);
+
+    const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
+    for (let index = 0; index < 101; index++) {
+      void store.appendAudit({ ...entry, id: `audit-transient-${index}` });
+    }
+    await store.flush?.();
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls.map((call) => (call[1] as unknown[]).length).sort((a, b) => a - b))
+      .toEqual([13, 100 * 13]);
+  });
+
   it("uses UTC calendar boundaries when deleting database entries", async () => {
     const query = vi.fn().mockResolvedValue({ rowCount: 1 });
     vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
