@@ -10,6 +10,7 @@ const Login = lazy(() => import("@/pages/Login"))
 const Users = lazy(() => import("@/pages/Users"))
 const ApiKeys = lazy(() => import("@/pages/ApiKeys"))
 const Configure = lazy(() => import("@/pages/Configure"))
+const Account = lazy(() => import("@/pages/Account"))
 
 function LoadingScreen() {
   return (
@@ -108,6 +109,11 @@ export default function App() {
                   </RequireAdmin>
                 }
               />
+              <Route path="/account" element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <Account />
+                </Suspense>
+              } />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

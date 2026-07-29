@@ -9,6 +9,7 @@ import {
   X,
   Shield,
   Settings,
+  KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { label: "API Keys", href: "/api-keys", icon: Key },
   { label: "Users", href: "/users", icon: Users, adminOnly: true },
   { label: "Configure", href: "/configure", icon: Settings, adminOnly: true },
+  { label: "Account", href: "/account", icon: KeyRound },
 ]
 
 export default function Sidebar() {
