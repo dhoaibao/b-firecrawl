@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Key, Copy, Check, RefreshCw, Search, KeyRound } from "lucide-react";
+import { Plus, Trash2, Key, Copy, Check, RefreshCw, Search, KeyRound, Globe } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/useToast";
 import Pagination from "@/components/Pagination";
 import PageSkeleton from "@/components/PageSkeleton";
@@ -12,9 +13,11 @@ import DataTable from "@/components/DataTable";
 import PageLayout from "@/components/PageLayout";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/date";
+import { getGatewayUrl } from "@/lib/gateway";
 import type { ApiKeyData } from "@/types";
 
 export default function ApiKeys() {
+  const gatewayUrl = getGatewayUrl();
   const [keys, setKeys] = useState<ApiKeyData[]>([]);
   const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
@@ -26,6 +29,7 @@ export default function ApiKeys() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [gatewayCopied, setGatewayCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Search & filter state
@@ -113,6 +117,16 @@ export default function ApiKeys() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function copyGatewayUrl() {
+    try {
+      await navigator.clipboard.writeText(gatewayUrl);
+      setGatewayCopied(true);
+      setTimeout(() => setGatewayCopied(false), 2000);
+    } catch {
+      addToast("Failed to copy gateway URL", "error");
+    }
+  }
+
   if (loading) {
     return <PageSkeleton columns={6} rows={6} />;
   }
@@ -138,6 +152,50 @@ export default function ApiKeys() {
         </>
       }
     >
+      <Card className="mb-5 overflow-hidden border-white/[0.06] bg-surface-2 py-0 shadow-none">
+        <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="mt-0.5 rounded-lg border border-info-muted bg-info-muted/40 p-2.5 text-info-fg">
+              <Globe className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-info-fg">Connection details</p>
+              <h2 className="mt-1 text-sm font-semibold text-foreground">Use your gateway endpoint</h2>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                Send Firecrawl API requests through this URL using one of your active virtual API keys.
+              </p>
+              <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                <code
+                  className="min-w-0 flex-1 truncate rounded-md border border-white/[0.08] bg-surface-1 px-3 py-2 font-mono text-xs text-foreground"
+                  title={gatewayUrl}
+                >
+                  {gatewayUrl}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 sm:self-stretch"
+                  onClick={() => void copyGatewayUrl()}
+                  aria-label={gatewayCopied ? "Gateway endpoint copied" : "Copy gateway endpoint"}
+                >
+                  {gatewayCopied ? <Check className="size-4 mr-1" /> : <Copy className="size-4 mr-1" />}
+                  {gatewayCopied ? "Copied" : "Copy URL"}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2 border-t border-white/[0.06] pt-4 text-xs lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+            <div>
+              <p className="font-medium text-foreground">Supported API paths</p>
+              <div className="mt-2 flex gap-2 font-mono text-muted-foreground">
+                <span className="rounded-md bg-surface-3 px-2 py-1">/v1/*</span>
+                <span className="rounded-md bg-surface-3 px-2 py-1">/v2/*</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         {[
           { label: "Active keys", value: keys.filter((k) => !k.revoked).length, tone: "text-success-fg" },
