@@ -49,14 +49,56 @@ async function getCloudApiKeys(config: GatewayConfig): Promise<string[]> {
         );
       }
       const parsed = JSON.parse(decrypted.value) as unknown;
-      return Array.isArray(parsed)
+      const keys = Array.isArray(parsed)
         ? parsed.filter((k): k is string => typeof k === "string" && k.length > 0)
         : [];
+      return prioritizeCloudApiKeys(config, keys);
     }
   } catch {
     // ignore parse errors and decryption errors
   }
   return [];
+}
+
+const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
+const creditUsageCache = new Map<string, { remainingCredits: number; expiresAt: number }>();
+
+async function getRemainingCredits(config: GatewayConfig, apiKey: string): Promise<number | null> {
+  const cached = creditUsageCache.get(apiKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.remainingCredits;
+  if (cached) creditUsageCache.delete(apiKey);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`${config.cloudBaseUrl}/v2/team/credit-usage`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const json = (await response.json()) as { data?: { remainingCredits?: number } };
+    const remainingCredits = json.data?.remainingCredits;
+    if (typeof remainingCredits !== "number") return null;
+    creditUsageCache.set(apiKey, { remainingCredits, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
+    return remainingCredits;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function prioritizeCloudApiKeys(config: GatewayConfig, keys: string[]): Promise<string[]> {
+  const credits = await Promise.all(keys.map(async (key) => ({
+    key,
+    remainingCredits: await getRemainingCredits(config, key),
+  })));
+
+  // Shuffle first so keys with the same balance (including unavailable balances)
+  // are randomized, then sort known balances from highest to lowest.
+  return shuffleArray(credits)
+    .sort((a, b) => (b.remainingCredits ?? Number.NEGATIVE_INFINITY) - (a.remainingCredits ?? Number.NEGATIVE_INFINITY))
+    .map(({ key }) => key);
 }
 
 function sanitizeHeaders(
@@ -372,7 +414,13 @@ export function createProxyHandler({
     };
     const needsCloud = requestNeedsCloud(parsedUrl.pathname, json);
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
-    const cloudApiKeys = shuffleArray(await getCloudApiKeys(config));
+    let cloudApiKeys: string[] = [];
+    if (
+      initialBackend === "cloud" ||
+      (initialBackend === "local" && routeMode !== "local-only" && isFallbackAllowed(routeMode, privacy))
+    ) {
+      cloudApiKeys = await getCloudApiKeys(config);
+    }
     const primaryCloudApiKey = cloudApiKeys[0];
 
     if (initialBackend === "cloud" && !primaryCloudApiKey) {

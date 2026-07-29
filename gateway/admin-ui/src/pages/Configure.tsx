@@ -310,7 +310,7 @@ export default function Configure() {
                 </CardHeader>
                 <div className="space-y-4 px-5 py-4">
                   <p className="text-sm text-muted-foreground">
-                    Add Firecrawl API keys. The gateway selects one randomly for each request and tries the remaining keys on rate limits or auth errors.
+                    Add Firecrawl API keys. The gateway uses the key with the most remaining credits first, randomizing ties, and tries the remaining keys on rate limits or auth errors.
                   </p>
                   <div className="flex gap-2">
                     <input

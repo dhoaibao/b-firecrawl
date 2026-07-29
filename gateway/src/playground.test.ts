@@ -136,7 +136,7 @@ describe("/admin/api/playground", () => {
       .send(JSON.stringify({ url: "https://example.com" }))
       .expect(200);
 
-    const calls = fetchMock.mock.calls;
+    const calls = fetchMock.mock.calls.filter(([url]) => !String(url).includes("/v2/team/credit-usage"));
     expect(calls).toHaveLength(1);
     expect(calls[0]?.[0]).toContain("/v2/scrape");
     expect(calls[0]?.[0]).not.toContain("/admin/api/playground");
@@ -163,7 +163,7 @@ describe("/admin/api/playground", () => {
       .send(JSON.stringify({ url: "https://example.com" }))
       .expect(200);
 
-    const callUrl = fetchMock.mock.calls[0]?.[0] as string;
+    const callUrl = fetchMock.mock.calls.find(([url]) => !String(url).includes("/v2/team/credit-usage"))?.[0] as string;
     expect(callUrl).toContain("/v2/scrape");
     expect(callUrl).toContain("timeout=30000");
   });

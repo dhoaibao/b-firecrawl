@@ -350,6 +350,45 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     } as unknown as import("express").Response;
   }
 
+  it("uses the cloud key with the most remaining credit first", async () => {
+    mockGetSetting.mockImplementation(async (key: string) => {
+      if (key === "firecrawl_api_keys") {
+        return { key, value: '["low-credit","high-credit"]', updated_at: new Date().toISOString() };
+      }
+      return null;
+    });
+
+    const fetchMock = vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.includes("/v2/team/credit-usage")) {
+        const apiKey = new Headers(options?.headers).get("authorization");
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { remainingCredits: apiKey?.includes("high-credit") ? 1000 : 100 } }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true })),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: cloudFirstConfig, auditStore });
+    const res = makeResponse();
+    await handler(makeRequest(), res);
+
+    const cloudRequest = fetchMock.mock.calls.find(([url]) => url === "https://api.firecrawl.dev/v1/scrape");
+    expect(fetchMock.mock.calls.map(([url, options]) => [url, new Headers(options?.headers).get("authorization")])).toEqual([
+      ["https://api.firecrawl.dev/v2/team/credit-usage", "Bearer low-credit"],
+      ["https://api.firecrawl.dev/v2/team/credit-usage", "Bearer high-credit"],
+      ["https://api.firecrawl.dev/v1/scrape", "Bearer high-credit"],
+    ]);
+    expect(new Headers(cloudRequest?.[1]?.headers).get("authorization")).toBe("Bearer high-credit");
+  });
+
   it("falls back to local when every cloud API key returns 429", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
@@ -381,7 +420,7 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     await handler(makeRequest(), res);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     const localCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
     expect(localCall).toBeDefined();
     expect(res.set).toHaveBeenCalledWith(
@@ -433,7 +472,7 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     await handler(makeRequest(), res);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const localCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
     expect(localCall).toBeUndefined();
   });
@@ -459,7 +498,7 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     await handler(makeRequest(), res);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not fall back to local for cloud-only requests", async () => {
@@ -485,6 +524,6 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     await handler(makeRequest(), res);
 
     expect(res.status).toHaveBeenCalledWith(429);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
