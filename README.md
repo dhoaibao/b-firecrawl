@@ -1,53 +1,51 @@
-# Hybrid Firecrawl Self-host
+# Firecrawl Gateway
 
-This repository orchestrates official Firecrawl container images behind an intelligent Hybrid Gateway that routes requests between your local instance and Firecrawl Cloud based on feature availability and your configured policy.
+This repository ships an Express.js + TypeScript gateway and React admin dashboard in front of externally hosted Firecrawl services. It does not run or manage a self-hosted Firecrawl stack.
 
-**Why Hybrid?** Core scraping, crawling, parsing, and supported output formats run locally at no cost. Managed features—actions, agent extraction, browser sessions, monitoring, and more—are seamlessly forwarded to Firecrawl Cloud. You get the best of both worlds without managing two separate integrations.
+The gateway can route requests between an externally hosted Firecrawl instance and Firecrawl Cloud based on feature availability and the configured policy.
 
 ## Quick Start
 
 ```bash
 cp .env.example .env
-# Edit .env, then:
+# Set LOCAL_FIRECRAWL_URL and DATABASE_URL, then:
 docker compose up -d --build
 ```
 
 Default endpoints:
 
 - Gateway API: `http://localhost:8080`
-- Admin UI: `http://localhost:8080/admin` when `AUTH_ENABLED=true` (default)
-- Direct local API: `http://localhost:3002`
+- Admin UI: `http://localhost:8080/admin` when `AUTH_ENABLED=true`
+
+The external Firecrawl instance and PostgreSQL database are deployment prerequisites and are not created by this repository.
 
 ## Admin Dashboard
 
-The included web dashboard provides real-time visibility into request routing, success rates, latency metrics, and traffic distribution between local and cloud backends. Access it at `http://localhost:8080/admin` when authentication is enabled.
+The dashboard provides visibility into request routing, success rates, fallback behavior, latency, users, and virtual API keys.
 
 ![Admin UI Dashboard](assets/admin.png)
 
 ## What Is Included
 
-- `docker-compose.yaml` — Firecrawl self-host services
-- `gateway/` — Hybrid Gateway (Express.js + React admin UI)
-- `.env.example` — environment variables
-- `SELF_HOST.md` — deployment guide
-- `LICENSE`
+- `docker-compose.yaml` — gateway image build and runtime
+- `docker-compose.prebuilt.yaml` — gateway runtime using the published image
+- `gateway/` — Express gateway and React admin UI
+- `.env.example` — gateway configuration reference
+- `SELF_HOST.md` — external-service deployment guide
 
 ## Architecture
 
 ```text
-            Client
-              |
-              v
-        Hybrid Gateway
-       |              |
-       |              |
- (local-safe)   (cloud-only or fallback)
-       |              |
-       v              v
-  Self-hosted    Firecrawl Cloud
+             Client
+                |
+                v
+          Firecrawl Gateway
+          |               |
+          v               v
+ External Firecrawl   Firecrawl Cloud
 ```
 
 ## Documentation
 
-- [`SELF_HOST.md`](SELF_HOST.md) — full deployment, configuration, and troubleshooting
-- [`gateway/README.md`](gateway/README.md) — gateway development, routes, and policy
+- [`SELF_HOST.md`](SELF_HOST.md) — deployment, configuration, and troubleshooting
+- [`gateway/README.md`](gateway/README.md) — gateway routes, policy, and development

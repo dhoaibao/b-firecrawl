@@ -9,8 +9,7 @@ const GatewayConfigSchema = z.object({
   port: z.coerce.number().int().positive().default(8080),
   localBaseUrl: z
     .string()
-    .min(1)
-    .default("http://api:3002")
+    .min(1, "LOCAL_FIRECRAWL_URL is required")
     .transform(stripTrailingSlash),
   cloudBaseUrl: z
     .string()

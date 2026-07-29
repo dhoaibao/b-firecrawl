@@ -78,7 +78,7 @@ export default function MetricsGrid({ metrics, loading, creditUsage }: MetricsGr
     {
       label: "Local Requests",
       value: metrics.local,
-      detail: "self-hosted traffic",
+      detail: "external instance traffic",
       icon: Server,
     },
     {

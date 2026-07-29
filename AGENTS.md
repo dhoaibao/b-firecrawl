@@ -3,7 +3,7 @@
 
 ## Repository Purpose
 
-A Hybrid Firecrawl Gateway — an Express.js + TypeScript API gateway that routes Firecrawl API requests between a local self-hosted instance and Firecrawl Cloud. Includes a React admin dashboard for monitoring, users, and virtual API keys. Deployed as a Docker Compose stack with official Firecrawl images.
+A Firecrawl Gateway — an Express.js + TypeScript API gateway that routes requests between externally hosted Firecrawl services and Firecrawl Cloud. Includes a React admin dashboard for monitoring, users, and virtual API keys. The repository deploys only the gateway; Firecrawl runtime services and PostgreSQL are external.
 
 ## Working Rules
 
@@ -34,7 +34,7 @@ npm run lint
 npm run build
 ```
 
-Full stack:
+Gateway deployment:
 
 ```bash
 docker compose up -d --build
@@ -58,8 +58,8 @@ docker compose logs gateway
 - `gateway/src/db/{index,bootstrap}.ts` — PostgreSQL pool and schema bootstrap
 - `gateway/src/utils.ts` — shared helpers and utilities
 - `gateway/admin-ui/src/` — React admin dashboard (basename `/admin`)
-- `docker-compose.yaml` — full stack with local gateway build
-- `docker-compose.prebuilt.yaml` — stack using published `dhoaibao/firecrawl-gateway:latest` image
+- `docker-compose.yaml` — gateway-only deployment with local image build
+- `docker-compose.prebuilt.yaml` — gateway-only deployment using published `dhoaibao/firecrawl-gateway:latest` image
 - `.env.example` — environment variables
 - `.github/workflows/deploy.yml` — CI/CD build and deploy
 - `README.md` — project overview and quick start
@@ -69,7 +69,7 @@ docker compose logs gateway
 
 ## Safety / Do-Not-Assume
 
-- The gateway listens on `GATEWAY_PORT` (default 8080). Direct local Firecrawl API is on port 3002.
+- The gateway listens on `GATEWAY_PORT` (default 8080). `LOCAL_FIRECRAWL_URL` and `DATABASE_URL` must point to externally managed services.
 - The admin UI is served under `/admin`; the admin API is under `/admin/api/*`.
 - Auth is enabled by default (`AUTH_ENABLED=true`). API requests need `Authorization: Bearer <virtual-key>`; admin UI uses session login.
 - Virtual API keys are SHA-256 hashed, `fc_` prefixed, and shown only once on creation.

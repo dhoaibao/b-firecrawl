@@ -1,77 +1,40 @@
-# Quick Start — No Clone Required
+# Quick Start
 
-Run the full Firecrawl self-hosted stack with a pre-built gateway image. No need to clone this repository.
+Run the gateway with a pre-built image. Firecrawl and PostgreSQL are external services; this repository does not host them.
 
-## Prerequisites
+## Requirements
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+- Docker Compose
+- An externally hosted Firecrawl API
+- An externally hosted PostgreSQL database
 
-## 1. Download the compose file
-
-```bash
-curl -O https://raw.githubusercontent.com/dhoaibao/b-firecrawl/main/docker-compose.prebuilt.yaml
-curl -O https://raw.githubusercontent.com/dhoaibao/b-firecrawl/main/.env.example
-mv .env.example .env
-```
-
-Or manually save these two files from this repo:
-- `docker-compose.prebuilt.yaml`
-- `.env.example` (rename to `.env`)
-
-## 2. Configure environment
-
-Edit `.env` and set at least:
-
-```env
-BULL_AUTH_KEY=change-this-secret
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=changeme
-SESSION_SECRET=change-me-to-a-long-random-string
-```
-
-Optional: add a Firecrawl Cloud API key in the admin UI for cloud fallback.
-
-## 3. Start everything
+## Configure and start
 
 ```bash
+cp .env.example .env
+# Set LOCAL_FIRECRAWL_URL and DATABASE_URL in .env
 docker compose -f docker-compose.prebuilt.yaml up -d
 ```
 
-## 4. Access
-
-| Service | URL |
-|---|---|
-| Gateway API | `http://localhost:8080` |
-| Gateway Admin UI | `http://localhost:8080/admin` |
-| Direct Firecrawl API | `http://localhost:3002` |
-| Bull Queue UI | `http://localhost:3002/admin/<BULL_AUTH_KEY>/queues` |
-
-## Test it
-
-With auth enabled (default), create a virtual API key in the admin UI first, then:
+For a source build instead:
 
 ```bash
-curl -X POST http://localhost:8080/v2/scrape \
-  -H 'Authorization: Bearer YOUR_API_KEY' \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"https://firecrawl.dev"}'
+docker compose up -d --build
 ```
 
-## Update to latest
+## Endpoints
+
+| Service | URL |
+| --- | --- |
+| Gateway API | `http://localhost:8080` |
+| Gateway Admin UI | `http://localhost:8080/admin` |
+| Gateway readiness | `http://localhost:8080/ready` |
+
+When authentication is enabled, log in to the Admin UI and create a virtual API key before sending API requests through the gateway.
+
+## Update the image
 
 ```bash
 docker compose -f docker-compose.prebuilt.yaml pull
 docker compose -f docker-compose.prebuilt.yaml up -d
 ```
-
-## What's running
-
-| Service | Image | Description |
-|---|---|---|
-| `gateway` | `dhoaibao/firecrawl-gateway:latest` | API gateway + admin UI (this repo) |
-| `api` | `ghcr.io/firecrawl/firecrawl` | Firecrawl core API |
-| `playwright-service` | `ghcr.io/firecrawl/playwright-service` | Browser automation |
-| `nuq-postgres` | `ghcr.io/firecrawl/nuq-postgres` | PostgreSQL database |
-| `redis` | `redis:alpine` | Redis cache |
-| `rabbitmq` | `rabbitmq:3-management` | Message queue |

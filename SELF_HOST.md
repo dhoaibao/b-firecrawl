@@ -1,21 +1,15 @@
-# Self-host Deployment Guide
+# External Firecrawl Deployment Guide
 
-This repo is configured for deployment-only Firecrawl self-hosting with a Hybrid Gateway. Firecrawl itself runs from published container images.
+This repository deploys only the Firecrawl Gateway. The Firecrawl API and PostgreSQL database must be hosted and operated separately.
 
 ## Services
 
-`docker-compose.yaml` starts:
+- `gateway`: this repository's gateway and admin UI
+- External Firecrawl instance: configured with `LOCAL_FIRECRAWL_URL`
+- Firecrawl Cloud: configured with `FIRECRAWL_CLOUD_URL`
+- External PostgreSQL: configured with `DATABASE_URL`
 
-- `gateway`: local policy gateway and admin UI
-- `api`: `ghcr.io/firecrawl/firecrawl`
-- `playwright-service`: `ghcr.io/firecrawl/playwright-service:latest`
-- `nuq-postgres`: `ghcr.io/firecrawl/nuq-postgres:latest`
-- `redis`: `redis:alpine`
-- `rabbitmq`: `rabbitmq:3-management`
-
-## Required Setup
-
-Create `.env`:
+## Configure
 
 ```bash
 cp .env.example .env
@@ -23,191 +17,54 @@ cp .env.example .env
 
 Set at least:
 
-```env
-BULL_AUTH_KEY=change-this-secret
+```dotenv
+LOCAL_FIRECRAWL_URL=https://your-firecrawl-instance.example.com
+DATABASE_URL=postgresql://user:password@postgres.example.com:5432/firecrawl_gateway
+SESSION_SECRET=replace-with-a-long-random-secret
 ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=changeme
-SESSION_SECRET=change-me-to-a-long-random-string
+ADMIN_PASSWORD=replace-with-a-strong-password
 ```
 
-Set the Firecrawl Cloud API key in the admin UI (`/admin/configure`) if you want Cloud fallback or `cloud-first` routing.
-
-To disable authentication and run the gateway as a transparent proxy:
-
-```env
-AUTH_ENABLED=false
-```
+If the gateway runs in Docker, `LOCAL_FIRECRAWL_URL` must be reachable from the container. Use a resolvable hostname rather than `localhost`.
 
 ## Start
+
+Using a local source build:
 
 ```bash
 docker compose up -d --build
 ```
 
-## Access
-
-With default `.env.example` ports:
-
-- Gateway API: `http://localhost:8080`
-- Gateway admin UI: `http://localhost:8080/admin` when `AUTH_ENABLED=true`
-- Gateway JSON logs: `http://localhost:8080/admin/api/logs` when `AUTH_ENABLED=true`
-- Direct local Firecrawl API: `http://localhost:3002`
-- Bull queue UI: `http://localhost:3002/admin/<BULL_AUTH_KEY>/queues`
-
-If your `.env` uses a different `GATEWAY_PORT`, open:
-
-```text
-http://localhost:<GATEWAY_PORT>/admin
-```
-
-## Authentication
-
-The gateway operates in two modes:
-
-- **Auth enabled** (`AUTH_ENABLED=true`, default): All API requests must include a valid virtual API key in the `Authorization: Bearer <key>` header. The admin UI requires login.
-- **Auth disabled** (`AUTH_ENABLED=false`): The gateway behaves as a transparent proxy without authentication, and the session-based admin UI/API are unavailable.
-
-### Admin User
-
-On first boot, if `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set and no user with that email exists, an admin user is automatically created. Use these credentials to log in to the admin UI. Changing `ADMIN_EMAIL` can create additional admins.
-
-### Virtual API Keys
-
-With auth enabled, create virtual API keys through the admin UI or the API:
-
-- `POST /admin/api/api-keys` — create a key (returns the plain key once)
-- `GET /admin/api/api-keys` — list your keys
-- `DELETE /admin/api/api-keys/:id` — revoke a key
-
-### User Management (Admin Only)
-
-Admins can manage users through the admin UI or the API:
-
-- `POST /admin/api/users` — create a user
-- `GET /admin/api/users` — list users
-- `PATCH /admin/api/users/:id` — update a user
-- `DELETE /admin/api/users/:id` — delete a user
-
-## Test
-
-With auth enabled, first log in to the admin UI at `http://localhost:8080/admin` and create a virtual API key. Then:
+Using the published gateway image:
 
 ```bash
-curl -X POST http://localhost:8080/v2/scrape \
-  -H 'Authorization: Bearer YOUR_API_KEY' \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"https://firecrawl.dev"}'
+docker compose -f docker-compose.prebuilt.yaml up -d
 ```
 
-Force local-only:
+The gateway is available at `http://localhost:8080` by default. The admin UI is at `/admin` when authentication is enabled.
 
-```bash
-curl -X POST http://localhost:8080/v2/scrape \
-  -H 'Authorization: Bearer YOUR_API_KEY' \
-  -H 'Content-Type: application/json' \
-  -H 'X-Firecrawl-Route-Mode: local-only' \
-  -d '{"url":"https://firecrawl.dev"}'
-```
+## Routing
 
-Force Cloud:
+- `local-first`: use the external Firecrawl instance first and fall back to Cloud for eligible requests.
+- `local-only`: never send requests to Cloud.
+- `cloud-first`: use Cloud first and fall back to the external Firecrawl instance when eligible.
 
-```bash
-curl -X POST http://localhost:8080/v2/scrape \
-  -H 'Authorization: Bearer YOUR_API_KEY' \
-  -H 'Content-Type: application/json' \
-  -H 'X-Firecrawl-Route-Mode: cloud-first' \
-  -d '{"url":"https://firecrawl.dev"}'
-```
-
-With auth disabled, omit the `Authorization` header.
-
-## Routing Modes
-
-Set the initial default in `.env`:
-
-```env
-DEFAULT_ROUTE_MODE=local-first
-```
-
-The live default is managed in the Admin UI under **Configure > Routing** and stored in the database. The env value is only used when no Admin UI value has been saved.
-
-Per request, override with:
+Set the initial mode with `DEFAULT_ROUTE_MODE`, change the live setting in **Configure > Routing**, or override an individual request with:
 
 ```text
 X-Firecrawl-Route-Mode: local-first | local-only | cloud-first
 ```
 
-Modes:
-
-- `local-first`: use self-hosted Firecrawl first, then fallback to Cloud for eligible failures
-- `local-only`: never send the request to Cloud
-- `cloud-first`: send API requests to Firecrawl Cloud
-
-## Gateway Behavior
-
-Local-first handles basic public web use cases locally:
-
-- scrape
-- crawl
-- batch scrape
-- map
-- search
-- parse
-- screenshot and change-tracking formats
-
-Cloud-only features are routed to Firecrawl Cloud:
-
-- actions
-- agent
-- browser sessions
-- scrape interact
-- monitor
-- research index
-- support and team/account APIs
-- endpoint and search feedback
-- enterprise search options
-- stealth / enhanced proxy
-
-Configuration-dependent formats such as branding and other AI-generated output are attempted locally first. In `local-first` mode, unsupported or unconfigured responses can fall back to Cloud when the request passes the privacy checks.
-
-Fallback is blocked for requests with sensitive auth/cookie headers or private/local target URLs.
-
-## Rebuild Gateway After Changes
-
-If you modify files in `gateway/`, rebuild the gateway image:
-
-```bash
-docker compose up -d --build gateway
-```
-
-Restart without rebuilding:
-
-```bash
-docker compose restart gateway
-```
+Cloud API keys are managed in the Admin UI and injected only into upstream Cloud requests.
 
 ## Troubleshooting
 
-Check containers:
+Check gateway status and logs:
 
 ```bash
 docker compose ps
-```
-
-Check gateway logs:
-
-```bash
 docker compose logs gateway
+curl http://localhost:8080/ready
 ```
 
-Check local Firecrawl logs:
-
-```bash
-docker compose logs api
-```
-
-If the admin UI does not reflect gateway code changes, rebuild the gateway image:
-
-```bash
-docker compose up -d --build gateway
-```
+A readiness failure indicates the gateway cannot connect to the configured external PostgreSQL database. Upstream Firecrawl connectivity is visible in gateway request audit logs and response headers.
