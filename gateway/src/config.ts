@@ -17,7 +17,7 @@ const GatewayConfigSchema = z.object({
     .default("https://api.firecrawl.dev")
     .transform(stripTrailingSlash),
   defaultRouteMode: z
-    .enum(["local-first", "local-only", "cloud-first"])
+    .enum(["local-first", "local-only", "cloud-first", "cloud-only"])
     .default("local-first"),
   requestTimeoutMs: z.coerce.number().int().positive().default(120_000),
   logFile: z

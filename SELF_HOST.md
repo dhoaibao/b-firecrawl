@@ -48,11 +48,12 @@ The gateway is available at `http://localhost:8080` by default. The admin UI is 
 - `local-first`: use the external Firecrawl instance first and fall back to Cloud for eligible requests.
 - `local-only`: never send requests to Cloud.
 - `cloud-first`: use Cloud first and fall back to the external Firecrawl instance when eligible.
+- `cloud-only`: use Cloud exclusively; never fall back to the external Firecrawl instance.
 
 Set the initial mode with `DEFAULT_ROUTE_MODE`, change the live setting in **Configure > Routing**, or override an individual request with:
 
 ```text
-X-Firecrawl-Route-Mode: local-first | local-only | cloud-first
+X-Firecrawl-Route-Mode: local-first | local-only | cloud-first | cloud-only
 ```
 
 Cloud API keys are managed in the Admin UI and injected only into upstream Cloud requests.

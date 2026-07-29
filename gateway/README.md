@@ -22,7 +22,7 @@ Express.js + TypeScript gateway with a React admin dashboard. The gateway layer 
 Set the initial default with `DEFAULT_ROUTE_MODE`, manage the live default in the Admin UI under **Configure > Routing**, or override per request with:
 
 ```text
-X-Firecrawl-Route-Mode: local-first | local-only | cloud-first
+X-Firecrawl-Route-Mode: local-first | local-only | cloud-first | cloud-only
 ```
 
 `LOCAL_FIRECRAWL_URL` and `DATABASE_URL` must point to externally managed services. The default route mode is `local-first`.

@@ -12,7 +12,7 @@ vi.mock("./service", () => ({
   getSetting: mockGetSetting,
   listSettings: mockListSettings,
   setSetting: mockSetSetting,
-  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first"],
+  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first", "cloud-only"],
 }));
 
 function createApp() {
@@ -87,10 +87,10 @@ describe("PUT /settings", () => {
     const app = createApp();
     const res = await request(app)
       .put("/settings")
-      .send({ default_route_mode: "cloud-first" })
+      .send({ default_route_mode: "cloud-only" })
       .expect(200);
-    expect(mockSetSetting).toHaveBeenCalledWith("default_route_mode", "cloud-first");
-    expect(res.body.data.default_route_mode).toBe("cloud-first");
+    expect(mockSetSetting).toHaveBeenCalledWith("default_route_mode", "cloud-only");
+    expect(res.body.data.default_route_mode).toBe("cloud-only");
   });
 
   it("rejects invalid default_route_mode values", async () => {

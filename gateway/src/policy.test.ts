@@ -105,6 +105,11 @@ describe("chooseInitialBackend", () => {
     expect(chooseInitialBackend("cloud-first", { required: false, reason: "" })).toBe("cloud");
   });
 
+  it("chooses cloud for cloud-only", () => {
+    expect(chooseInitialBackend("cloud-only", { required: false, reason: "" })).toBe("cloud");
+    expect(chooseInitialBackend("cloud-only", { required: true, reason: "actions" })).toBe("cloud");
+  });
+
   it("chooses local for local-only when no cloud requirement", () => {
     expect(chooseInitialBackend("local-only", { required: false, reason: "" })).toBe("local");
   });
@@ -241,6 +246,9 @@ describe("isCloudQuotaFallbackAllowed", () => {
   it("denies fallback outside cloud-first", () => {
     expect(
       isCloudQuotaFallbackAllowed("local-first", { required: false, reason: "" }),
+    ).toBe(false);
+    expect(
+      isCloudQuotaFallbackAllowed("cloud-only", { required: false, reason: "" }),
     ).toBe(false);
     expect(
       isCloudQuotaFallbackAllowed("local-only", { required: false, reason: "" }),

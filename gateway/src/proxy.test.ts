@@ -13,7 +13,7 @@ vi.mock("./settings/service", () => ({
   setSetting: vi.fn(),
   deleteSetting: vi.fn(),
   getDefaultRouteMode: mockGetDefaultRouteMode,
-  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first"],
+  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first", "cloud-only"],
 }));
 
 vi.mock("./api-keys/service", () => ({
@@ -477,9 +477,11 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const handler = createProxyHandler({ config: cloudFirstConfig, auditStore });
+    mockGetDefaultRouteMode.mockResolvedValue("cloud-only");
+    const cloudOnlyConfig: GatewayConfig = { ...baseConfig, defaultRouteMode: "cloud-only" };
+    const handler = createProxyHandler({ config: cloudOnlyConfig, auditStore });
     const res = makeResponse();
-    await handler(makeRequest({ actions: [{ type: "click" }] }), res);
+    await handler(makeRequest(), res);
 
     expect(res.status).toHaveBeenCalledWith(429);
     expect(fetchMock).toHaveBeenCalledTimes(1);

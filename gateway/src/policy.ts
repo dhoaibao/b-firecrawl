@@ -1,7 +1,7 @@
 import type { NeedsCloudResult } from "./types";
 import { findObjectsByKey, walk } from "./utils";
 
-const validRouteModes = new Set(["local-first", "local-only", "cloud-first"]);
+const validRouteModes = new Set(["local-first", "local-only", "cloud-first", "cloud-only"]);
 
 const cloudOnlyPathPatterns = [
   /^\/v\d+\/agent(?:\/|$)/,
@@ -105,7 +105,7 @@ export function chooseInitialBackend(
   routeMode: string,
   needsCloud: NeedsCloudResult,
 ): string {
-  if (routeMode === "cloud-first") return "cloud";
+  if (routeMode === "cloud-first" || routeMode === "cloud-only") return "cloud";
   if (routeMode === "local-only") return needsCloud.required ? "reject" : "local";
   return needsCloud.required ? "cloud" : "local";
 }

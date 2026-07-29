@@ -17,7 +17,7 @@ vi.mock("./settings/service", () => ({
   setSetting: vi.fn(),
   deleteSetting: vi.fn(),
   getDefaultRouteMode: mockGetDefaultRouteMode,
-  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first"],
+  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first", "cloud-only"],
 }));
 
 vi.mock("./api-keys/service", () => ({
