@@ -10,8 +10,10 @@ on:
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
+# Temporarily disabled. Remove these guards to re-enable deployments.
 jobs:
   build:
+    if: ${{ false }}
     name: Build and Push Gateway Image
     runs-on: ubuntu-latest
     environment: Hetzner
@@ -38,6 +40,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
+    if: ${{ false }}
     name: Deploy Firecrawl Stack
     runs-on: ubuntu-latest
     needs: build
