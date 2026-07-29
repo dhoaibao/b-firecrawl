@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { ApiKey, User } from "../types";
+import { decryptApiKey } from "./crypto";
 import * as apiKeyService from "./service";
 
 export function createApiKeysRouter() {
@@ -9,7 +10,7 @@ export function createApiKeysRouter() {
     try {
       const user = req.user as User;
       const keys = await apiKeyService.listApiKeys(user.is_admin ? undefined : user.id);
-      res.json({ data: keys.map(sanitizeApiKey) });
+      res.json({ data: keys.map((key) => sanitizeApiKey(key, key.user_id === user.id)) });
     } catch (error) {
       next(error);
     }
@@ -28,7 +29,7 @@ export function createApiKeysRouter() {
         res.status(403).json({ success: false, error: "Forbidden" });
         return;
       }
-      res.json({ data: sanitizeApiKey(key) });
+      res.json({ data: sanitizeApiKey(key, true) });
     } catch (error) {
       next(error);
     }
@@ -70,7 +71,7 @@ export function createApiKeysRouter() {
         res.status(404).json({ success: false, error: "API key not found" });
         return;
       }
-      res.json({ data: sanitizeApiKey(revoked) });
+      res.json({ data: sanitizeApiKey(revoked, true) });
     } catch (error) {
       next(error);
     }
@@ -79,7 +80,9 @@ export function createApiKeysRouter() {
   return router;
 }
 
-function sanitizeApiKey(key: ApiKey) {
-  const { key_hash, ...rest } = key;
-  return rest;
+function sanitizeApiKey(key: ApiKey, canViewSecret: boolean) {
+  const { key_hash, key_value, ...rest } = key;
+  return canViewSecret && !key.revoked && key_value
+    ? { ...rest, key: decryptApiKey(key_value) }
+    : rest;
 }

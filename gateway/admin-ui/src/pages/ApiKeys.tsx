@@ -29,6 +29,7 @@ export default function ApiKeys() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [gatewayCopied, setGatewayCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -115,6 +116,16 @@ export default function ApiKeys() {
     await navigator.clipboard.writeText(key);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function copyExistingKey(id: string, key: string) {
+    try {
+      await navigator.clipboard.writeText(key);
+      setCopiedKeyId(id);
+      setTimeout(() => setCopiedKeyId(null), 2000);
+    } catch {
+      addToast("Failed to copy API key", "error");
+    }
   }
 
   async function copyGatewayUrl() {
@@ -244,7 +255,7 @@ export default function ApiKeys() {
 
       {createdKey && (
         <div className="mb-6 rounded-lg border border-success-muted bg-success-muted/30 p-4 space-y-2">
-          <p className="text-sm font-medium text-success-fg">API key created. Copy it now — you won&apos;t see it again.</p>
+          <p className="text-sm font-medium text-success-fg">API key created. You can copy it again from the key list.</p>
           <div className="flex items-center gap-2">
             <code className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm font-mono text-foreground">
               {createdKey.key}
@@ -307,17 +318,31 @@ export default function ApiKeys() {
               key: "actions",
               header: "Actions",
               align: "right",
-              render: (k) =>
-                !k.revoked && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 border-danger-muted bg-danger-muted/30 text-danger-fg hover:bg-danger-muted/50"
-                    onClick={() => handleRevoke(k.id)}
-                  >
-                    <Trash2 className="size-3 mr-1" /> Revoke
-                  </Button>
-                ),
+              render: (k) => (
+                <div className="flex justify-end gap-2">
+                  {!k.revoked && k.key && (
+                    <Button variant="outline" size="sm" className="h-7" onClick={() => void copyExistingKey(k.id, k.key!)}>
+                      {copiedKeyId === k.id ? <Check className="size-3 mr-1" /> : <Copy className="size-3 mr-1" />}
+                      {copiedKeyId === k.id ? "Copied" : "Copy"}
+                    </Button>
+                  )}
+                  {!k.revoked && !k.key && (
+                    <span className="self-center text-xs text-muted-foreground" title="Keys created before re-copy support cannot be displayed again">
+                      Copy unavailable
+                    </span>
+                  )}
+                  {!k.revoked && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 border-danger-muted bg-danger-muted/30 text-danger-fg hover:bg-danger-muted/50"
+                      onClick={() => handleRevoke(k.id)}
+                    >
+                      <Trash2 className="size-3 mr-1" /> Revoke
+                    </Button>
+                  )}
+                </div>
+              ),
             },
           ]}
           data={paginatedKeys}

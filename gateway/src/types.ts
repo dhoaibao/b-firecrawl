@@ -87,6 +87,7 @@ export interface ApiKey {
   user_id: string;
   name: string;
   key_hash: string;
+  key_value: string | null;
   key_prefix: string;
   revoked: boolean;
   created_at: string;

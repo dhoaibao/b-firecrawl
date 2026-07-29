@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { withClient } from "../db";
+import { encryptApiKey } from "./crypto";
 import type { ApiKey, User } from "../types";
 
 export interface AuthenticatedApiKey {
@@ -15,7 +16,7 @@ export interface CreatedApiKey {
   revoked: boolean;
   created_at: string;
   updated_at: string;
-  key: string; // plain key, shown only once
+  key: string; // plain key, retained for re-copying
 }
 
 export async function createApiKey(userId: string, name: string): Promise<CreatedApiKey> {
@@ -25,14 +26,15 @@ export async function createApiKey(userId: string, name: string): Promise<Create
 
   return withClient(async (client) => {
     const result = await client.query<ApiKey>(
-      `INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, revoked)
-       VALUES ($1, $2, $3, $4, $5, false)
+      `INSERT INTO api_keys (id, user_id, name, key_hash, key_value, key_prefix, revoked)
+       VALUES ($1, $2, $3, $4, $5, $6, false)
        RETURNING *`,
-      [crypto.randomUUID(), userId, name, keyHash, keyPrefix],
+      [crypto.randomUUID(), userId, name, keyHash, encryptApiKey(key), keyPrefix],
     );
     const row = result.rows[0];
+    const { key_value: _keyValue, ...keyData } = row;
     return {
-      ...row,
+      ...keyData,
       key,
     };
   });

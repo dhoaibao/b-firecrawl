@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   key_hash VARCHAR(255) NOT NULL,
+  key_value VARCHAR(255), -- encrypted with FIRECRAWL_KEYS_ENCRYPTION_KEY
   key_prefix VARCHAR(255) NOT NULL,
   revoked BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 
 -- Lightweight migrations: add columns if they don't exist (for existing databases)
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_value VARCHAR(255);
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);

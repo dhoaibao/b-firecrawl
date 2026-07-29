@@ -43,6 +43,7 @@ function makeKey(overrides: Partial<ApiKey> = {}): ApiKey {
     user_id: "user-1",
     name: "Test Key",
     key_hash: "hash",
+    key_value: "fc_plainkey",
     key_prefix: "abcdef12",
     revoked: false,
     created_at: new Date().toISOString(),
@@ -62,6 +63,7 @@ describe("GET /api-keys", () => {
     const app = createApp({ id: "admin-1", is_admin: true });
     const res = await request(app).get("/api-keys").expect(200);
     expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]).not.toHaveProperty("key");
     expect(mockListApiKeys).toHaveBeenCalledWith(undefined);
   });
 
@@ -72,11 +74,13 @@ describe("GET /api-keys", () => {
     expect(mockListApiKeys).toHaveBeenCalledWith("user-1");
   });
 
-  it("omits key_hash from response", async () => {
+  it("omits key_hash but includes the retained key for re-copying", async () => {
     mockListApiKeys.mockResolvedValue([makeKey()]);
     const app = createApp({ id: "user-1", is_admin: false });
     const res = await request(app).get("/api-keys").expect(200);
     expect(res.body.data[0]).not.toHaveProperty("key_hash");
+    expect(res.body.data[0].key).toBe("fc_plainkey");
+    expect(res.body.data[0]).not.toHaveProperty("key_value");
   });
 });
 
@@ -99,6 +103,13 @@ describe("GET /api-keys/:id", () => {
     mockGetApiKeyById.mockResolvedValue(null);
     const app = createApp({ id: "user-1", is_admin: false });
     await request(app).get("/api-keys/missing").expect(404);
+  });
+
+  it("does not return revoked key values", async () => {
+    mockGetApiKeyById.mockResolvedValue(makeKey({ user_id: "user-1", revoked: true }));
+    const app = createApp({ id: "user-1", is_admin: false });
+    const res = await request(app).get("/api-keys/key-1").expect(200);
+    expect(res.body.data).not.toHaveProperty("key");
   });
 });
 

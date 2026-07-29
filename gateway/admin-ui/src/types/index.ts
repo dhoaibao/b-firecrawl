@@ -38,7 +38,7 @@ export interface ApiKeyData {
   created_at: string
   updated_at: string
   last_used_at: string | null
-  key?: string // shown only on creation
+  key?: string // available for re-copying when retained by the gateway
 }
 
 /** Backend filter option */
