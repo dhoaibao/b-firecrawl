@@ -61,7 +61,7 @@ docker compose logs gateway
 - `docker-compose.yaml` — gateway-only deployment with local image build
 - `docker-compose.prebuilt.yaml` — gateway-only deployment using published `dhoaibao/firecrawl-gateway:latest` image
 - `.env.example` — environment variables
-- `.github/workflows/deploy.yml` — CI/CD build and deploy
+- `.github/workflows/deploy.yml` — deployment workflow (currently disabled by job guards)
 - `README.md` — project overview and quick start
 - `QUICKSTART.md` — no-clone pre-built image guide
 - `SELF_HOST.md` — deployment guide
@@ -69,7 +69,7 @@ docker compose logs gateway
 
 ## Safety / Do-Not-Assume
 
-- The gateway listens on `GATEWAY_PORT` (default 8080). `LOCAL_FIRECRAWL_URL` and `DATABASE_URL` must point to externally managed services.
+- The container listens on `PORT=8080`; Compose maps host `GATEWAY_PORT` (default 8080) to it. `LOCAL_FIRECRAWL_URL` and `DATABASE_URL` must point to externally managed services.
 - The admin UI is served under `/admin`; the admin API is under `/admin/api/*`.
 - Auth is enabled by default (`AUTH_ENABLED=true`). API requests need `Authorization: Bearer <virtual-key>`; admin UI uses session login.
 - Virtual API keys are SHA-256 hashed, `fc_` prefixed, and shown only once on creation.
@@ -84,7 +84,7 @@ docker compose logs gateway
 - Edit source, not build outputs. `npm run build` copies `src/db/schema.sql` into `dist/db/schema.sql`.
 - Node 22+ is required; TypeScript strict mode is enabled.
 - Keep `CLAUDE.md` as a thin redirect to `AGENTS.md`; put repo guidance here.
-- CI/CD lives in `.github/workflows/deploy.yml` and builds/pushes `dhoaibao/firecrawl-gateway:latest`.
+- Deployment configuration lives in `.github/workflows/deploy.yml`, but both jobs are currently guarded with `if: ${{ false }}`.
 
 ## Source-of-Truth Files
 
