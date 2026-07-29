@@ -39,7 +39,7 @@ async function main() {
   }
 
   const app = express();
-  const auditStore = createAuditStore(config.logFile);
+  const auditStore = createAuditStore(config.logFile, { persistToDatabase: true });
   const handleProxy = createProxyHandler({ config, auditStore });
   const handlePlaygroundProxy = createProxyHandler({
     config,

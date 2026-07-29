@@ -37,6 +37,25 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON api_keys(key_prefix);
 CREATE INDEX IF NOT EXISTS idx_api_keys_last_used_at ON api_keys(last_used_at);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
 
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL,
+  method TEXT NOT NULL,
+  path TEXT NOT NULL,
+  route_mode TEXT NOT NULL,
+  backend_used TEXT NOT NULL,
+  fallback_used BOOLEAN NOT NULL DEFAULT false,
+  fallback_reason TEXT NOT NULL DEFAULT '',
+  status_code INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  target_url TEXT NOT NULL DEFAULT '',
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  request_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,

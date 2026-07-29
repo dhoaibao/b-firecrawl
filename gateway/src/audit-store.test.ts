@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs/promises";
+import { withClient } from "./db";
 import { createAuditStore } from "./audit-store";
+
+vi.mock("./db", () => ({ withClient: vi.fn() }));
 import type { AuditEntry } from "./types";
 
 const entry: AuditEntry = {
@@ -20,6 +23,48 @@ const entry: AuditEntry = {
 describe("createAuditStore", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("persists audit entries to the database when enabled", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 });
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+    vi.spyOn(fs, "appendFile").mockResolvedValue(undefined);
+
+    const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
+
+    await store.appendAudit(entry);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO audit_logs"),
+      expect.arrayContaining([entry.id, entry.created_at, entry.status_code]),
+    );
+  });
+
+  it("uses UTC calendar boundaries when deleting database entries", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 });
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "writeFile").mockResolvedValue(undefined);
+
+    const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
+
+    await store.deleteAuditEntries("today");
+
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("AT TIME ZONE 'UTC'"));
+    expect(query).not.toHaveBeenCalledWith(
+      expect.stringContaining("NOW() - $1::interval"),
+      expect.anything(),
+    );
+  });
+
+  it("reports database deletions when the JSONL file is missing", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 3 });
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "access").mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
+
+    const store = createAuditStore("/tmp/missing-audit.jsonl", { persistToDatabase: true });
+
+    await expect(store.deleteAuditEntries("today")).resolves.toBe(3);
   });
 
   it("rejects when an audit entry cannot be persisted", async () => {
