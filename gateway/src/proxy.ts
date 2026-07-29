@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { Readable } from "node:stream";
 import type { AuditStore } from "./audit-store";
 import type { GatewayConfig, ProxyResult, AuditEntry } from "./types";
 import {
@@ -62,29 +63,44 @@ async function getCloudApiKeys(config: GatewayConfig): Promise<string[]> {
 
 const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
 const creditUsageCache = new Map<string, { remainingCredits: number; expiresAt: number }>();
+const creditUsageInFlight = new Map<string, Promise<number | null>>();
 
 async function getRemainingCredits(config: GatewayConfig, apiKey: string): Promise<number | null> {
   const cached = creditUsageCache.get(apiKey);
   if (cached && cached.expiresAt > Date.now()) return cached.remainingCredits;
   if (cached) creditUsageCache.delete(apiKey);
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  const existing = creditUsageInFlight.get(apiKey);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const response = await fetch(`${config.cloudBaseUrl}/v2/team/credit-usage`, {
+        headers: { authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+      });
+      if (!response.ok) return null;
+      const json = (await response.json()) as { data?: { remainingCredits?: number } };
+      const remainingCredits = json.data?.remainingCredits;
+      if (typeof remainingCredits !== "number") return null;
+      creditUsageCache.set(apiKey, { remainingCredits, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
+      return remainingCredits;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+
+  creditUsageInFlight.set(apiKey, request);
   try {
-    const response = await fetch(`${config.cloudBaseUrl}/v2/team/credit-usage`, {
-      headers: { authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    const json = (await response.json()) as { data?: { remainingCredits?: number } };
-    const remainingCredits = json.data?.remainingCredits;
-    if (typeof remainingCredits !== "number") return null;
-    creditUsageCache.set(apiKey, { remainingCredits, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
-    return remainingCredits;
-  } catch {
-    return null;
+    return await request;
   } finally {
-    clearTimeout(timeout);
+    if (creditUsageInFlight.get(apiKey) === request) {
+      creditUsageInFlight.delete(apiKey);
+    }
   }
 }
 
@@ -175,6 +191,7 @@ async function proxyToBackend({
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
   const started = Date.now();
+  let streamingResponse = false;
 
   try {
     const response = await fetch(targetUrl, {
@@ -185,6 +202,21 @@ async function proxyToBackend({
       redirect: "manual",
       signal: controller.signal,
     });
+
+    // Successful responses are streamed directly to the client. Error responses
+    // remain buffered because routing fallback decisions inspect their payload.
+    if ((response.ok || response.status < 400) && response.body) {
+      streamingResponse = true;
+      return {
+        kind: "response",
+        backend,
+        response,
+        stream: response.body,
+        cleanup: () => clearTimeout(timeout),
+        durationMs: Date.now() - started,
+      };
+    }
+
     const arrayBuffer = await response.arrayBuffer();
     return {
       kind: "response",
@@ -210,7 +242,8 @@ async function proxyToBackend({
       durationMs: Date.now() - started,
     };
   } finally {
-    clearTimeout(timeout);
+    // Streamed responses keep the timeout alive until their body completes.
+    if (!streamingResponse) clearTimeout(timeout);
   }
 }
 
@@ -224,11 +257,11 @@ function backendUrl(
   return `${base}${originalUrl}`;
 }
 
-function sendProxyResponse(
+async function sendProxyResponse(
   res: Response,
   result: ProxyResult,
   meta: { fallbackUsed: boolean; fallbackReason: string },
-): void {
+): Promise<void> {
   if (result.kind === "network-error") {
     res.status(502).set({
       "content-type": "application/json; charset=utf-8",
@@ -245,7 +278,7 @@ function sendProxyResponse(
     result.response.headers.forEach((value, key) => {
       const lower = key.toLowerCase();
       if (hopByHopHeaders.has(lower)) return;
-      if (lower === "content-encoding") return;
+      if (!result.stream && lower === "content-encoding") return;
       headers[key] = value;
     });
   }
@@ -254,10 +287,25 @@ function sendProxyResponse(
   if (meta.fallbackReason) {
     headers["x-hybrid-firecrawl-fallback-reason"] = meta.fallbackReason;
   }
-  headers["content-length"] = String(result.body.length);
+  if (!result.stream && result.body) {
+    headers["content-length"] = String(result.body.length);
+  }
 
   res.status(result.response?.status || 502).set(headers);
-  res.end(result.body);
+  if (result.stream) {
+    await new Promise<void>((resolve, reject) => {
+      Readable.fromWeb(result.stream as ReadableStream<Uint8Array>)
+        .once("error", reject)
+        .once("end", resolve)
+        .pipe(res)
+        .once("close", resolve)
+        .once("error", reject);
+    }).finally(() => {
+      result.cleanup?.();
+    });
+  } else {
+    res.end(result.body);
+  }
 }
 
 /** Status codes that suggest trying another cloud API key */
@@ -589,6 +637,6 @@ export function createProxyHandler({
       fallbackUsed,
       fallbackReason: fallbackReason || needsCloud.reason || "",
     });
-    sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
+    await sendProxyResponse(res, result, { fallbackUsed, fallbackReason });
   };
 }

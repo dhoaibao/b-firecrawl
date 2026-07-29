@@ -222,6 +222,7 @@ async function main() {
       rootLogger.info("HTTP server closed");
 
       try {
+        await auditStore.flush?.(5_000);
         await getPool().end();
         rootLogger.info("Database pool closed");
       } catch (poolErr) {

@@ -21,7 +21,10 @@ export interface ProxyResult {
   backend: string;
   response?: Response;
   error?: Error;
-  body: Buffer;
+  /** Buffered only for errors/fallback inspection; successful responses may stream. */
+  body?: Buffer;
+  stream?: ReadableStream<Uint8Array>;
+  cleanup?: () => void;
   durationMs: number;
 }
 

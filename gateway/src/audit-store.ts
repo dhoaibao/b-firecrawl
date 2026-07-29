@@ -13,6 +13,7 @@ export interface AuditStore {
   appendAudit(entry: AuditEntry): Promise<void>;
   readAuditEntries(limit?: number): Promise<AuditEntry[]>;
   deleteAuditEntries(filter: DeleteFilter): Promise<number>;
+  flush?: (timeoutMs?: number) => Promise<void>;
 }
 
 interface AuditStoreOptions {
@@ -58,7 +59,15 @@ async function readLastLines(filePath: string, lineCount: number): Promise<strin
   }
 }
 
+const MAX_PENDING_AUDITS = 10_000;
+
 export function createAuditStore(logFile: string, options: AuditStoreOptions = {}): AuditStore {
+  const pendingFileEntries: AuditEntry[] = [];
+  const pendingDatabaseEntries: AuditEntry[] = [];
+  let fileFlushPromise: Promise<void> | null = null;
+  let databaseFlushPromise: Promise<void> | null = null;
+  let discardPending = false;
+
   async function persistAuditToDatabase(entry: AuditEntry): Promise<void> {
     try {
       await withClient((client) => client.query(
@@ -88,21 +97,97 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
     }
   }
 
-  async function appendAudit(entry: AuditEntry): Promise<void> {
-    try {
-      await fs.mkdir(path.dirname(logFile), { recursive: true });
-      await fs.appendFile(logFile, JSON.stringify(entry) + "\n", "utf8");
-    } catch (err) {
-      rootLogger.error({ err, entry }, "Failed to write audit entry");
-      throw err;
+  async function flushFileEntries(): Promise<void> {
+    if (fileFlushPromise) return fileFlushPromise;
+
+    fileFlushPromise = (async () => {
+      while (pendingFileEntries.length > 0) {
+        const entries = pendingFileEntries.splice(0, pendingFileEntries.length);
+        try {
+          await fs.mkdir(path.dirname(logFile), { recursive: true });
+          await fs.appendFile(
+            logFile,
+            entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n",
+            "utf8",
+          );
+        } catch (err) {
+          rootLogger.error({ err, count: entries.length }, "Failed to write audit entries");
+        }
+      }
+    })().finally(() => {
+      fileFlushPromise = null;
+    });
+
+    return fileFlushPromise;
+  }
+
+  async function flushDatabaseEntries(): Promise<void> {
+    if (databaseFlushPromise) return databaseFlushPromise;
+
+    databaseFlushPromise = (async () => {
+      while (pendingDatabaseEntries.length > 0) {
+        const entries = pendingDatabaseEntries.splice(0, pendingDatabaseEntries.length);
+        for (const entry of entries) {
+          if (discardPending) break;
+          await persistAuditToDatabase(entry);
+        }
+      }
+    })().finally(() => {
+      databaseFlushPromise = null;
+    });
+
+    return databaseFlushPromise;
+  }
+
+  function enqueueDatabaseWrite(entry: AuditEntry): void {
+    if (pendingDatabaseEntries.length >= MAX_PENDING_AUDITS) {
+      rootLogger.warn({ maxPending: MAX_PENDING_AUDITS }, "Dropping database audit entry: queue is full");
+      return;
     }
 
+    pendingDatabaseEntries.push(entry);
+    void flushDatabaseEntries();
+  }
+
+  async function appendAudit(entry: AuditEntry): Promise<void> {
+    if (pendingFileEntries.length >= MAX_PENDING_AUDITS) {
+      rootLogger.warn({ maxPending: MAX_PENDING_AUDITS }, "Dropping audit entry: queue is full");
+      return;
+    }
+
+    pendingFileEntries.push(entry);
+    void flushFileEntries();
+
     if (options.persistToDatabase) {
-      void persistAuditToDatabase(entry);
+      enqueueDatabaseWrite(entry);
     }
   }
 
+  async function flush(timeoutMs = Number.POSITIVE_INFINITY): Promise<void> {
+    const pendingFlush = Promise.all([flushFileEntries(), flushDatabaseEntries()]);
+    if (!Number.isFinite(timeoutMs)) {
+      await pendingFlush;
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      pendingFlush,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          discardPending = true;
+          pendingFileEntries.length = 0;
+          pendingDatabaseEntries.length = 0;
+          rootLogger.warn({ timeoutMs }, "Audit flush timed out; discarding pending entries");
+          resolve();
+        }, timeoutMs);
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
+  }
+
   async function readAuditEntries(limit = 250): Promise<AuditEntry[]> {
+    await flush();
     const databaseEntries: AuditEntry[] = [];
     if (options.persistToDatabase) {
       try {
@@ -250,5 +335,5 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
     return Math.max(deleted, deletedFromDatabase);
   }
 
-  return { appendAudit, readAuditEntries, deleteAuditEntries };
+  return { appendAudit, readAuditEntries, deleteAuditEntries, flush };
 }

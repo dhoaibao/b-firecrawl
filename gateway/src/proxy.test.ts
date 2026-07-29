@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { PassThrough } from "node:stream";
 import { hasSensitiveHeaders } from "./policy";
 import { headersForPrivacyCheck, createProxyHandler } from "./proxy";
 import type { AuditStore } from "./audit-store";
@@ -151,6 +152,52 @@ describe("createProxyHandler trusted session caller", () => {
         backend_used: "local",
       }),
     );
+  });
+});
+
+describe("createProxyHandler response streaming", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+    mockGetSetting.mockResolvedValue(null);
+  });
+
+  it("streams successful upstream responses and preserves content encoding", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-encoding": "gzip" }),
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("streamed response"));
+          controller.close();
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const handler = createProxyHandler({ config: baseConfig, auditStore });
+    const req = {
+      method: "GET",
+      url: "/v1/scrape",
+      originalUrl: "/v1/scrape",
+      headers: {},
+      requestId: "req-stream",
+      [Symbol.asyncIterator]: async function* () {},
+    } as unknown as import("express").Request;
+    const res = new PassThrough() as PassThrough & {
+      status: ReturnType<typeof vi.fn>;
+      set: ReturnType<typeof vi.fn>;
+    };
+    res.status = vi.fn().mockReturnValue(res);
+    res.set = vi.fn().mockReturnValue(res);
+
+    const chunks: Buffer[] = [];
+    res.on("data", (chunk: Buffer) => chunks.push(chunk));
+    await handler(req, res as unknown as import("express").Response);
+
+    expect(Buffer.concat(chunks).toString()).toBe("streamed response");
+    expect(res.set).toHaveBeenCalledWith(expect.objectContaining({ "content-encoding": "gzip" }));
   });
 });
 

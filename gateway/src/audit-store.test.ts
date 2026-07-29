@@ -34,6 +34,7 @@ describe("createAuditStore", () => {
     const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
 
     await store.appendAudit(entry);
+    await store.flush?.();
 
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO audit_logs"),
@@ -67,7 +68,7 @@ describe("createAuditStore", () => {
     await expect(store.deleteAuditEntries("today")).resolves.toBe(3);
   });
 
-  it("rejects when an audit entry cannot be persisted", async () => {
+  it("logs when an audit entry cannot be persisted without blocking the request", async () => {
     vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
     vi.spyOn(fs, "appendFile").mockRejectedValue(
       Object.assign(new Error("permission denied"), { code: "EACCES" }),
@@ -75,6 +76,30 @@ describe("createAuditStore", () => {
 
     const store = createAuditStore("/data/hybrid-firecrawl-requests.jsonl");
 
-    await expect(store.appendAudit(entry)).rejects.toMatchObject({ code: "EACCES" });
+    await expect(store.appendAudit(entry)).resolves.toBeUndefined();
+    await expect(store.flush!()).resolves.toBeUndefined();
+  });
+
+  it("times out and discards queued database audits", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstQuery = new Promise<{ rowCount: number }>(() => {});
+      const query = vi.fn().mockReturnValue(firstQuery);
+      vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+      vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+      vi.spyOn(fs, "appendFile").mockResolvedValue(undefined);
+
+      const store = createAuditStore("/tmp/audit.jsonl", { persistToDatabase: true });
+      await store.appendAudit(entry);
+      await store.appendAudit({ ...entry, id: "queued-after-first" });
+
+      const flushPromise = store.flush!(10);
+      await vi.advanceTimersByTimeAsync(10);
+      await flushPromise;
+
+      expect(query).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
