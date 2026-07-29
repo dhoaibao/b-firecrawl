@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { KeyRound, Loader2 } from "lucide-react"
+import { CheckCircle2, KeyRound, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import PageLayout from "@/components/PageLayout"
@@ -39,59 +39,71 @@ export default function Account() {
     }
   }
 
+  const inputClassName = "mt-2 h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+
   return (
-    <PageLayout title="Account" icon={KeyRound}>
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle>Change password</CardTitle>
-          <CardDescription>Update the password used to sign in to the admin dashboard.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <label className="block text-sm font-medium text-foreground">
-              Current password
-              <input
-                className="mt-2 flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </label>
-            <label className="block text-sm font-medium text-foreground">
-              New password
-              <input
-                className="mt-2 flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                required
-                minLength={8}
-                maxLength={128}
-                autoComplete="new-password"
-              />
-            </label>
-            <label className="block text-sm font-medium text-foreground">
-              Confirm new password
-              <input
-                className="mt-2 flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                required
-                minLength={8}
-                maxLength={128}
-                autoComplete="new-password"
-              />
-            </label>
-            <Button type="submit" disabled={saving}>
-              {saving && <Loader2 className="animate-spin" />}
-              Change password
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <PageLayout
+      title="Account"
+      icon={KeyRound}
+      description="Manage your admin access and sign-in security."
+    >
+      <div className="grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+        <Card className="overflow-hidden border-white/[0.06] bg-surface-2 py-0">
+          <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-5">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg border border-info-muted bg-info-muted/40 p-2 text-info-fg">
+                <KeyRound className="size-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-semibold">Change password</CardTitle>
+                <CardDescription className="mt-1.5">Use a unique password with at least 8 characters.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 py-5">
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <label className="block text-sm font-medium text-foreground">
+                Current password
+                <input className={inputClassName} type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
+              </label>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-foreground">
+                  New password
+                  <input className={inputClassName} type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" />
+                </label>
+                <label className="block text-sm font-medium text-foreground">
+                  Confirm new password
+                  <input className={inputClassName} type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" />
+                </label>
+              </div>
+              <div className="flex justify-end border-t border-white/[0.06] pt-5">
+                <Button type="submit" disabled={saving}>
+                  {saving && <Loader2 className="animate-spin" />}
+                  Change password
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="border-white/[0.06] bg-surface-2 shadow-none">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-success-fg" />
+              <CardTitle className="text-sm font-semibold">Security checklist</CardTitle>
+            </div>
+            <CardDescription>Keep your administrator account protected.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {["Use a password you do not reuse elsewhere", "Keep your password private", "Change it immediately if you suspect exposure"].map((item) => (
+              <div key={item} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-fg" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </PageLayout>
   )
 }

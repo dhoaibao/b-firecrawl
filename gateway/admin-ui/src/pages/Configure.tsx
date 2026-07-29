@@ -293,9 +293,13 @@ export default function Configure() {
 
   if (loading) {
     return (
-      <PageLayout title="Configure" icon={Settings}>
+      <PageLayout
+        title="Configure"
+        icon={Settings}
+        description="Control routing, access policies, and Firecrawl Cloud capacity."
+      >
         <div className="space-y-4">
-          {Array.from({ length: 2 }).map((_, i) => (
+          {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i} className="h-40 animate-pulse border-white/[0.06] bg-surface-2">
               <div className="h-full bg-white/[0.02]" />
             </Card>
@@ -309,6 +313,7 @@ export default function Configure() {
     <PageLayout
       title="Configure"
       icon={Settings}
+      description="Control routing, access policies, and Firecrawl Cloud capacity."
       actions={
         <>
           <Button
@@ -331,12 +336,12 @@ export default function Configure() {
           <span className="text-xs text-muted-foreground">Save before leaving this page.</span>
         </div>
       )}
-      <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-2">
         {CATEGORIES.map((cat) => {
           const catFields = FIELDS.filter((f) => f.category === cat.key)
           if (cat.key === "cloud") {
             return (
-              <Card key={cat.key} className="border-white/[0.06] bg-surface-2 py-0 shadow-none">
+              <Card key={cat.key} className="border-white/[0.06] bg-surface-2 py-0 shadow-none lg:col-span-2">
                 <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
                   <div className="flex items-center gap-2">
                     <cat.icon className="size-4 text-muted-foreground" />
@@ -433,17 +438,19 @@ export default function Configure() {
               </CardHeader>
               <div className="divide-y divide-white/[0.04]">
                 {catFields.map((field) => (
-                  <div key={field.key} className="px-5 py-4">
-                    <label className="mb-1 block text-sm font-medium text-foreground">
-                      {field.label}
-                    </label>
-                    <p className="mb-3 text-xs text-muted-foreground">{field.description}</p>
+                  <div key={field.key} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.9fr)] lg:items-center lg:gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">
+                        {field.label}
+                      </label>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{field.description}</p>
+                    </div>
                     {field.type === "select" ? (
                       <Select
                         value={String(settings[field.key] ?? DEFAULT_ROUTE_MODE)}
                         onValueChange={(value) => updateSetting(field.key, value)}
                       >
-                        <SelectTrigger className="h-10 w-full max-w-md text-sm">
+                        <SelectTrigger className="h-10 w-full text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -460,7 +467,7 @@ export default function Configure() {
                         value={settings[field.key] ?? ""}
                         onChange={(e) => updateSetting(field.key, e.target.value)}
                         placeholder="https://your-firecrawl-instance.example.com"
-                        className="h-10 w-full max-w-md rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                        className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
                       />
                     ) : (
                       <input
@@ -472,7 +479,7 @@ export default function Configure() {
                           const val = e.target.value === "" ? 0 : Number(e.target.value)
                           updateSetting(field.key, val)
                         }}
-                        className="h-10 w-full max-w-xs rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                        className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
                       />
                     )}
                   </div>
