@@ -76,15 +76,28 @@ function isSafeExternalUrl(url: string): boolean {
 interface LogTableRowProps {
   entry: AuditEntry
   users?: UserData[]
+  onSelect?: (entry: AuditEntry) => void
 }
 
 export const LogTableRow = React.memo(function LogTableRow({
   entry,
   users,
+  onSelect,
 }: LogTableRowProps) {
   const user = users?.find((u) => u.id === entry.user_id)
   return (
-    <TableRow className="group border-white/[0.04] bg-surface-1 transition-colors duration-150 hover:bg-surface-3">
+    <TableRow
+      className="group cursor-pointer border-white/[0.04] bg-surface-1 transition-colors duration-150 hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      onClick={() => onSelect?.(entry)}
+      onKeyDown={(event) => {
+        if ((event.key === "Enter" || event.key === " ") && onSelect) {
+          event.preventDefault()
+          onSelect(entry)
+        }
+      }}
+      tabIndex={onSelect ? 0 : undefined}
+      aria-label={onSelect ? `View details for ${entry.method} ${entry.path}` : undefined}
+    >
       <TableCell className="relative pl-5 text-xs text-muted-foreground">
         <span
           className={cn(
@@ -156,19 +169,21 @@ export const LogTableRow = React.memo(function LogTableRow({
           <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="max-w-[320px] whitespace-normal break-all pr-5 font-mono text-xs font-medium">
+      <TableCell className="max-w-[320px] overflow-hidden pr-5 font-mono text-xs font-medium">
         {entry.target_url ? (
           isSafeExternalUrl(entry.target_url) ? (
             <a
               href={entry.target_url}
               target="_blank"
               rel="noreferrer"
-              className="text-foreground underline-offset-4 transition-colors hover:text-white hover:underline"
+              onClick={(event) => event.stopPropagation()}
+              className="block max-w-[300px] truncate whitespace-nowrap text-foreground underline-offset-4 transition-colors hover:text-white hover:underline"
+              title={entry.target_url}
             >
               {entry.target_url}
             </a>
           ) : (
-            <span className="text-muted-foreground" title="Unsafe URL">
+            <span className="block max-w-[300px] truncate whitespace-nowrap text-muted-foreground" title={entry.target_url}>
               {entry.target_url}
             </span>
           )

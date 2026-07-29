@@ -16,6 +16,7 @@ export interface AuditMetrics {
   fallbacks: number
   avgDuration: number
   successCount: number
+  errorCount: number
   successShare: number
   cloudShare: number
   fallbackShare: number
@@ -69,6 +70,7 @@ export function useAuditMetrics(entries: AuditEntry[]): AuditMetrics {
     const successCount = entries.filter(
       (e) => e.status_code >= 200 && e.status_code < 300,
     ).length
+    const errorCount = entries.filter((e) => e.status_code >= 400).length
     const successShare = total ? (successCount / total) * 100 : 0
     const cloudShare = total ? (cloud / total) * 100 : 0
     const fallbackShare = total ? (fallbacks / total) * 100 : 0
@@ -80,6 +82,7 @@ export function useAuditMetrics(entries: AuditEntry[]): AuditMetrics {
       fallbacks,
       avgDuration,
       successCount,
+      errorCount,
       successShare,
       cloudShare,
       fallbackShare,

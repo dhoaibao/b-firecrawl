@@ -144,6 +144,7 @@ export default function Configure() {
   const [newKey, setNewKey] = useState("")
   const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
   const [creditUsageLoading, setCreditUsageLoading] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState("")
   const idCounter = useRef(0)
   const { addToast } = useToast()
   const { confirm: confirmReset, dialog: resetDialog } = useConfirmDialog()
@@ -186,7 +187,9 @@ export default function Configure() {
       const data = json.data || {}
       setSettings(data)
       idCounter.current = 0
-      setApiKeyRows(makeRows(data.firecrawl_api_keys || [], idCounter))
+      const rows = makeRows(data.firecrawl_api_keys || [], idCounter)
+      setApiKeyRows(rows)
+      setSavedSnapshot(JSON.stringify({ settings: data, keys: rows.map((row) => row.key) }))
     } catch (err) {
       if (signal?.aborted) return
       addToast(err instanceof Error ? err.message : "Failed to load settings", "error")
@@ -208,6 +211,21 @@ export default function Configure() {
     void fetchCreditUsage(controller.signal)
     return () => controller.abort()
   }, [fetchCreditUsage])
+
+  const currentSnapshot = JSON.stringify({
+    settings,
+    keys: apiKeyRows.map((row) => row.key),
+  })
+  const isDirty = Boolean(savedSnapshot) && currentSnapshot !== savedSnapshot
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [isDirty])
 
   function updateSetting(key: SettingKey, value: unknown) {
     setSettings((prev) => ({ ...prev, [key]: value }))
@@ -239,6 +257,8 @@ export default function Configure() {
       }
 
       await api.put<{ data: SettingsData }>("/admin/api/settings", payload)
+      setSettings((prev) => ({ ...prev, ...payload }))
+      setSavedSnapshot(JSON.stringify({ settings: { ...settings, ...payload }, keys: payload.firecrawl_api_keys }))
       await fetchCreditUsage()
       addToast("Settings saved successfully", "success")
     } catch (err) {
@@ -291,11 +311,17 @@ export default function Configure() {
             <RotateCcw className="size-4 mr-1" /> Reset
           </Button>
           <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
-            <Save className="size-4 mr-1" /> {saving ? "Saving..." : "Save Changes"}
+            <Save className="size-4 mr-1" /> {saving ? "Saving..." : isDirty ? "Save Changes" : "Saved"}
           </Button>
         </>
       }
     >
+      {isDirty && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-warning-muted/60 bg-warning-muted/20 px-4 py-3 text-sm">
+          <span className="text-warning-fg">You have unsaved configuration changes.</span>
+          <span className="text-xs text-muted-foreground">Save before leaving this page.</span>
+        </div>
+      )}
       <div className="space-y-6">
         {CATEGORIES.map((cat) => {
           const catFields = FIELDS.filter((f) => f.category === cat.key)

@@ -215,6 +215,19 @@ export default function Users() {
         </>
       }
     >
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        {[
+          { label: "Active", value: users.filter((u) => u.status === "active").length, tone: "text-success-fg" },
+          { label: "Suspended", value: users.filter((u) => u.status === "suspended").length, tone: "text-warning-fg" },
+          { label: "Blocked", value: users.filter((u) => u.status === "blocked").length, tone: "text-danger-fg" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border border-white/[0.06] bg-surface-2 px-4 py-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+            <p className={`mt-1 font-mono text-2xl font-semibold tabular-nums ${item.tone}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Search & Filter Bar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">

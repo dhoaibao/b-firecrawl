@@ -17,7 +17,7 @@ export default function PageLayout({
   children,
 }: PageLayoutProps) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div id="content" className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1680px] px-4 py-4 lg:px-6">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">

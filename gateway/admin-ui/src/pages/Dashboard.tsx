@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   ChevronLeft,
   ChevronRight,
   Clock,
   Database,
+  Download,
   RefreshCw,
   Search,
   Server,
@@ -40,6 +42,7 @@ import { StatusCodeChart } from "@/components/StatusCodeChart"
 import { TopEndpointsChart } from "@/components/TopEndpointsChart"
 import { LatencyDistributionChart } from "@/components/LatencyDistributionChart"
 import { LogTableRow } from "@/components/LogTableRow"
+import AuditDetailDrawer from "@/components/AuditDetailDrawer"
 import MetricsGrid from "@/components/MetricsGrid"
 import FilterBar from "@/components/FilterBar"
 import DeleteHistoryDialog from "@/components/DeleteHistoryDialog"
@@ -99,6 +102,7 @@ export default function Dashboard() {
   const [backendFilter, setBackendFilter] = useState<BackendFilter>("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
   const [fallbackOnly, setFallbackOnly] = useState(false)
+  const [slowOnly, setSlowOnly] = useState(false)
   const [search, setSearch] = useState("")
   const [dateRange, setDateRange] = useState<DateRange>("all")
   const [dayFilter, setDayFilter] = useState("all")
@@ -112,6 +116,8 @@ export default function Dashboard() {
   const [deleting, setDeleting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
+  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const fetchingRef = useRef(false)
 
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
@@ -179,15 +185,18 @@ export default function Dashboard() {
     }, 0)
 
     let interval: number | undefined
+    const refreshWhenVisible = () => {
+      if (live && !document.hidden) void fetchData()
+    }
     if (live) {
-      interval = window.setInterval(() => {
-        void fetchData()
-      }, 5000)
+      interval = window.setInterval(refreshWhenVisible, 5000)
+      document.addEventListener("visibilitychange", refreshWhenVisible)
     }
 
     return () => {
       window.clearTimeout(initialLoad)
       if (interval) window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
     }
   }, [fetchData, fetchCreditUsage, live])
 
@@ -206,6 +215,7 @@ export default function Dashboard() {
       }
       if (backendFilter && entry.backend_used !== backendFilter) return false
       if (fallbackOnly && !entry.fallback_used) return false
+      if (slowOnly && entry.duration_ms < 1000) return false
       if (statusFilter === "2xx" && !(entry.status_code >= 200 && entry.status_code < 300)) return false
       if (statusFilter === "4xx" && !(entry.status_code >= 400 && entry.status_code < 500)) return false
       if (statusFilter === "5xx" && !(entry.status_code >= 500 && entry.status_code < 600)) return false
@@ -248,7 +258,7 @@ export default function Dashboard() {
       if (userFilter !== "all" && entry.user_id !== userFilter) return false
       return true
     })
-  }, [backendFilter, entries, fallbackOnly, search, statusFilter, dateRange, dayFilter, monthFilter, yearFilter, userFilter])
+  }, [backendFilter, entries, fallbackOnly, slowOnly, search, statusFilter, dateRange, dayFilter, monthFilter, yearFilter, userFilter])
 
   const metrics = useAuditMetrics(filteredEntries)
   const pageCount = Math.max(1, Math.ceil(filteredEntries.length / pageSize))
@@ -303,11 +313,82 @@ export default function Dashboard() {
         clear: () => setUserFilter("all"),
       })
     }
+    if (slowOnly) {
+      filters.push({ key: "slow", label: "Slow: >1s", clear: () => setSlowOnly(false) })
+    }
     if (search.trim()) {
       filters.push({ key: "search", label: `Search: "${search.trim()}"`, clear: () => setSearch("") })
     }
     return filters
-  }, [dateRange, dayFilter, monthFilter, yearFilter, backendFilter, fallbackOnly, statusFilter, userFilter, search, users])
+  }, [dateRange, dayFilter, monthFilter, yearFilter, backendFilter, fallbackOnly, slowOnly, statusFilter, userFilter, search, users])
+
+  const applySavedView = useCallback((view: "errors" | "fallbacks" | "slow") => {
+    setDateRange("today")
+    setDayFilter("all")
+    setMonthFilter("all")
+    setYearFilter("all")
+    setUserFilter("all")
+    setSearch("")
+    setCurrentPage(1)
+    if (view === "errors") {
+      setSlowOnly(false)
+      setStatusFilter("5xx")
+      setBackendFilter("")
+      setFallbackOnly(false)
+    } else if (view === "fallbacks") {
+      setSlowOnly(false)
+      setStatusFilter("")
+      setBackendFilter("")
+      setFallbackOnly(true)
+    } else {
+      setStatusFilter("")
+      setBackendFilter("")
+      setFallbackOnly(false)
+      setSlowOnly(true)
+    }
+  }, [])
+
+  const copyDetailValue = useCallback(async (field: string, value: string) => {
+    await navigator.clipboard.writeText(value)
+    setCopiedField(field)
+    window.setTimeout(() => setCopiedField(null), 2000)
+  }, [])
+
+  const exportFilteredEntries = useCallback(() => {
+    const headers = ["id", "created_at", "method", "path", "route_mode", "backend_used", "fallback_used", "fallback_reason", "status_code", "duration_ms", "target_url", "user_id"]
+    const csv = [headers, ...filteredEntries.map((entry) => headers.map((header) => String(entry[header as keyof AuditEntry] ?? "")))]
+      .map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(","))
+      .join("\n")
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `gateway-audit-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }, [filteredEntries])
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      if (event.key === "/") {
+        event.preventDefault()
+        document.querySelector<HTMLInputElement>('input[placeholder="Search logs"]')?.focus()
+      } else if (event.key.toLowerCase() === "r") {
+        event.preventDefault()
+        void fetchData()
+      }
+    }
+    document.addEventListener("keydown", handleShortcut)
+    return () => document.removeEventListener("keydown", handleShortcut)
+  }, [fetchData])
+
+  const closeAuditDrawer = useCallback(() => {
+    setSelectedEntry(null)
+  }, [])
+
+  const handleCopyDetailValue = useCallback((field: string, value: string) => {
+    void copyDetailValue(field, value)
+  }, [copyDetailValue])
 
   const clearAllFilters = useCallback(() => {
     setDateRange("all")
@@ -316,14 +397,21 @@ export default function Dashboard() {
     setYearFilter("all")
     setBackendFilter("")
     setFallbackOnly(false)
+    setSlowOnly(false)
     setStatusFilter("")
     setUserFilter("all")
     setSearch("")
     setCurrentPage(1)
   }, [])
 
+  const attentionItems = [
+    metrics.errorCount > 0 ? `${metrics.errorCount} failed requests in this view` : null,
+    metrics.fallbacks > 0 ? `${metrics.fallbacks} requests used fallback routing` : null,
+    creditUsage.some((usage) => usage.error) ? "One or more Cloud credit balances could not be loaded" : null,
+  ].filter((item): item is string => Boolean(item))
+
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="content" className="min-h-screen bg-background text-foreground">
       {/* Sticky header */}
       <section className="sticky top-0 z-20 border-b border-white/[0.06] bg-surface-2/90 backdrop-blur">
         <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
@@ -392,6 +480,14 @@ export default function Dashboard() {
             {/* Right: GitHub link */}
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                variant="outline"
+                onClick={exportFilteredEntries}
+                disabled={filteredEntries.length === 0}
+                title="Export filtered audit logs"
+              >
+                <Download className="mr-1 size-4" /> Export
+              </Button>
+              <Button
                 asChild
                 variant="outline"
                 className="border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-colors hover:bg-surface-4"
@@ -407,6 +503,18 @@ export default function Dashboard() {
           </div>
 
           <MetricsGrid metrics={metrics} loading={loading} creditUsage={creditUsage} />
+
+          {!loading && attentionItems.length > 0 && (
+            <div className="rounded-lg border border-warning-muted/60 bg-warning-muted/20 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">Needs attention</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{attentionItems.join(" • ")}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {lastUpdated && (
             <div className="flex justify-end">
@@ -547,6 +655,13 @@ export default function Dashboard() {
               </div>
             )}
 
+            <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+              <span className="mr-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Saved views</span>
+              <Button variant="outline" size="sm" className="h-7 bg-surface-1 text-xs" onClick={() => applySavedView("errors")}>5xx errors</Button>
+              <Button variant="outline" size="sm" className="h-7 bg-surface-1 text-xs" onClick={() => applySavedView("fallbacks")}>Fallbacks</Button>
+              <Button variant="outline" size="sm" className="h-7 bg-surface-1 text-xs" onClick={() => applySavedView("slow")}>Slow requests</Button>
+            </div>
+
             <FilterBar
               dateRange={dateRange}
               setDateRange={setDateRange}
@@ -592,7 +707,7 @@ export default function Dashboard() {
                   </TableHeader>
                   <TableBody>
                     {paginatedEntries.map((entry) => (
-                      <LogTableRow key={entry.id} entry={entry} users={users} />
+                      <LogTableRow key={entry.id} entry={entry} users={users} onSelect={setSelectedEntry} />
                     ))}
                   </TableBody>
                 </Table>
@@ -665,6 +780,14 @@ export default function Dashboard() {
           )}
         </Card>
       </section>
+
+      <AuditDetailDrawer
+        entry={selectedEntry}
+        users={users}
+        copiedField={copiedField}
+        onCopy={handleCopyDetailValue}
+        onClose={closeAuditDrawer}
+      />
 
       <DeleteHistoryDialog
         open={showDeleteDialog}

@@ -138,6 +138,19 @@ export default function ApiKeys() {
         </>
       }
     >
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        {[
+          { label: "Active keys", value: keys.filter((k) => !k.revoked).length, tone: "text-success-fg" },
+          { label: "Revoked keys", value: keys.filter((k) => k.revoked).length, tone: "text-danger-fg" },
+          { label: "Never used", value: keys.filter((k) => !k.last_used_at && !k.revoked).length, tone: "text-warning-fg" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border border-white/[0.06] bg-surface-2 px-4 py-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+            <p className={`mt-1 font-mono text-2xl font-semibold tabular-nums ${item.tone}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Search & Filter Bar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
