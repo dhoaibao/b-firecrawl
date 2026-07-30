@@ -13,6 +13,16 @@ export function createAdminRouter(auditStore: AuditStore) {
     res.json({ data: entries });
   });
 
+  router.delete("/logs/:id", requireAdmin, async (req, res) => {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const deleted = await auditStore.deleteAuditEntry(id);
+    if (!deleted) {
+      res.status(404).json({ error: "Audit entry not found" });
+      return;
+    }
+    res.json({ success: true });
+  });
+
   router.delete("/logs", requireAdmin, async (req, res) => {
     const filter = req.query.filter as string;
     if (!validDeleteFilters.includes(filter as typeof validDeleteFilters[number])) {

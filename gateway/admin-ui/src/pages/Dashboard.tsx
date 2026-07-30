@@ -45,6 +45,7 @@ import AuditDetailDrawer from "@/components/AuditDetailDrawer"
 import MetricsGrid from "@/components/MetricsGrid"
 import FilterBar from "@/components/FilterBar"
 import DeleteHistoryDialog from "@/components/DeleteHistoryDialog"
+import { useConfirmDialog } from "@/components/ConfirmDialog"
 import type { AuditEntry, UserData, BackendFilter, StatusFilter, DateRange, CreditUsageItem } from "@/types"
 
 const datePresets: Array<{ label: string; value: DateRange }> = [
@@ -122,6 +123,7 @@ export default function Dashboard() {
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
 
   const { addToast } = useToast()
+  const { confirm: confirmDelete, dialog: confirmDialog } = useConfirmDialog()
 
   const fetchData = useCallback(async () => {
     if (fetchingRef.current) return
@@ -154,6 +156,28 @@ export default function Dashboard() {
       addToast(msg, "error")
     }
   }, [addToast])
+
+  const handleDeleteEntry = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/admin/api/logs/${encodeURIComponent(id)}`)
+      addToast("Log deleted", "success")
+      setSelectedEntry(null)
+      void fetchData()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete log"
+      addToast(msg, "error")
+    }
+  }, [addToast, fetchData])
+
+  const confirmDeleteEntry = useCallback((entry: AuditEntry) => {
+    confirmDelete({
+      title: "Delete log",
+      message: "Are you sure you want to delete this request log? This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: () => void handleDeleteEntry(entry.id),
+    })
+  }, [confirmDelete, handleDeleteEntry])
 
   const handleDeleteHistory = useCallback(async () => {
     setDeleting(true)
@@ -768,7 +792,9 @@ export default function Dashboard() {
         copiedField={copiedField}
         onCopy={handleCopyDetailValue}
         onClose={closeAuditDrawer}
+        onDelete={() => selectedEntry && confirmDeleteEntry(selectedEntry)}
       />
+      {confirmDialog}
 
       <DeleteHistoryDialog
         open={showDeleteDialog}

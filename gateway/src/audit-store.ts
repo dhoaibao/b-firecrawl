@@ -12,6 +12,7 @@ export type DeleteFilter = "today" | "week" | "month" | "all";
 export interface AuditStore {
   appendAudit(entry: AuditEntry): Promise<void>;
   readAuditEntries(limit?: number): Promise<AuditEntry[]>;
+  deleteAuditEntry(id: string): Promise<boolean>;
   deleteAuditEntries(filter: DeleteFilter): Promise<number>;
   flush?: (timeoutMs?: number) => Promise<void>;
 }
@@ -279,6 +280,53 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
       .slice(0, limit);
   }
 
+  async function deleteAuditEntry(id: string): Promise<boolean> {
+    await flush();
+    let deleted = false;
+
+    if (options.persistToDatabase) {
+      try {
+        const result = await withClient((client) => client.query(
+          "DELETE FROM audit_logs WHERE id = $1 RETURNING id",
+          [id],
+        ));
+        deleted = (result.rowCount ?? 0) > 0;
+      } catch (err) {
+        rootLogger.warn({ err, id }, "Failed to delete audit entry from database");
+      }
+    }
+
+    const exists = await fs.access(logFile).then(() => true).catch(() => false);
+    if (!exists) return deleted;
+
+    const kept: string[] = [];
+    const stream = createReadStream(logFile, { encoding: "utf8" });
+    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      let entry: AuditEntry | null = null;
+      try {
+        entry = JSON.parse(line) as AuditEntry;
+      } catch {
+        kept.push(line);
+        continue;
+      }
+
+      if (entry.id === id) {
+        deleted = true;
+      } else {
+        kept.push(line);
+      }
+    }
+
+    if (!deleted) return false;
+    const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
+    await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
+    await fs.rename(tmpFile, logFile);
+    return true;
+  }
+
   async function deleteAuditEntries(filter: DeleteFilter): Promise<number> {
     let deletedFromDatabase = 0;
     const deletedDatabaseIds = new Set<string>();
@@ -383,5 +431,5 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
     return Math.max(deleted, deletedFromDatabase);
   }
 
-  return { appendAudit, readAuditEntries, deleteAuditEntries, flush };
+  return { appendAudit, readAuditEntries, deleteAuditEntry, deleteAuditEntries, flush };
 }

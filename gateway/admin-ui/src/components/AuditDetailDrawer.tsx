@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { Check, Clipboard, ExternalLink, X } from "lucide-react"
+import { Check, Clipboard, ExternalLink, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { formatRelative } from "@/lib/date"
@@ -11,6 +11,7 @@ interface AuditDetailDrawerProps {
   copiedField: string | null
   onCopy: (field: string, value: string) => void
   onClose: () => void
+  onDelete: () => void
 }
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -42,7 +43,7 @@ function CopyValue({ field, value, copiedField, onCopy }: { field: string; value
   )
 }
 
-export default function AuditDetailDrawer({ entry, users, copiedField, onCopy, onClose }: AuditDetailDrawerProps) {
+export default function AuditDetailDrawer({ entry, users, copiedField, onCopy, onClose, onDelete }: AuditDetailDrawerProps) {
   const drawerRef = useRef<HTMLElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -134,6 +135,11 @@ export default function AuditDetailDrawer({ entry, users, copiedField, onCopy, o
             </DetailRow>
           </dl>
         </div>
+        <footer className="flex justify-end border-t border-white/[0.06] bg-surface-3 px-5 py-4">
+          <Button variant="destructive" size="sm" onClick={onDelete} aria-label="Delete request log">
+            <Trash2 className="size-3.5" /> Delete log
+          </Button>
+        </footer>
       </aside>
     </div>
   )

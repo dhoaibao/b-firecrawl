@@ -49,6 +49,7 @@ const baseConfig: GatewayConfig = {
 const auditStore: AuditStore = {
   appendAudit: vi.fn().mockResolvedValue(undefined),
   readAuditEntries: vi.fn().mockResolvedValue([]),
+  deleteAuditEntry: vi.fn().mockResolvedValue(false),
   deleteAuditEntries: vi.fn().mockResolvedValue(0),
 };
 
