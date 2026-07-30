@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
-  AlertTriangle,
   BarChart3,
   ChevronLeft,
   ChevronRight,
@@ -404,12 +403,6 @@ export default function Dashboard() {
     setCurrentPage(1)
   }, [])
 
-  const attentionItems = [
-    metrics.errorCount > 0 ? `${metrics.errorCount} failed requests in this view` : null,
-    metrics.fallbacks > 0 ? `${metrics.fallbacks} requests used fallback routing` : null,
-    creditUsage.some((usage) => usage.error) ? "One or more Cloud credit balances could not be loaded" : null,
-  ].filter((item): item is string => Boolean(item))
-
   return (
     <main id="content" className="min-h-screen bg-background text-foreground">
       {/* Sticky header */}
@@ -503,18 +496,6 @@ export default function Dashboard() {
           </div>
 
           <MetricsGrid metrics={metrics} loading={loading} creditUsage={creditUsage} />
-
-          {!loading && attentionItems.length > 0 && (
-            <div className="rounded-lg border border-warning-muted/60 bg-warning-muted/20 px-4 py-3">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">Needs attention</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{attentionItems.join(" • ")}</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {lastUpdated && (
             <div className="flex justify-end">
