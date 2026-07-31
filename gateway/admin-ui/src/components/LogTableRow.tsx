@@ -1,5 +1,6 @@
 import React from "react"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import type { AuditEntry, UserData } from "@/types"
@@ -77,12 +78,16 @@ interface LogTableRowProps {
   entry: AuditEntry
   users?: UserData[]
   onSelect?: (entry: AuditEntry) => void
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
 export const LogTableRow = React.memo(function LogTableRow({
   entry,
   users,
   onSelect,
+  selected = false,
+  onToggleSelect,
 }: LogTableRowProps) {
   const user = users?.find((u) => u.id === entry.user_id)
   return (
@@ -98,7 +103,16 @@ export const LogTableRow = React.memo(function LogTableRow({
       tabIndex={onSelect ? 0 : undefined}
       aria-label={onSelect ? `View details for ${entry.method} ${entry.path}` : undefined}
     >
-      <TableCell className="relative pl-5 text-xs text-muted-foreground">
+      <TableCell className="pl-5">
+        <Checkbox
+          checked={selected}
+          onChange={() => onToggleSelect?.(entry.id)}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          aria-label={`Select log for ${entry.method} ${entry.path}`}
+        />
+      </TableCell>
+      <TableCell className="relative text-xs text-muted-foreground">
         <span
           className={cn(
             "absolute left-0 top-3.5 h-5 w-[3px] rounded-r-full",

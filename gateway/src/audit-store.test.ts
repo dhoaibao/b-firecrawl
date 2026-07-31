@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs/promises";
+import path from "node:path";
+import { tmpdir } from "node:os";
 import { withClient } from "./db";
 import { createAuditStore } from "./audit-store";
 
@@ -107,6 +109,63 @@ describe("createAuditStore", () => {
       expect.stringContaining("NOW() - $1::interval"),
       expect.anything(),
     );
+  });
+
+  it("deletes selected audit entries by id", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 2, rows: [{ id: "audit-one" }, { id: "audit-two" }] });
+    vi.mocked(withClient).mockImplementation(async (fn) => fn({ query } as never));
+    vi.spyOn(fs, "access").mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
+
+    const store = createAuditStore("/tmp/missing-audit.jsonl", { persistToDatabase: true });
+
+    await expect(store.deleteAuditEntriesByIds(["audit-one", "audit-two", "audit-one"])).resolves.toBe(2);
+    expect(query).toHaveBeenCalledWith(
+      "DELETE FROM audit_logs WHERE id = ANY($1::text[]) RETURNING id",
+      [["audit-one", "audit-two"]],
+    );
+  });
+
+  it("deletes selected entries from JSONL while preserving other lines", async () => {
+    const directory = await fs.mkdtemp(path.join(tmpdir(), "audit-store-"));
+    const logFile = path.join(directory, "audit.jsonl");
+    try {
+      await fs.writeFile(logFile, [
+        JSON.stringify({ ...entry, id: "audit-delete" }),
+        "malformed line",
+        JSON.stringify({ ...entry, id: "audit-keep" }),
+      ].join("\n") + "\n");
+
+      const store = createAuditStore(logFile);
+
+      await expect(store.deleteAuditEntriesByIds(["audit-delete"])).resolves.toBe(1);
+      const contents = await fs.readFile(logFile, "utf8");
+
+      expect(contents).not.toContain('"id":"audit-delete"');
+      expect(contents).toContain("malformed line");
+      expect(contents).toContain('"id":"audit-keep"');
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("serializes appends with selected-log deletion", async () => {
+    const directory = await fs.mkdtemp(path.join(tmpdir(), "audit-store-"));
+    const logFile = path.join(directory, "audit.jsonl");
+    try {
+      await fs.writeFile(logFile, JSON.stringify({ ...entry, id: "audit-delete" }) + "\n");
+      const store = createAuditStore(logFile);
+
+      const deletion = store.deleteAuditEntriesByIds(["audit-delete"]);
+      await store.appendAudit({ ...entry, id: "audit-keep" });
+      await expect(deletion).resolves.toBe(1);
+      await store.flush?.();
+
+      const contents = await fs.readFile(logFile, "utf8");
+      expect(contents).not.toContain('"id":"audit-delete"');
+      expect(contents).toContain('"id":"audit-keep"');
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("reports database deletions when the JSONL file is missing", async () => {

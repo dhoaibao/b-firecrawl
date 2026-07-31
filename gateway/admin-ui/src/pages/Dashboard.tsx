@@ -16,6 +16,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -117,6 +118,7 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const fetchingRef = useRef(false)
 
@@ -162,6 +164,12 @@ export default function Dashboard() {
       await api.delete(`/admin/api/logs/${encodeURIComponent(id)}`)
       addToast("Log deleted", "success")
       setSelectedEntry(null)
+      setSelectedIds((current) => {
+        if (!current.has(id)) return current
+        const next = new Set(current)
+        next.delete(id)
+        return next
+      })
       void fetchData()
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to delete log"
@@ -179,6 +187,39 @@ export default function Dashboard() {
     })
   }, [confirmDelete, handleDeleteEntry])
 
+  const handleDeleteSelected = useCallback(async () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+
+    setDeleting(true)
+    try {
+      const json = await api.delete<{ deleted: number }>(
+        "/admin/api/logs",
+        { ids },
+      )
+      addToast(`${json.deleted} ${json.deleted === 1 ? "log" : "logs"} deleted`, "success")
+      setSelectedIds(new Set())
+      setSelectedEntry(null)
+      void fetchData()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete selected logs"
+      addToast(msg, "error")
+    } finally {
+      setDeleting(false)
+    }
+  }, [selectedIds, addToast, fetchData])
+
+  const confirmDeleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) return
+    confirmDelete({
+      title: "Delete selected logs",
+      message: `Are you sure you want to delete ${selectedIds.size} selected ${selectedIds.size === 1 ? "log" : "logs"}? This action cannot be undone.`,
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: () => void handleDeleteSelected(),
+    })
+  }, [confirmDelete, handleDeleteSelected, selectedIds.size])
+
   const handleDeleteHistory = useCallback(async () => {
     setDeleting(true)
     try {
@@ -192,6 +233,7 @@ export default function Dashboard() {
         "success",
       )
       setShowDeleteDialog(false)
+      setSelectedIds(new Set())
       void fetchData()
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to delete history"
@@ -289,6 +331,26 @@ export default function Dashboard() {
   const pageStart = filteredEntries.length ? (visiblePage - 1) * pageSize : 0
   const pageEnd = Math.min(pageStart + pageSize, filteredEntries.length)
   const paginatedEntries = filteredEntries.slice(pageStart, pageEnd)
+  const allVisibleSelected = paginatedEntries.length > 0 && paginatedEntries.every((entry) => selectedIds.has(entry.id))
+  const toggleEntrySelection = useCallback((id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+  const toggleVisibleSelection = useCallback(() => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (allVisibleSelected) {
+        paginatedEntries.forEach((entry) => next.delete(entry.id))
+      } else {
+        paginatedEntries.forEach((entry) => next.add(entry.id))
+      }
+      return next
+    })
+  }, [allVisibleSelected, paginatedEntries])
   const requestBuckets = useMemo(() => buildRequestBuckets(filteredEntries), [filteredEntries])
 
   // Active filter chips
@@ -621,18 +683,32 @@ export default function Dashboard() {
                   Fallback {formatPercent(metrics.fallbackShare)}
                 </Badge>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 border-danger-muted/50 bg-danger-muted/20 text-danger-fg shadow-none transition-colors hover:bg-danger-muted/40"
-                onClick={() => {
-                  setDeleteFilter("today")
-                  setShowDeleteDialog(true)
-                }}
-              >
-                <Trash2 className="size-3" />
-                Delete History
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 border-danger-muted/50 bg-danger-muted/20 text-danger-fg shadow-none transition-colors hover:bg-danger-muted/40"
+                    onClick={confirmDeleteSelected}
+                    disabled={deleting}
+                  >
+                    <Trash2 className="size-3" />
+                    Delete {selectedIds.size} selected
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 border-danger-muted/50 bg-danger-muted/20 text-danger-fg shadow-none transition-colors hover:bg-danger-muted/40"
+                  onClick={() => {
+                    setDeleteFilter("today")
+                    setShowDeleteDialog(true)
+                  }}
+                >
+                  <Trash2 className="size-3" />
+                  Delete History
+                </Button>
+              </div>
             </div>
 
             {/* Active filter chips */}
@@ -697,7 +773,14 @@ export default function Dashboard() {
                 <Table className="min-w-[1220px]">
                   <TableHeader>
                     <TableRow className="border-b border-white/[0.06] bg-surface-3 hover:bg-surface-3">
-                      <TableHead className="pl-5 text-xs font-semibold text-foreground">Time</TableHead>
+                      <TableHead className="w-10 pl-5">
+                        <Checkbox
+                          checked={allVisibleSelected}
+                          onChange={toggleVisibleSelection}
+                          aria-label="Select all logs on this page"
+                        />
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold text-foreground">Time</TableHead>
                       <TableHead className="text-xs font-semibold text-foreground">Method</TableHead>
                       <TableHead className="text-xs font-semibold text-foreground">Path</TableHead>
                       <TableHead className="text-xs font-semibold text-foreground">Mode</TableHead>
@@ -712,7 +795,14 @@ export default function Dashboard() {
                   </TableHeader>
                   <TableBody>
                     {paginatedEntries.map((entry) => (
-                      <LogTableRow key={entry.id} entry={entry} users={users} onSelect={setSelectedEntry} />
+                      <LogTableRow
+                        key={entry.id}
+                        entry={entry}
+                        users={users}
+                        onSelect={setSelectedEntry}
+                        selected={selectedIds.has(entry.id)}
+                        onToggleSelect={toggleEntrySelection}
+                      />
                     ))}
                   </TableBody>
                 </Table>

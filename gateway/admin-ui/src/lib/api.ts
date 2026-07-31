@@ -72,7 +72,19 @@ export const api = {
     })
   },
 
-  delete<T>(url: string, options?: Omit<RequestInit, "method" | "body">): Promise<T> {
-    return request<T>(url, { ...options, method: "DELETE" })
+  delete<T>(url: string, body?: unknown, options?: Omit<RequestInit, "method" | "body">): Promise<T> {
+    return request<T>(url, {
+      ...options,
+      method: "DELETE",
+      ...(body === undefined
+        ? {}
+        : {
+            headers: {
+              "Content-Type": "application/json",
+              ...(options?.headers || {}),
+            },
+            body: JSON.stringify(body),
+          }),
+    })
   },
 }

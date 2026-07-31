@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { json, Router } from "express";
 import type { AuditStore } from "./audit-store";
 import * as usersService from "./users/service";
 import { requireAdmin } from "./auth/middleware";
@@ -23,7 +23,27 @@ export function createAdminRouter(auditStore: AuditStore) {
     res.json({ success: true });
   });
 
-  router.delete("/logs", requireAdmin, async (req, res) => {
+  router.delete("/logs", json(), requireAdmin, async (req, res) => {
+    if (req.body?.ids !== undefined) {
+      if (!Array.isArray(req.body.ids)) {
+        res.status(400).json({ error: "ids must be an array" });
+        return;
+      }
+      const rawIds = req.body.ids as unknown[];
+      if (rawIds.some((id) => typeof id !== "string" || id.trim().length === 0)) {
+        res.status(400).json({ error: "ids must contain only non-empty strings" });
+        return;
+      }
+      const ids = [...new Set((rawIds as string[]).map((id) => id.trim()))];
+      if (ids.length === 0) {
+        res.status(400).json({ error: "At least one log id is required" });
+        return;
+      }
+      const deleted = await auditStore.deleteAuditEntriesByIds(ids);
+      res.json({ success: true, deleted });
+      return;
+    }
+
     const filter = req.query.filter as string;
     if (!validDeleteFilters.includes(filter as typeof validDeleteFilters[number])) {
       res.status(400).json({ error: "Invalid filter. Use: today, week, month, or all" });

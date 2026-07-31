@@ -50,6 +50,7 @@ const auditStore: AuditStore = {
   appendAudit: vi.fn().mockResolvedValue(undefined),
   readAuditEntries: vi.fn().mockResolvedValue([]),
   deleteAuditEntry: vi.fn().mockResolvedValue(false),
+  deleteAuditEntriesByIds: vi.fn().mockResolvedValue(0),
   deleteAuditEntries: vi.fn().mockResolvedValue(0),
 };
 

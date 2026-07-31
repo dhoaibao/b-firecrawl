@@ -13,6 +13,7 @@ export interface AuditStore {
   appendAudit(entry: AuditEntry): Promise<void>;
   readAuditEntries(limit?: number): Promise<AuditEntry[]>;
   deleteAuditEntry(id: string): Promise<boolean>;
+  deleteAuditEntriesByIds(ids: string[]): Promise<number>;
   deleteAuditEntries(filter: DeleteFilter): Promise<number>;
   flush?: (timeoutMs?: number) => Promise<void>;
 }
@@ -67,6 +68,7 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
   const pendingFileEntries: AuditEntry[] = [];
   const pendingDatabaseEntries: AuditEntry[] = [];
   let fileFlushPromise: Promise<void> | null = null;
+  let fileOperationPromise: Promise<void> = Promise.resolve();
   let databaseFlushPromise: Promise<void> | null = null;
   let discardPending = false;
 
@@ -147,10 +149,16 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
     }
   }
 
+  function enqueueFileOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const next = fileOperationPromise.then(operation, operation);
+    fileOperationPromise = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
   async function flushFileEntries(): Promise<void> {
     if (fileFlushPromise) return fileFlushPromise;
 
-    fileFlushPromise = (async () => {
+    fileFlushPromise = enqueueFileOperation(async () => {
       while (pendingFileEntries.length > 0) {
         const entries = pendingFileEntries.splice(0, pendingFileEntries.length);
         try {
@@ -164,7 +172,7 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
           rootLogger.error({ err, count: entries.length }, "Failed to write audit entries");
         }
       }
-    })().finally(() => {
+    }).finally(() => {
       fileFlushPromise = null;
     });
 
@@ -280,6 +288,60 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
       .slice(0, limit);
   }
 
+  async function deleteAuditEntriesByIds(ids: string[]): Promise<number> {
+    const uniqueIds = new Set(ids.filter(Boolean));
+    if (uniqueIds.size === 0) return 0;
+
+    await flush();
+    const deletedIds = new Set<string>();
+
+    if (options.persistToDatabase) {
+      try {
+        const result = await withClient((client) => client.query(
+          "DELETE FROM audit_logs WHERE id = ANY($1::text[]) RETURNING id",
+          [[...uniqueIds]],
+        ));
+        for (const row of (result.rows ?? []) as Array<{ id?: string }>) {
+          if (row.id) deletedIds.add(row.id);
+        }
+      } catch (err) {
+        rootLogger.warn({ err, count: uniqueIds.size }, "Failed to delete selected audit entries from database");
+      }
+    }
+
+    return enqueueFileOperation(async () => {
+      const exists = await fs.access(logFile).then(() => true).catch(() => false);
+      if (!exists) return deletedIds.size;
+
+      const kept: string[] = [];
+      const stream = createReadStream(logFile, { encoding: "utf8" });
+      const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        let entry: AuditEntry | null = null;
+        try {
+          entry = JSON.parse(line) as AuditEntry;
+        } catch {
+          kept.push(line);
+          continue;
+        }
+
+        if (uniqueIds.has(entry.id)) {
+          deletedIds.add(entry.id);
+        } else {
+          kept.push(line);
+        }
+      }
+
+      if (deletedIds.size === 0) return 0;
+      const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
+      await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
+      await fs.rename(tmpFile, logFile);
+      return deletedIds.size;
+    });
+  }
+
   async function deleteAuditEntry(id: string): Promise<boolean> {
     await flush();
     let deleted = false;
@@ -296,38 +358,41 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
       }
     }
 
-    const exists = await fs.access(logFile).then(() => true).catch(() => false);
-    if (!exists) return deleted;
+    return enqueueFileOperation(async () => {
+      const exists = await fs.access(logFile).then(() => true).catch(() => false);
+      if (!exists) return deleted;
 
-    const kept: string[] = [];
-    const stream = createReadStream(logFile, { encoding: "utf8" });
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+      const kept: string[] = [];
+      const stream = createReadStream(logFile, { encoding: "utf8" });
+      const rl = createInterface({ input: stream, crlfDelay: Infinity });
 
-    for await (const line of rl) {
-      if (!line.trim()) continue;
-      let entry: AuditEntry | null = null;
-      try {
-        entry = JSON.parse(line) as AuditEntry;
-      } catch {
-        kept.push(line);
-        continue;
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        let entry: AuditEntry | null = null;
+        try {
+          entry = JSON.parse(line) as AuditEntry;
+        } catch {
+          kept.push(line);
+          continue;
+        }
+
+        if (entry.id === id) {
+          deleted = true;
+        } else {
+          kept.push(line);
+        }
       }
 
-      if (entry.id === id) {
-        deleted = true;
-      } else {
-        kept.push(line);
-      }
-    }
-
-    if (!deleted) return false;
-    const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
-    await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
-    await fs.rename(tmpFile, logFile);
-    return true;
+      if (!deleted) return false;
+      const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
+      await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
+      await fs.rename(tmpFile, logFile);
+      return true;
+    });
   }
 
   async function deleteAuditEntries(filter: DeleteFilter): Promise<number> {
+    await flush();
     let deletedFromDatabase = 0;
     const deletedDatabaseIds = new Set<string>();
     if (options.persistToDatabase) {
@@ -366,70 +431,74 @@ export function createAuditStore(logFile: string, options: AuditStoreOptions = {
     }
 
     if (filter === "all") {
-      try {
-        await fs.writeFile(logFile, "", "utf8");
-        return deletedFromDatabase || -1;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return deletedFromDatabase;
-        throw error;
-      }
+      return enqueueFileOperation(async () => {
+        try {
+          await fs.writeFile(logFile, "", "utf8");
+          return deletedFromDatabase || -1;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return deletedFromDatabase;
+          throw error;
+        }
+      });
     }
 
-    const now = new Date();
-    const nowDate = now.toISOString().slice(0, 10);
-    const nowMonth = now.toISOString().slice(0, 7);
-    const exists = await fs.access(logFile).then(() => true).catch(() => false);
-    if (!exists) return deletedFromDatabase;
+    return enqueueFileOperation(async () => {
+      const now = new Date();
+      const nowDate = now.toISOString().slice(0, 10);
+      const nowMonth = now.toISOString().slice(0, 7);
+      const exists = await fs.access(logFile).then(() => true).catch(() => false);
+      if (!exists) return deletedFromDatabase;
 
-    let deleted = 0;
-    const deletedFileIds = new Set<string>();
-    const kept: string[] = [];
+      let deleted = 0;
+      const deletedFileIds = new Set<string>();
+      const kept: string[] = [];
 
-    const stream = createReadStream(logFile, { encoding: "utf8" });
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+      const stream = createReadStream(logFile, { encoding: "utf8" });
+      const rl = createInterface({ input: stream, crlfDelay: Infinity });
 
-    for await (const line of rl) {
-      if (!line.trim()) continue;
-      let entry: AuditEntry | null = null;
-      try {
-        entry = JSON.parse(line) as AuditEntry;
-      } catch {
-        kept.push(line);
-        continue;
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        let entry: AuditEntry | null = null;
+        try {
+          entry = JSON.parse(line) as AuditEntry;
+        } catch {
+          kept.push(line);
+          continue;
+        }
+
+        const entryDate = new Date(entry.created_at);
+        const entryMonth = entryDate.toISOString().slice(0, 7);
+        let shouldDelete = false;
+
+        if (filter === "today") {
+          shouldDelete = entryDate.toISOString().slice(0, 10) === nowDate;
+        } else if (filter === "week") {
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          shouldDelete = entryDate >= weekAgo;
+        } else if (filter === "month") {
+          shouldDelete = entryMonth === nowMonth;
+        }
+
+        if (shouldDelete) {
+          deleted++;
+          deletedFileIds.add(entry.id);
+        } else {
+          kept.push(line);
+        }
       }
 
-      const entryDate = new Date(entry.created_at);
-      const entryMonth = entryDate.toISOString().slice(0, 7);
-      let shouldDelete = false;
-
-      if (filter === "today") {
-        shouldDelete = entryDate.toISOString().slice(0, 10) === nowDate;
-      } else if (filter === "week") {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        shouldDelete = entryDate >= weekAgo;
-      } else if (filter === "month") {
-        shouldDelete = entryMonth === nowMonth;
+      const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
+      await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
+      await fs.rename(tmpFile, logFile);
+      if (deletedDatabaseIds.size > 0) {
+        const uniqueDeletedIds = new Set(deletedDatabaseIds);
+        for (const id of deletedFileIds) uniqueDeletedIds.add(id);
+        return uniqueDeletedIds.size;
       }
-
-      if (shouldDelete) {
-        deleted++;
-        deletedFileIds.add(entry.id);
-      } else {
-        kept.push(line);
-      }
-    }
-
-    const tmpFile = `${logFile}.tmp-${crypto.randomUUID()}`;
-    await fs.writeFile(tmpFile, kept.join("\n") + (kept.length > 0 ? "\n" : ""), "utf8");
-    await fs.rename(tmpFile, logFile);
-    if (deletedDatabaseIds.size > 0) {
-      const uniqueDeletedIds = new Set(deletedDatabaseIds);
-      for (const id of deletedFileIds) uniqueDeletedIds.add(id);
-      return uniqueDeletedIds.size;
-    }
-    // Keep compatibility with database clients/tests that only expose rowCount.
-    return Math.max(deleted, deletedFromDatabase);
+      // Keep compatibility with database clients/tests that only expose rowCount.
+      return Math.max(deleted, deletedFromDatabase);
+    });
   }
 
-  return { appendAudit, readAuditEntries, deleteAuditEntry, deleteAuditEntries, flush };
+  return { appendAudit, readAuditEntries, deleteAuditEntry, deleteAuditEntriesByIds, deleteAuditEntries, flush };
 }
