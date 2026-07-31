@@ -7,7 +7,6 @@ import {
   Clock,
   Database,
   Download,
-  RefreshCw,
   Search,
   Server,
   Trash2,
@@ -16,6 +15,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -35,7 +35,6 @@ import {
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { useToast } from "@/hooks/useToast"
-import { formatRelative } from "@/lib/date"
 import { useAuditMetrics, formatPercent, buildRequestBuckets } from "@/hooks/useAuditMetrics"
 import { RequestVolumeChart } from "@/components/RequestVolumeChart"
 import { StatusCodeChart } from "@/components/StatusCodeChart"
@@ -98,7 +97,6 @@ export default function Dashboard() {
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [live, setLive] = useState(true)
   const [backendFilter, setBackendFilter] = useState<BackendFilter>("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
@@ -115,12 +113,12 @@ export default function Dashboard() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteFilter, setDeleteFilter] = useState<"today" | "week" | "month" | "all">("today")
   const [deleting, setDeleting] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [creditUsage, setCreditUsage] = useState<CreditUsageItem[]>([])
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const fetchingRef = useRef(false)
+  const creditUsageFetchingRef = useRef(false)
 
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
 
@@ -130,7 +128,6 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     if (fetchingRef.current) return
     fetchingRef.current = true
-    setRefreshing(true)
     try {
       const json = await api.get<{
         data: AuditEntry[]
@@ -138,24 +135,26 @@ export default function Dashboard() {
       }>("/admin/api/data")
       setEntries(Array.isArray(json.data) ? json.data : [])
       setUsers(Array.isArray(json.users) ? json.users : [])
-      setLastUpdated(new Date())
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load audit data"
       addToast(msg, "error")
     } finally {
       fetchingRef.current = false
       setLoading(false)
-      setRefreshing(false)
     }
   }, [addToast])
 
   const fetchCreditUsage = useCallback(async () => {
+    if (creditUsageFetchingRef.current) return
+    creditUsageFetchingRef.current = true
     try {
       const json = await api.get<{ data: CreditUsageItem[] }>("/admin/api/settings/credit-usage")
       setCreditUsage(Array.isArray(json.data) ? json.data : [])
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load credit usage"
       addToast(msg, "error")
+    } finally {
+      creditUsageFetchingRef.current = false
     }
   }, [addToast])
 
@@ -251,7 +250,10 @@ export default function Dashboard() {
 
     let interval: number | undefined
     const refreshWhenVisible = () => {
-      if (live && !document.hidden) void fetchData()
+      if (live && !document.hidden) {
+        void fetchData()
+        void fetchCreditUsage()
+      }
     }
     if (live) {
       interval = window.setInterval(refreshWhenVisible, 5000)
@@ -492,44 +494,30 @@ export default function Dashboard() {
   return (
     <main id="content" className="min-h-screen bg-background text-foreground">
       {/* Sticky header */}
-      <section className="sticky top-0 z-20 border-b border-white/[0.06] bg-surface-2/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-            {/* Left: Refresh + Live */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                className={cn(
-                  "group relative overflow-hidden border-white/[0.08] bg-surface-3 text-foreground shadow-none transition-all hover:-translate-y-px hover:border-white/15 hover:bg-surface-4",
-                  refreshing && "border-info-muted bg-info-muted text-info-fg",
-                )}
-                onClick={() => {
-                  void fetchData()
-                  void fetchCreditUsage()
-                }}
-                disabled={refreshing}
-              >
-                <span
-                  className={cn(
-                    "absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 transition-all duration-700 group-hover:translate-x-full group-hover:opacity-100",
-                    refreshing && "translate-x-full opacity-100",
-                  )}
-                />
-                <RefreshCw
-                  className={cn(
-                    "relative size-4 transition-transform duration-300 group-hover:rotate-45",
-                    refreshing && "animate-spin",
-                  )}
-                />
-                <span className="relative">Refresh</span>
-              </Button>
+      <section className="sticky top-0 z-20 border-b border-white/[0.06] bg-surface-2/95 backdrop-blur">
+        <div className="mx-auto flex max-w-[1680px] flex-col gap-3 px-4 py-3 lg:px-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="flex items-center gap-3 lg:mr-2 lg:shrink-0">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-surface-3 text-muted-foreground">
+                <Activity className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-sm font-semibold tracking-tight text-foreground">Gateway overview</h1>
+                <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className={cn("size-1.5 rounded-full", live ? "bg-success" : "bg-muted-foreground")} />
+                  {live ? "Monitoring live traffic" : "Live updates paused"}
+                </p>
+              </div>
+            </div>
 
+            {/* Live status */}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant={live ? "default" : "outline"}
                 className={cn(
                   "gap-2 border-white/[0.08] shadow-none transition-all",
                   live
-                    ? "bg-success-muted text-success-fg hover:bg-success-muted/80"
+                    ? "border-success-muted bg-surface-3 text-foreground hover:bg-surface-4"
                     : "bg-surface-3 text-muted-foreground hover:bg-surface-4 hover:text-foreground",
                 )}
                 onClick={() => setLive((v) => !v)}
@@ -543,21 +531,21 @@ export default function Dashboard() {
             </div>
 
             {/* Center: Search */}
-            <div className="relative min-w-0 flex-1">
+            <div className="relative min-w-0 flex-1 lg:min-w-[16rem]">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <Input
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value)
                   setCurrentPage(1)
                 }}
                 placeholder="Search logs"
-                className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-2 pl-10 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                className="bg-surface-2 pl-10"
               />
             </div>
 
             {/* Right: GitHub link */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
               <Button
                 variant="outline"
                 onClick={exportFilteredEntries}
@@ -580,21 +568,22 @@ export default function Dashboard() {
               </Button>
             </div>
           </div>
-
-          <MetricsGrid metrics={metrics} loading={loading} creditUsage={creditUsage} />
-
-          {lastUpdated && (
-            <div className="flex justify-end">
-              <span className="text-[11px] text-muted-foreground">
-                Updated {formatRelative(lastUpdated)}
-              </span>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* Charts grid */}
-      <section className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 lg:px-6">
+      <section className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-6 lg:px-6">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Overview</p>
+          <h2 className="mt-1 text-base font-semibold tracking-tight text-foreground">Gateway health at a glance</h2>
+        </div>
+
+        <MetricsGrid metrics={metrics} loading={loading} creditUsage={creditUsage} />
+
+        <div className="mt-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Traffic analysis</p>
+          <h2 className="mt-1 text-base font-semibold tracking-tight text-foreground">Requests and performance</h2>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
             <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
@@ -665,7 +654,7 @@ export default function Dashboard() {
 
         {/* Request History table */}
         <Card className="gap-0 overflow-hidden rounded-lg border-white/[0.06] bg-surface-2 py-0 shadow-none">
-          <CardHeader className="border-b border-white/[0.06] bg-surface-4 px-5 py-4">
+          <CardHeader className="border-b border-white/[0.06] bg-surface-3 px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Database className="size-4 text-muted-foreground" />
@@ -673,13 +662,16 @@ export default function Dashboard() {
                 <Badge variant="outline" className="border-white/[0.06] bg-white/[0.02] text-muted-foreground">
                   {filteredEntries.length} visible
                 </Badge>
-                <Badge variant="outline" className="border-success-muted bg-success-muted text-success-fg">
+                <Badge variant="outline" className="border-white/[0.08] bg-surface-2 text-muted-foreground">
+                  <span className="size-1.5 rounded-full bg-success" />
                   Success {formatPercent(metrics.successShare)}
                 </Badge>
-                <Badge variant="outline" className="border-info-muted bg-info-muted text-info-fg">
+                <Badge variant="outline" className="border-white/[0.08] bg-surface-2 text-muted-foreground">
+                  <span className="size-1.5 rounded-full bg-info" />
                   Cloud {formatPercent(metrics.cloudShare)}
                 </Badge>
-                <Badge variant="outline" className="border-warning-muted bg-warning-muted text-warning-fg">
+                <Badge variant="outline" className="border-white/[0.08] bg-surface-2 text-muted-foreground">
+                  <span className="size-1.5 rounded-full bg-warning" />
                   Fallback {formatPercent(metrics.fallbackShare)}
                 </Badge>
               </div>

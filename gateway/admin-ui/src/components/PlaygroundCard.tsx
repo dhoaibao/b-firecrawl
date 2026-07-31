@@ -12,7 +12,7 @@ interface PlaygroundCardProps {
   submitLoadingLabel: string
   loading: boolean
   disabled?: boolean
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
+  onSubmit: (e: React.SubmitEvent<HTMLFormElement>) => void
   onGetCode?: () => void
 }
 

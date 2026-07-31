@@ -56,7 +56,7 @@ export function StatusCodeChart({ entries }: StatusCodeChartProps) {
             return (
               <div
                 key={bar.key}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 rounded-md"
                 onMouseEnter={() => setHovered(bar.key)}
                 onMouseLeave={() => setHovered(null)}
               >

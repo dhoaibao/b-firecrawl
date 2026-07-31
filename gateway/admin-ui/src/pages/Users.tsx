@@ -4,6 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/useToast";
 import Pagination from "@/components/Pagination";
 import PageSkeleton from "@/components/PageSkeleton";
@@ -73,7 +76,7 @@ export default function Users() {
     void fetchUsers();
   }, [fetchUsers]);
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setCreating(true);
     try {
@@ -232,12 +235,12 @@ export default function Users() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Search by name or email..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+            className="pl-9 pr-3"
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | "active" | "suspended" | "blocked"); setPage(1); }}>
@@ -272,52 +275,77 @@ export default function Users() {
         )}
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-white/[0.06] bg-surface-2 p-4 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
-              placeholder="Name"
-              value={newUser.name}
-              onChange={(e) => setNewUser((u) => ({ ...u, name: e.target.value }))}
-              required
-              className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-            />
-            <input
-              type="email"
-              placeholder="Email"
-              value={newUser.email}
-              onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
-              required
-              className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={newUser.password}
-              onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))}
-              required
-              className="h-10 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={newUser.is_admin}
-                onChange={(e) => setNewUser((u) => ({ ...u, is_admin: e.target.checked }))}
-                className="size-4"
-              />
-              Admin
-            </label>
-          </div>
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={creating}>
-              {creating ? "Creating..." : "Create user"}
-            </Button>
+      <Dialog
+        open={showForm}
+        title="Add user"
+        description="Create an account and choose whether it should have administrator access."
+        onClose={() => setShowForm(false)}
+        footer={
+          <>
             <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
+            <Button type="submit" form="create-user-form" size="sm" disabled={creating}>
+              {creating ? "Creating..." : "Create user"}
+            </Button>
+          </>
+        }
+      >
+        <form id="create-user-form" onSubmit={handleCreate} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label htmlFor="new-user-name" className="block text-sm font-medium text-foreground">
+              Name
+              <Input
+                id="new-user-name"
+                className="mt-2"
+                placeholder="Jane Smith"
+                value={newUser.name}
+                onChange={(e) => setNewUser((u) => ({ ...u, name: e.target.value }))}
+                required
+                autoComplete="name"
+              />
+            </label>
+            <label htmlFor="new-user-email" className="block text-sm font-medium text-foreground">
+              Email
+              <Input
+                id="new-user-email"
+                className="mt-2"
+                type="email"
+                placeholder="jane@example.com"
+                value={newUser.email}
+                onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
+                required
+                autoComplete="email"
+              />
+            </label>
           </div>
+          <label htmlFor="new-user-password" className="block text-sm font-medium text-foreground">
+            Temporary password
+            <Input
+              id="new-user-password"
+              className="mt-2"
+              type="password"
+              placeholder="At least 8 characters"
+              value={newUser.password}
+              onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))}
+              required
+              minLength={8}
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-surface-1 px-3 py-2.5 text-sm text-foreground">
+            <Checkbox
+              checked={newUser.is_admin}
+              onChange={(e) => setNewUser((u) => ({ ...u, is_admin: e.target.checked }))}
+              aria-label="Grant administrator access"
+            />
+            <span>
+              <span className="block font-medium">Administrator access</span>
+              <span className="block text-xs text-muted-foreground">Can manage users and gateway configuration.</span>
+            </span>
+          </label>
         </form>
-      )}
+      </Dialog>
 
       <div className="rounded-lg border border-white/[0.06] bg-surface-2 overflow-hidden">
         <DataTable
@@ -430,13 +458,13 @@ export default function Users() {
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Duration</label>
                 <div className="flex gap-2">
-                  <input
+                  <Input
                     type="number"
                     min={1}
                     max={99}
                     value={suspendDuration}
                     onChange={(e) => setSuspendDuration(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="h-9 w-20 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none"
+                    className="h-9 w-20"
                   />
                   <Select value={suspendUnit} onValueChange={(v) => setSuspendUnit(v as SuspendUnit)}>
                     <SelectTrigger className="h-9 flex-1 bg-surface-3 text-sm">

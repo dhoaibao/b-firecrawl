@@ -32,6 +32,7 @@ export default function DataTable<T>({
             {columns.map((col) => (
               <th
                 key={col.key}
+                scope="col"
                 className={cn(
                   "px-4 py-3 text-left font-semibold",
                   col.align === "right" && "text-right",

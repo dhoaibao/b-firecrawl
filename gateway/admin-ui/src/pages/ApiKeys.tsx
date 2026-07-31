@@ -4,7 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/useToast";
 import Pagination from "@/components/Pagination";
 import PageSkeleton from "@/components/PageSkeleton";
@@ -73,7 +75,7 @@ export default function ApiKeys() {
     void fetchKeys();
   }, [fetchKeys]);
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!user) return;
     setCreating(true);
@@ -113,9 +115,13 @@ export default function ApiKeys() {
   }
 
   async function copyKey(key: string) {
-    await navigator.clipboard.writeText(key);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(key);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      addToast("Failed to copy API key", "error");
+    }
   }
 
   async function copyExistingKey(id: string, key: string) {
@@ -224,12 +230,12 @@ export default function ApiKeys() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Search by name or prefix..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 pl-9 pr-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+            className="pl-9 pr-3"
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | "active" | "revoked"); setPage(1); }}>
@@ -260,9 +266,15 @@ export default function ApiKeys() {
             <code className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm font-mono text-foreground">
               {createdKey.key}
             </code>
-            <Button variant="outline" size="sm" onClick={() => createdKey.key && copyKey(createdKey.key)}>
-              {copied ? <Check className="size-4 mr-1" /> : <Copy className="size-4 mr-1" />}
-              {copied ? "Copied" : "Copy"}
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={() => createdKey.key && copyKey(createdKey.key)}
+              aria-label={copied ? "API key copied" : "Copy API key"}
+              title={copied ? "Copied" : "Copy API key"}
+            >
+              {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
             </Button>
           </div>
           <button onClick={() => setCreatedKey(null)} className="text-sm text-muted-foreground hover:text-foreground">
@@ -271,31 +283,71 @@ export default function ApiKeys() {
         </div>
       )}
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-lg border border-white/[0.06] bg-surface-2 p-4 space-y-3">
-          <input
-            placeholder="Key name (e.g., Production, Development)"
-            value={newKeyName}
-            onChange={(e) => setNewKeyName(e.target.value)}
-            required
-            className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
-          />
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={creating}>
-              {creating ? "Creating..." : "Create key"}
-            </Button>
+      <Dialog
+        open={showForm}
+        title="Create API key"
+        description="Name this key so you can identify its environment or application later."
+        onClose={() => setShowForm(false)}
+        footer={
+          <>
             <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
-          </div>
+            <Button type="submit" form="create-api-key-form" size="sm" disabled={creating}>
+              {creating ? "Creating..." : "Create key"}
+            </Button>
+          </>
+        }
+      >
+        <form id="create-api-key-form" onSubmit={handleCreate} className="space-y-2">
+          <label htmlFor="new-api-key-name" className="block text-sm font-medium text-foreground">
+            Key name
+          </label>
+          <Input
+            id="new-api-key-name"
+            placeholder="e.g. Production, Development"
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            required
+            autoComplete="off"
+          />
+          <p className="text-xs text-muted-foreground">Use a name that describes where this key is used.</p>
         </form>
-      )}
+      </Dialog>
 
       <div className="rounded-lg border border-white/[0.06] bg-surface-2 overflow-hidden">
         <DataTable
           columns={[
             { key: "name", header: "Name", render: (k) => k.name },
-            { key: "prefix", header: "Prefix", className: "font-mono text-muted-foreground", render: (k) => `${k.key_prefix}...` },
+            {
+              key: "prefix",
+              header: "Prefix",
+              className: "font-mono text-muted-foreground",
+              render: (k) => (
+                <div className="flex items-center gap-1.5">
+                  <span>{k.key_prefix}...</span>
+                  {!k.revoked && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => k.key && void copyExistingKey(k.id, k.key)}
+                      disabled={!k.key}
+                      aria-label={
+                        !k.key
+                          ? "Copy unavailable for this API key"
+                          : copiedKeyId === k.id
+                            ? "API key copied"
+                            : "Copy API key"
+                      }
+                      title={!k.key ? "Copy unavailable" : copiedKeyId === k.id ? "Copied" : "Copy API key"}
+                    >
+                      {copiedKeyId === k.id ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                    </Button>
+                  )}
+                </div>
+              ),
+            },
             {
               key: "status",
               header: "Status",
@@ -320,17 +372,6 @@ export default function ApiKeys() {
               align: "right",
               render: (k) => (
                 <div className="flex justify-end gap-2">
-                  {!k.revoked && k.key && (
-                    <Button variant="outline" size="sm" className="h-7" onClick={() => void copyExistingKey(k.id, k.key!)}>
-                      {copiedKeyId === k.id ? <Check className="size-3 mr-1" /> : <Copy className="size-3 mr-1" />}
-                      {copiedKeyId === k.id ? "Copied" : "Copy"}
-                    </Button>
-                  )}
-                  {!k.revoked && !k.key && (
-                    <span className="self-center text-xs text-muted-foreground" title="Keys created before re-copy support cannot be displayed again">
-                      Copy unavailable
-                    </span>
-                  )}
                   {!k.revoked && (
                     <Button
                       variant="outline"

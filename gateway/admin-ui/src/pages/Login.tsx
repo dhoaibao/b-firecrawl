@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shield, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
@@ -16,7 +17,7 @@ export default function Login() {
   useEffect(() => { document.title = "Sign in — Firecrawl Gateway" }, [])
   const navigate = useNavigate();
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setShake(false);
@@ -71,13 +72,13 @@ export default function Login() {
 
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-sm font-medium text-foreground">Email</label>
-              <input
+              <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-11 w-full rounded-lg border border-white/[0.08] bg-surface-1 px-4 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                className="h-11 bg-surface-1 px-4"
                 placeholder="admin@example.com"
               />
             </div>
@@ -85,13 +86,13 @@ export default function Login() {
             <div className="space-y-1.5">
               <label htmlFor="password" className="text-sm font-medium text-foreground">Password</label>
               <div className="relative">
-                <input
+                <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="h-11 w-full rounded-lg border border-white/[0.08] bg-surface-1 px-4 pr-11 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                  className="h-11 bg-surface-1 px-4 pr-11"
                   placeholder="••••••••"
                 />
                 <button

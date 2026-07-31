@@ -54,7 +54,7 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
           return (
             <div
               key={bucket.index}
-              className="flex h-full flex-1 items-end justify-center"
+              className="flex h-full flex-1 items-end justify-center rounded-md"
               onMouseEnter={() => setHoveredIndex(bucket.index)}
               onMouseLeave={() => setHoveredIndex(null)}
             >

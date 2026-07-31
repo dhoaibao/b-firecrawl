@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { CheckCircle2, KeyRound, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import PageLayout from "@/components/PageLayout"
 import { useToast } from "@/hooks/useToast"
@@ -15,7 +16,7 @@ export default function Account() {
 
   useEffect(() => { document.title = "Account — Firecrawl Gateway" }, [])
 
-  async function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (newPassword !== confirmPassword) {
       addToast("New passwords do not match", "error")
@@ -63,16 +64,16 @@ export default function Account() {
             <form className="space-y-5" onSubmit={handleSubmit}>
               <label className="block text-sm font-medium text-foreground">
                 Current password
-                <input className={inputClassName} type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
+                <Input className={inputClassName} type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
               </label>
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block text-sm font-medium text-foreground">
                   New password
-                  <input className={inputClassName} type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" />
+                  <Input className={inputClassName} type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" />
                 </label>
                 <label className="block text-sm font-medium text-foreground">
                   Confirm new password
-                  <input className={inputClassName} type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" />
+                  <Input className={inputClassName} type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" />
                 </label>
               </div>
               <div className="flex justify-end border-t border-white/[0.06] pt-5">

@@ -11,6 +11,7 @@ import {
   Route,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
@@ -351,13 +352,13 @@ export default function Configure() {
                     Add Firecrawl API keys. The gateway uses the key with the most remaining credits first, randomizing ties, and tries the remaining keys on rate limits or auth errors.
                   </p>
                   <div className="flex gap-2">
-                    <input
+                    <Input
                       type="text"
                       placeholder="Enter Firecrawl API key..."
                       value={newKey}
                       onChange={(e) => setNewKey(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addApiKey() } }}
-                      className="h-10 flex-1 rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                      className="flex-1"
                     />
                     <Button variant="outline" size="sm" onClick={addApiKey}>
                       <Plus className="size-4 mr-1" /> Add
@@ -460,15 +461,14 @@ export default function Configure() {
                         </SelectContent>
                       </Select>
                     ) : field.type === "text" ? (
-                      <input
+                      <Input
                         type="url"
                         value={settings[field.key] ?? ""}
                         onChange={(e) => updateSetting(field.key, e.target.value)}
                         placeholder="https://your-firecrawl-instance.example.com"
-                        className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
                       />
                     ) : (
-                      <input
+                      <Input
                         type="number"
                         min={field.min}
                         step={field.step}
@@ -477,7 +477,6 @@ export default function Configure() {
                           const val = e.target.value === "" ? 0 : Number(e.target.value)
                           updateSetting(field.key, val)
                         }}
-                        className="h-10 w-full rounded-lg border border-white/[0.08] bg-surface-3 px-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground hover:border-white/12 focus:border-ring focus:ring-2 focus:ring-ring/30"
                       />
                     )}
                   </div>
