@@ -64,4 +64,42 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Migrate persisted routing terminology from the former local backend names.
+-- The conditional update avoids a primary-key conflict if an administrator has
+-- already created the renamed setting before this migration runs.
+UPDATE settings
+SET key = 'self_hosted_firecrawl_url', updated_at = NOW()
+WHERE key = 'local_firecrawl_url'
+  AND NOT EXISTS (
+    SELECT 1 FROM settings WHERE key = 'self_hosted_firecrawl_url'
+  );
+
+DELETE FROM settings WHERE key = 'local_firecrawl_url';
+
+UPDATE settings
+SET value = CASE value
+  WHEN 'local-first' THEN 'self-hosted-first'
+  WHEN 'local-only' THEN 'self-hosted-only'
+  ELSE value
+END,
+updated_at = NOW()
+WHERE key = 'default_route_mode'
+  AND value IN ('local-first', 'local-only');
+
+UPDATE audit_logs
+SET route_mode = CASE route_mode
+  WHEN 'local-first' THEN 'self-hosted-first'
+  WHEN 'local-only' THEN 'self-hosted-only'
+  ELSE route_mode
+END
+WHERE route_mode IN ('local-first', 'local-only');
+
+UPDATE audit_logs
+SET backend_used = 'self-hosted'
+WHERE backend_used = 'local';
+
+UPDATE audit_logs
+SET fallback_reason = replace(fallback_reason, 'local', 'self-hosted')
+WHERE fallback_reason LIKE '%local%';
+
 -- connect-pg-simple will create its own session table if configured with createTableIfMissing

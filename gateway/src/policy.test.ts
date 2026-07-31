@@ -12,17 +12,17 @@ import {
 describe("getRouteMode", () => {
   it("uses header value when valid", () => {
     expect(
-      getRouteMode("/v1/scrape", { "x-firecrawl-route-mode": "cloud-first" }, "local-first"),
+      getRouteMode("/v1/scrape", { "x-firecrawl-route-mode": "cloud-first" }, "self-hosted-first"),
     ).toBe("cloud-first");
   });
 
   it("uses query value when valid", () => {
-    expect(getRouteMode("/v1/scrape?routeMode=local-only", {}, "local-first")).toBe("local-only");
+    expect(getRouteMode("/v1/scrape?routeMode=self-hosted-only", {}, "self-hosted-first")).toBe("self-hosted-only");
   });
 
   it("falls back to default when invalid", () => {
-    expect(getRouteMode("/v1/scrape", { "x-firecrawl-route-mode": "invalid" }, "local-first")).toBe(
-      "local-first",
+    expect(getRouteMode("/v1/scrape", { "x-firecrawl-route-mode": "invalid" }, "self-hosted-first")).toBe(
+      "self-hosted-first",
     );
   });
 
@@ -78,7 +78,7 @@ describe("requestNeedsCloud", () => {
   });
 
   it.each(["screenshot", "changeTracking", "branding"])(
-    "allows the local backend to attempt the %s format",
+    "allows the self-hosted backend to attempt the %s format",
     (format) => {
       expect(requestNeedsCloud("/v2/scrape", { formats: [format] }).required).toBe(false);
     },
@@ -110,31 +110,31 @@ describe("chooseInitialBackend", () => {
     expect(chooseInitialBackend("cloud-only", { required: true, reason: "actions" })).toBe("cloud");
   });
 
-  it("chooses local for local-only when no cloud requirement", () => {
-    expect(chooseInitialBackend("local-only", { required: false, reason: "" })).toBe("local");
+  it("chooses self-hosted for self-hosted-only when no cloud requirement", () => {
+    expect(chooseInitialBackend("self-hosted-only", { required: false, reason: "" })).toBe("self-hosted");
   });
 
-  it("rejects local-only when cloud is required", () => {
-    expect(chooseInitialBackend("local-only", { required: true, reason: "actions" })).toBe("reject");
+  it("rejects self-hosted-only when cloud is required", () => {
+    expect(chooseInitialBackend("self-hosted-only", { required: true, reason: "actions" })).toBe("reject");
   });
 
-  it("chooses cloud for local-first when cloud is required", () => {
-    expect(chooseInitialBackend("local-first", { required: true, reason: "actions" })).toBe("cloud");
+  it("chooses cloud for self-hosted-first when cloud is required", () => {
+    expect(chooseInitialBackend("self-hosted-first", { required: true, reason: "actions" })).toBe("cloud");
   });
 
-  it("chooses local for local-first when cloud is not required", () => {
-    expect(chooseInitialBackend("local-first", { required: false, reason: "" })).toBe("local");
+  it("chooses self-hosted for self-hosted-first when cloud is not required", () => {
+    expect(chooseInitialBackend("self-hosted-first", { required: false, reason: "" })).toBe("self-hosted");
   });
 });
 
 describe("isFallbackAllowed", () => {
-  it("allows fallback in local-first mode without privacy concerns", () => {
+  it("allows fallback in self-hosted-first mode without privacy concerns", () => {
     expect(
-      isFallbackAllowed("local-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: false }),
+      isFallbackAllowed("self-hosted-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: false }),
     ).toBe(true);
   });
 
-  it("denies fallback outside local-first", () => {
+  it("denies fallback outside self-hosted-first", () => {
     expect(
       isFallbackAllowed("cloud-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: false }),
     ).toBe(false);
@@ -142,13 +142,13 @@ describe("isFallbackAllowed", () => {
 
   it("denies fallback with sensitive headers", () => {
     expect(
-      isFallbackAllowed("local-first", { hasSensitiveHeaders: true, hasPrivateTargetUrl: false }),
+      isFallbackAllowed("self-hosted-first", { hasSensitiveHeaders: true, hasPrivateTargetUrl: false }),
     ).toBe(false);
   });
 
   it("denies fallback with private target URL", () => {
     expect(
-      isFallbackAllowed("local-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: true }),
+      isFallbackAllowed("self-hosted-first", { hasSensitiveHeaders: false, hasPrivateTargetUrl: true }),
     ).toBe(false);
   });
 });
@@ -189,7 +189,7 @@ describe("isFallbackEligible", () => {
   });
 
   it.each(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])(
-    "is eligible when the local backend does not expose a %s route",
+    "is eligible when the self-hosted backend does not expose a %s route",
     (method) => {
       expect(
         isFallbackEligible({
@@ -245,13 +245,13 @@ describe("isCloudQuotaFallbackAllowed", () => {
 
   it("denies fallback outside cloud-first", () => {
     expect(
-      isCloudQuotaFallbackAllowed("local-first", { required: false, reason: "" }),
+      isCloudQuotaFallbackAllowed("self-hosted-first", { required: false, reason: "" }),
     ).toBe(false);
     expect(
       isCloudQuotaFallbackAllowed("cloud-only", { required: false, reason: "" }),
     ).toBe(false);
     expect(
-      isCloudQuotaFallbackAllowed("local-only", { required: false, reason: "" }),
+      isCloudQuotaFallbackAllowed("self-hosted-only", { required: false, reason: "" }),
     ).toBe(false);
   });
 

@@ -12,7 +12,7 @@ import type { BackendFilter, StatusFilter, DateRange, UserData } from "@/types"
 
 const backendFilters: Array<{ label: string; value: BackendFilter }> = [
   { label: "All", value: "" },
-  { label: "Local", value: "local" },
+  { label: "Self-hosted", value: "self-hosted" },
   { label: "Cloud", value: "cloud" },
 ]
 

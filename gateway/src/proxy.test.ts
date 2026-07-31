@@ -16,7 +16,7 @@ vi.mock("./settings/service", () => ({
   setSetting: vi.fn(),
   deleteSetting: vi.fn(),
   getDefaultRouteMode: mockGetDefaultRouteMode,
-  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first", "cloud-only"],
+  VALID_ROUTE_MODES: ["self-hosted-first", "self-hosted-only", "cloud-first", "cloud-only"],
 }));
 
 vi.mock("./api-keys/service", () => ({
@@ -33,7 +33,7 @@ vi.mock("./users/service", () => ({
 const baseConfig: GatewayConfig = {
   port: 8080,
   cloudBaseUrl: "https://api.firecrawl.dev",
-  defaultRouteMode: "local-first",
+  defaultRouteMode: "self-hosted-first",
   requestTimeoutMs: 120_000,
   logFile: "/tmp/test.log",
   maxBodyBytes: 5_242_880,
@@ -98,7 +98,7 @@ describe("headersForPrivacyCheck", () => {
 describe("createProxyHandler trusted session caller", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+    mockGetDefaultRouteMode.mockResolvedValue("self-hosted-first");
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["fc_test_key"]', updated_at: new Date().toISOString() };
@@ -213,7 +213,7 @@ describe("createProxyHandler trusted session caller", () => {
     expect(auditStore.appendAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: trustedUserId,
-        backend_used: "local",
+        backend_used: "self-hosted",
       }),
     );
   });
@@ -222,7 +222,7 @@ describe("createProxyHandler trusted session caller", () => {
 describe("createProxyHandler response streaming", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+    mockGetDefaultRouteMode.mockResolvedValue("self-hosted-first");
     mockGetSetting.mockResolvedValue(null);
   });
 
@@ -268,7 +268,7 @@ describe("createProxyHandler response streaming", () => {
 describe("createProxyHandler route mode resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+    mockGetDefaultRouteMode.mockResolvedValue("self-hosted-first");
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["fc_test_key"]', updated_at: new Date().toISOString() };
@@ -311,7 +311,7 @@ describe("createProxyHandler route mode resolution", () => {
 
     await handler(req, res);
 
-    expect(mockGetDefaultRouteMode).toHaveBeenCalledWith("local-first");
+    expect(mockGetDefaultRouteMode).toHaveBeenCalledWith("self-hosted-first");
     expect(fetchMock).toHaveBeenCalled();
     const callUrl = fetchMock.mock.calls[0]?.[0];
     expect(callUrl).toContain("api.firecrawl.dev");
@@ -386,7 +386,7 @@ describe("createProxyHandler route mode resolution", () => {
   });
 
   it("uses the env default as the resolved route mode when database setting is unset", async () => {
-    mockGetDefaultRouteMode.mockResolvedValue("local-only");
+    mockGetDefaultRouteMode.mockResolvedValue("self-hosted-only");
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -396,7 +396,7 @@ describe("createProxyHandler route mode resolution", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const handler = createProxyHandler({ config: { ...baseConfig, defaultRouteMode: "local-only" }, auditStore });
+    const handler = createProxyHandler({ config: { ...baseConfig, defaultRouteMode: "self-hosted-only" }, auditStore });
     const req = {
       method: "POST",
       url: "/v1/scrape",
@@ -419,13 +419,13 @@ describe("createProxyHandler route mode resolution", () => {
 
     await handler(req, res);
 
-    expect(mockGetDefaultRouteMode).toHaveBeenCalledWith("local-only");
+    expect(mockGetDefaultRouteMode).toHaveBeenCalledWith("self-hosted-only");
 
     vi.unstubAllGlobals();
   });
 });
 
-describe("createProxyHandler cloud quota fallback to local", () => {
+describe("createProxyHandler cloud quota fallback to self-hosted", () => {
   const cloudFirstConfig: GatewayConfig = { ...baseConfig, defaultRouteMode: "cloud-first" };
 
   beforeEach(() => {
@@ -500,12 +500,12 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     expect(new Headers(cloudRequest?.[1]?.headers).get("authorization")).toBe("Bearer high-credit");
   });
 
-  it("falls back to local when every cloud API key returns 429", async () => {
+  it("falls back to self-hosted when every cloud API key returns 429", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["key1","key2"]', updated_at: new Date().toISOString() };
       }
-      if (key === "local_firecrawl_url") {
+      if (key === "self_hosted_firecrawl_url") {
         return { key, value: "http://localhost:3002", updated_at: new Date().toISOString() };
       }
       return null;
@@ -524,7 +524,7 @@ describe("createProxyHandler cloud quota fallback to local", () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true, local: true })),
+        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true, selfHosted: true })),
       };
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -535,17 +535,17 @@ describe("createProxyHandler cloud quota fallback to local", () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(fetchMock).toHaveBeenCalledTimes(5);
-    const localCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
-    expect(localCall).toBeDefined();
+    const selfHostedCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
+    expect(selfHostedCall).toBeDefined();
     expect(res.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        "x-hybrid-firecrawl-backend": "local",
+        "x-hybrid-firecrawl-backend": "self-hosted",
         "x-hybrid-firecrawl-fallback": "true",
       }),
     );
   });
 
-  it("does not fall back to local when a later cloud key succeeds", async () => {
+  it("does not fall back to self-hosted when a later cloud key succeeds", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["key1","key2"]', updated_at: new Date().toISOString() };
@@ -576,7 +576,7 @@ describe("createProxyHandler cloud quota fallback to local", () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true, local: true })),
+        arrayBuffer: async () => Buffer.from(JSON.stringify({ success: true, selfHosted: true })),
       };
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -587,11 +587,11 @@ describe("createProxyHandler cloud quota fallback to local", () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    const localCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
-    expect(localCall).toBeUndefined();
+    const selfHostedCall = fetchMock.mock.calls.find(([url]) => url.includes("localhost:3002"));
+    expect(selfHostedCall).toBeUndefined();
   });
 
-  it("does not fall back to local for non-quota cloud errors", async () => {
+  it("does not fall back to self-hosted for non-quota cloud errors", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["key1"]', updated_at: new Date().toISOString() };
@@ -615,7 +615,7 @@ describe("createProxyHandler cloud quota fallback to local", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("does not fall back to local for cloud-only requests", async () => {
+  it("does not fall back to self-hosted for cloud-only requests", async () => {
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["key1"]', updated_at: new Date().toISOString() };

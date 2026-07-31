@@ -11,7 +11,7 @@ export interface RequestBucket {
 
 export interface AuditMetrics {
   total: number
-  local: number
+  selfHosted: number
   cloud: number
   fallbacks: number
   avgDuration: number
@@ -56,7 +56,7 @@ export function buildRequestBuckets(entries: AuditEntry[]): RequestBucket[] {
 export function useAuditMetrics(entries: AuditEntry[]): AuditMetrics {
   return useMemo(() => {
     const total = entries.length
-    const local = entries.filter((e) => e.backend_used === "local").length
+    const selfHosted = entries.filter((e) => e.backend_used === "self-hosted").length
     const cloud = entries.filter((e) => e.backend_used === "cloud").length
     const fallbacks = entries.filter((e) => e.fallback_used).length
 
@@ -77,7 +77,7 @@ export function useAuditMetrics(entries: AuditEntry[]): AuditMetrics {
 
     return {
       total,
-      local,
+      selfHosted,
       cloud,
       fallbacks,
       avgDuration,

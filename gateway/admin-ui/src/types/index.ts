@@ -42,7 +42,7 @@ export interface ApiKeyData {
 }
 
 /** Backend filter option */
-export type BackendFilter = "" | "local" | "cloud"
+export type BackendFilter = "" | "self-hosted" | "cloud"
 
 /** HTTP status category filter */
 export type StatusFilter = "" | "2xx" | "4xx" | "5xx"
@@ -64,7 +64,7 @@ export interface SettingsData {
   user_inactivity_suspend_days?: number
   api_key_inactivity_revoke_days?: number
   default_route_mode?: RouteMode
-  local_firecrawl_url?: string
+  self_hosted_firecrawl_url?: string
 }
 
 /** Credit usage item for a single API key */

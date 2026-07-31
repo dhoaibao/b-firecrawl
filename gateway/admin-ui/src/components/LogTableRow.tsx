@@ -35,7 +35,7 @@ function statusVariant(status: number): BadgeVariant {
 }
 
 function backendVariant(backend: string): BadgeVariant {
-  if (backend === "local") return "success"
+  if (backend === "self-hosted") return "success"
   if (backend === "cloud") return "info"
   return "outline"
 }

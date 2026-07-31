@@ -12,7 +12,7 @@ vi.mock("./service", () => ({
   getSetting: mockGetSetting,
   listSettings: mockListSettings,
   setSetting: mockSetSetting,
-  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first", "cloud-only"],
+  VALID_ROUTE_MODES: ["self-hosted-first", "self-hosted-only", "cloud-first", "cloud-only"],
 }));
 
 function createApp() {
@@ -21,7 +21,7 @@ function createApp() {
   const config: GatewayConfig = {
     port: 8080,
     cloudBaseUrl: "https://api.firecrawl.dev",
-    defaultRouteMode: "local-first",
+    defaultRouteMode: "self-hosted-first",
     requestTimeoutMs: 120_000,
     logFile: "/tmp/test.log",
     maxBodyBytes: 5_242_880,

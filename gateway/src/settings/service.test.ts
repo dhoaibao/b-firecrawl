@@ -37,14 +37,14 @@ describe("getDefaultRouteMode", () => {
         },
       ],
     });
-    const result = await getDefaultRouteMode("local-first");
+    const result = await getDefaultRouteMode("self-hosted-first");
     expect(result).toBe("cloud-first");
   });
 
   it("falls back when setting is missing", async () => {
     mockQuery.mockResolvedValue({ rows: [] });
-    const result = await getDefaultRouteMode("local-first");
-    expect(result).toBe("local-first");
+    const result = await getDefaultRouteMode("self-hosted-first");
+    expect(result).toBe("self-hosted-first");
   });
 
   it("falls back when stored value is invalid", async () => {
@@ -57,7 +57,7 @@ describe("getDefaultRouteMode", () => {
         },
       ],
     });
-    const result = await getDefaultRouteMode("local-only");
-    expect(result).toBe("local-only");
+    const result = await getDefaultRouteMode("self-hosted-only");
+    expect(result).toBe("self-hosted-only");
   });
 });

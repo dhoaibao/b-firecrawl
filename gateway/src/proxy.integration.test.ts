@@ -17,7 +17,7 @@ vi.mock("./settings/service", () => ({
   setSetting: vi.fn(),
   deleteSetting: vi.fn(),
   getDefaultRouteMode: mockGetDefaultRouteMode,
-  VALID_ROUTE_MODES: ["local-first", "local-only", "cloud-first", "cloud-only"],
+  VALID_ROUTE_MODES: ["self-hosted-first", "self-hosted-only", "cloud-first", "cloud-only"],
 }));
 
 vi.mock("./api-keys/service", () => ({
@@ -34,7 +34,7 @@ vi.mock("./users/service", () => ({
 const baseConfig: GatewayConfig = {
   port: 8080,
   cloudBaseUrl: "https://api.firecrawl.dev",
-  defaultRouteMode: "local-first",
+  defaultRouteMode: "self-hosted-first",
   requestTimeoutMs: 120_000,
   logFile: "",
   maxBodyBytes: 5_242_880,
@@ -90,7 +90,7 @@ describe("proxy audit logging", () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "gateway-audit-"));
     logFile = path.join(tmpDir, "audit.jsonl");
     vi.clearAllMocks();
-    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+    mockGetDefaultRouteMode.mockResolvedValue("self-hosted-first");
     mockGetSetting.mockImplementation(async (key: string) => {
       if (key === "firecrawl_api_keys") {
         return { key, value: '["fc_test_key"]', updated_at: new Date().toISOString() };
@@ -104,8 +104,8 @@ describe("proxy audit logging", () => {
     vi.unstubAllGlobals();
   });
 
-  it("writes an audit entry before finishing a local-first response", async () => {
-    mockGetDefaultRouteMode.mockResolvedValue("local-first");
+  it("writes an audit entry before finishing a self-hosted-first response", async () => {
+    mockGetDefaultRouteMode.mockResolvedValue("self-hosted-first");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -115,9 +115,9 @@ describe("proxy audit logging", () => {
 
     const { app, auditStore } = await buildApp({
       logFile,
-      routeMode: "local-first",
+      routeMode: "self-hosted-first",
       fetchMock,
-      requestId: "req-local",
+      requestId: "req-self-hosted",
     });
 
     await request(app)
@@ -128,8 +128,8 @@ describe("proxy audit logging", () => {
 
     const entries = await auditStore.readAuditEntries(10);
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.route_mode).toBe("local-first");
-    expect(entries[0]?.backend_used).toBe("local");
+    expect(entries[0]?.route_mode).toBe("self-hosted-first");
+    expect(entries[0]?.backend_used).toBe("self-hosted");
   });
 
   it("writes an audit entry before finishing a cloud-first response", async () => {

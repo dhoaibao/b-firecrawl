@@ -43,9 +43,9 @@ interface SettingField {
 
 const FIELDS: SettingField[] = [
   {
-    key: "local_firecrawl_url",
-    label: "External Firecrawl URL",
-    description: "URL of the externally hosted Firecrawl instance used for local routing.",
+    key: "self_hosted_firecrawl_url",
+    label: "Self-hosted Firecrawl URL",
+    description: "URL of the external self-hosted Firecrawl instance.",
     type: "text",
     category: "routing",
     icon: Route,
@@ -260,7 +260,7 @@ export default function Configure() {
     try {
       const payload: Partial<SettingsData> = {
         firecrawl_api_keys: apiKeyRows.map((row) => row.key),
-        local_firecrawl_url: settings.local_firecrawl_url ?? "",
+        self_hosted_firecrawl_url: settings.self_hosted_firecrawl_url ?? "",
         default_route_mode: settings.default_route_mode ?? DEFAULT_ROUTE_MODE,
         user_inactivity_suspend_days: settings.user_inactivity_suspend_days ?? 0,
         api_key_inactivity_revoke_days: settings.api_key_inactivity_revoke_days ?? 0,

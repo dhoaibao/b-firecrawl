@@ -25,11 +25,11 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=replace-with-a-strong-password
 ```
 
-Configure the external Firecrawl URL in the Admin UI after startup. It must be reachable from the gateway container; use a resolvable hostname rather than `localhost`.
+Configure the external self-hosted Firecrawl URL in the Admin UI after startup. It must be reachable from the gateway container; use a resolvable hostname rather than `localhost`.
 
 ## Start
 
-Using a local source build:
+Using a source build:
 
 ```bash
 docker compose up -d --build
@@ -45,15 +45,15 @@ The gateway is available at `http://localhost:8080` by default. The admin UI is 
 
 ## Routing
 
-- `local-first`: use the external Firecrawl instance first and fall back to Cloud for eligible requests.
-- `local-only`: never send requests to Cloud.
-- `cloud-first`: use Cloud first and fall back to the external Firecrawl instance when eligible.
-- `cloud-only`: use Cloud exclusively; never fall back to the external Firecrawl instance.
+- `self-hosted-first`: use the external self-hosted Firecrawl instance first and fall back to Cloud for eligible requests.
+- `self-hosted-only`: never send requests to Cloud.
+- `cloud-first`: use Cloud first and fall back to the external self-hosted Firecrawl instance when eligible.
+- `cloud-only`: use Cloud exclusively; never fall back to the external self-hosted Firecrawl instance.
 
-The gateway starts cloud-first. Change the live setting in **Configure > Routing**, or override an individual request with:
+The gateway starts cloud-first. Existing route settings and audit records are migrated automatically at startup. Change the live setting in **Configure > Routing**, or override an individual request with:
 
 ```text
-X-Firecrawl-Route-Mode: local-first | local-only | cloud-first | cloud-only
+X-Firecrawl-Route-Mode: self-hosted-first | self-hosted-only | cloud-first | cloud-only
 ```
 
 Cloud API keys are managed in the Admin UI and injected only into upstream Cloud requests.

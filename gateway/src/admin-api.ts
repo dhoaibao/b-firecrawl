@@ -64,7 +64,7 @@ export function createAdminRouter(auditStore: AuditStore) {
 
     const totals = {
       total: entries.length,
-      local: entries.filter((entry) => entry.backend_used === "local").length,
+      self_hosted: entries.filter((entry) => entry.backend_used === "self-hosted").length,
       cloud: entries.filter((entry) => entry.backend_used === "cloud").length,
       fallbacks: entries.filter((entry) => entry.fallback_used).length,
       avgDuration,

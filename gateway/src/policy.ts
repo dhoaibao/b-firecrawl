@@ -1,7 +1,7 @@
 import type { NeedsCloudResult } from "./types";
 import { findObjectsByKey, walk } from "./utils";
 
-const validRouteModes = new Set(["local-first", "local-only", "cloud-first", "cloud-only"]);
+const validRouteModes = new Set(["self-hosted-first", "self-hosted-only", "cloud-first", "cloud-only"]);
 
 const cloudOnlyPathPatterns = [
   /^\/v\d+\/agent(?:\/|$)/,
@@ -106,15 +106,15 @@ export function chooseInitialBackend(
   needsCloud: NeedsCloudResult,
 ): string {
   if (routeMode === "cloud-first" || routeMode === "cloud-only") return "cloud";
-  if (routeMode === "local-only") return needsCloud.required ? "reject" : "local";
-  return needsCloud.required ? "cloud" : "local";
+  if (routeMode === "self-hosted-only") return needsCloud.required ? "reject" : "self-hosted";
+  return needsCloud.required ? "cloud" : "self-hosted";
 }
 
 export function isFallbackAllowed(
   routeMode: string,
   privacy: { hasSensitiveHeaders: boolean; hasPrivateTargetUrl: boolean },
 ): boolean {
-  if (routeMode !== "local-first") return false;
+  if (routeMode !== "self-hosted-first") return false;
   if (privacy.hasSensitiveHeaders) return false;
   if (privacy.hasPrivateTargetUrl) return false;
   return true;

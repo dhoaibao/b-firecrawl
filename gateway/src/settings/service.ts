@@ -1,6 +1,6 @@
 import { withClient } from "../db";
 
-export const VALID_ROUTE_MODES = ["local-first", "local-only", "cloud-first", "cloud-only"] as const;
+export const VALID_ROUTE_MODES = ["self-hosted-first", "self-hosted-only", "cloud-first", "cloud-only"] as const;
 
 export type RouteMode = (typeof VALID_ROUTE_MODES)[number];
 

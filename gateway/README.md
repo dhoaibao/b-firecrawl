@@ -22,17 +22,19 @@ Express.js + TypeScript gateway with a React admin dashboard. The gateway layer 
 The gateway starts cloud-first. Manage the live default in the Admin UI under **Configure > Routing**, or override per request with:
 
 ```text
-X-Firecrawl-Route-Mode: local-first | local-only | cloud-first | cloud-only
+X-Firecrawl-Route-Mode: self-hosted-first | self-hosted-only | cloud-first | cloud-only
 ```
 
-The external Firecrawl URL is configured in the Admin UI. `DATABASE_URL` must point to an externally managed PostgreSQL service.
+Existing database settings and audit records are migrated to the self-hosted terminology automatically at startup. API clients must use the renamed route-mode values; the admin data endpoint exposes the self-hosted count as `totals.self_hosted`.
+
+The external self-hosted Firecrawl URL is configured in the Admin UI. `DATABASE_URL` must point to an externally managed PostgreSQL service.
 
 ## Policy
 
-- Core scrape/search/crawl/map/parse and open-source output formats use the external Firecrawl instance first.
+- Core scrape/search/crawl/map/parse and open-source output formats use the external self-hosted Firecrawl instance first.
 - Cloud-managed features go to Cloud: actions, agent, browser/interact, monitor, research index, support and team APIs, feedback, enterprise search options, and enhanced proxies.
-- Eligible upstream failures can fall back between the external Firecrawl instance and Cloud, subject to route mode and privacy checks.
-- Fallback is disabled for `local-only`, sensitive headers/cookies, and private/local target URLs.
+- Eligible upstream failures can fall back between the external self-hosted Firecrawl instance and Cloud, subject to route mode and privacy checks.
+- Fallback is disabled for `self-hosted-only`, sensitive headers/cookies, and private target URLs.
 
 ## Development
 

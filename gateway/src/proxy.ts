@@ -130,7 +130,7 @@ function sanitizeHeaders(
     if (lower === "x-firecrawl-route-mode") continue;
     // Strip the virtual API key before forwarding; only send auth to cloud.
     // In auth-disabled mode the Authorization header belongs to the client and
-    // must be preserved for the local backend (transparent proxy behavior).
+    // must be preserved for the self-hosted backend (transparent proxy behavior).
     if (lower === "authorization" && backend !== "cloud" && authEnabled) continue;
     if (value === undefined) continue;
     next[key] = Array.isArray(value) ? value.join(", ") : value;
@@ -251,9 +251,9 @@ function backendUrl(
   backend: string,
   originalUrl: string,
   config: GatewayConfig,
-  localBaseUrl: string,
+  selfHostedBaseUrl: string,
 ): string {
-  const base = backend === "cloud" ? config.cloudBaseUrl : localBaseUrl;
+  const base = backend === "cloud" ? config.cloudBaseUrl : selfHostedBaseUrl;
   return `${base}${originalUrl}`;
 }
 
@@ -372,7 +372,7 @@ export function createProxyHandler({
     };
 
     const defaultRouteMode = await settingsService.getDefaultRouteMode(config.defaultRouteMode);
-    const localBaseUrl = (await settingsService.getSetting("local_firecrawl_url"))?.value
+    const selfHostedBaseUrl = (await settingsService.getSetting("self_hosted_firecrawl_url"))?.value
       ?.replace(/\/+$/, "") || "";
     routeMode = getRouteMode(
       requestUrl,
@@ -458,7 +458,7 @@ export function createProxyHandler({
     let cloudApiKeys: string[] = [];
     if (
       initialBackend === "cloud" ||
-      (initialBackend === "local" && routeMode !== "local-only" && isFallbackAllowed(routeMode, privacy))
+      (initialBackend === "self-hosted" && routeMode !== "self-hosted-only" && isFallbackAllowed(routeMode, privacy))
     ) {
       cloudApiKeys = await getCloudApiKeys(config);
     }
@@ -496,7 +496,7 @@ export function createProxyHandler({
       const statusCode = 409;
       log.warn(
         { reason: needsCloud.reason },
-        "request rejected: requires cloud in local-only mode",
+        "request rejected: requires cloud in self-hosted-only mode",
       );
       await appendAuditEntry({
         backendUsed: "none",
@@ -506,7 +506,7 @@ export function createProxyHandler({
       res.status(statusCode).json({
         success: false,
         error:
-          "This request requires Firecrawl Cloud, but route mode is local-only.",
+          "This request requires Firecrawl Cloud, but route mode is self-hosted-only.",
         reason: needsCloud.reason,
       });
       return;
@@ -516,7 +516,7 @@ export function createProxyHandler({
       backend: initialBackend,
       req,
       bodyBuffer,
-      targetUrl: backendUrl(initialBackend, requestUrl, config, localBaseUrl),
+      targetUrl: backendUrl(initialBackend, requestUrl, config, selfHostedBaseUrl),
       config,
       apiKey: initialBackend === "cloud" ? primaryCloudApiKey : undefined,
     });
@@ -524,7 +524,7 @@ export function createProxyHandler({
     let fallbackReason = "";
 
     if (
-      initialBackend === "local" &&
+      initialBackend === "self-hosted" &&
       Boolean(primaryCloudApiKey) &&
       isFallbackEligible(result) &&
       isFallbackAllowed(routeMode, privacy)
@@ -532,17 +532,17 @@ export function createProxyHandler({
       fallbackUsed = true;
       fallbackReason =
         result.kind === "network-error"
-          ? result.error?.message || "local network error"
-          : `local returned ${result.response?.status}`;
+          ? result.error?.message || "self-hosted network error"
+          : `self-hosted returned ${result.response?.status}`;
       log.warn(
         { fallback_reason: fallbackReason },
-        "falling back from local to cloud",
+        "falling back from self-hosted to cloud",
       );
       result = await proxyToBackend({
         backend: "cloud",
         req,
         bodyBuffer,
-        targetUrl: backendUrl("cloud", requestUrl, config, localBaseUrl),
+        targetUrl: backendUrl("cloud", requestUrl, config, selfHostedBaseUrl),
         config,
         apiKey: primaryCloudApiKey,
       });
@@ -573,7 +573,7 @@ export function createProxyHandler({
             backend: "cloud",
             req,
             bodyBuffer,
-            targetUrl: backendUrl("cloud", requestUrl, config, localBaseUrl),
+            targetUrl: backendUrl("cloud", requestUrl, config, selfHostedBaseUrl),
             config,
             apiKey: nextKey,
           });
@@ -608,16 +608,16 @@ export function createProxyHandler({
       isCloudQuotaFallbackAllowed(routeMode, needsCloud)
     ) {
       fallbackUsed = true;
-      fallbackReason = `all ${cloudApiKeys.length} cloud API key(s) returned 429; falling back to local`;
+      fallbackReason = `all ${cloudApiKeys.length} cloud API key(s) returned 429; falling back to self-hosted`;
       log.warn(
         { fallback_reason: fallbackReason },
-        "falling back from cloud to local",
+        "falling back from cloud to self-hosted",
       );
       result = await proxyToBackend({
-        backend: "local",
+        backend: "self-hosted",
         req,
         bodyBuffer,
-        targetUrl: backendUrl("local", requestUrl, config, localBaseUrl),
+        targetUrl: backendUrl("self-hosted", requestUrl, config, selfHostedBaseUrl),
         config,
       });
     }
