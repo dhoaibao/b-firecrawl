@@ -183,7 +183,7 @@ Use the components in `gateway/admin-ui/src/components/ui/`. Do not introduce ne
 - **Pagination** (`Pagination.tsx`): Compact page numbers + first/previous/next/last + page-size selector.
 - **FilterBar** (`FilterBar.tsx`): Dashboard-specific filter cluster with preset buttons and compact selects.
 - **ConfirmDialog** (`ConfirmDialog.tsx`): Accessible alert dialog with focus trap, escape handling, and danger/warning variants. Uses `role="alertdialog"`.
-- **ToastStack** (`ToastStack.tsx`): Bottom-right fixed stack for success/error toasts.
+- **ToastStack** (`ToastStack.tsx`): Top-center fixed stack for success/error toasts with icon-only dismissal.
 - **PageSkeleton** (`PageSkeleton.tsx`): Full-page table skeleton for list views.
 
 ### Icons

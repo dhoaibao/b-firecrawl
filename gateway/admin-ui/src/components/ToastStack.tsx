@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Toast } from "@/hooks/useToast"
 
@@ -10,7 +10,7 @@ interface ToastStackProps {
 export function ToastStack({ toasts, onRemove }: ToastStackProps) {
   if (toasts.length === 0) return null
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -29,10 +29,11 @@ export function ToastStack({ toasts, onRemove }: ToastStackProps) {
           <span className="text-sm">{toast.message}</span>
           <button
             onClick={() => onRemove(toast.id)}
-            className="ml-2 text-xs opacity-70 hover:opacity-100"
+            type="button"
+            className="ml-1 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
             aria-label="Dismiss"
           >
-            Dismiss
+            <X className="size-4" aria-hidden="true" />
           </button>
         </div>
       ))}
