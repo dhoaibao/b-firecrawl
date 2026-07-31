@@ -150,17 +150,25 @@ describe("GET /settings/credit-usage", () => {
       return null;
     });
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        data: {
-          remainingCredits: 1000,
-          planCredits: 5000,
-          billingPeriodStart: "2025-01-01T00:00:00Z",
-          billingPeriodEnd: "2025-01-31T23:59:59Z",
-        },
-      }),
+    let activeRequests = 0;
+    let maxConcurrentRequests = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      activeRequests++;
+      maxConcurrentRequests = Math.max(maxConcurrentRequests, activeRequests);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      activeRequests--;
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            remainingCredits: 1000,
+            planCredits: 5000,
+            billingPeriodStart: "2025-01-01T00:00:00Z",
+            billingPeriodEnd: "2025-01-31T23:59:59Z",
+          },
+        }),
+      };
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -169,6 +177,7 @@ describe("GET /settings/credit-usage", () => {
     expect(res.body.data).toHaveLength(2);
     expect(res.body.data[0].remainingCredits).toBe(1000);
     expect(res.body.data[1].remainingCredits).toBe(1000);
+    expect(maxConcurrentRequests).toBe(2);
 
     vi.unstubAllGlobals();
   });

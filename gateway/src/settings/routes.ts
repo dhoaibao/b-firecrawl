@@ -178,13 +178,12 @@ function parseValue(value: string, type: string): unknown {
 
 async function fetchCreditUsage(config: GatewayConfig): Promise<CreditUsageItem[]> {
   const keys = await getFirecrawlApiKeys(config);
-  const results: CreditUsageItem[] = [];
 
-  for (let i = 0; i < keys.length; i++) {
-    results.push(await fetchCreditUsageForKey(config.cloudBaseUrl, i, keys[i]));
-  }
-
-  return results;
+  return Promise.all(
+    keys.map((apiKey, keyIndex) =>
+      fetchCreditUsageForKey(config.cloudBaseUrl, keyIndex, apiKey),
+    ),
+  );
 }
 
 async function getFirecrawlApiKeys(config: GatewayConfig): Promise<string[]> {
