@@ -3,7 +3,7 @@
 
 ## Repository Purpose
 
-This repository ships a Bun-workspace Turborepo with a native NestJS/Fastify API and independently deployed React admin dashboard in front of externally hosted Firecrawl services. It does not host Firecrawl runtime services or PostgreSQL.
+This repository ships a Bun-workspace Turborepo with two independently deployable Vercel projects: a native NestJS/Fastify API and a root-hosted React/Vite admin dashboard in front of externally hosted Firecrawl and PostgreSQL services. It does not host those runtime services.
 
 ## Working Rules
 
@@ -16,15 +16,16 @@ This repository ships a Bun-workspace Turborepo with a native NestJS/Fastify API
 
 ## Verification Commands
 
-API (`apps/api/`):
+From the repository root:
 
 ```bash
 bun run typecheck
 bun run build
+bun run lint
 bun run test
 ```
 
-Admin UI (`apps/admin/`):
+Admin-only checks:
 
 ```bash
 cd apps/admin
@@ -32,7 +33,7 @@ bun run lint
 bun run build
 ```
 
-Database migration:
+Database schema/client commands:
 
 ```bash
 bun run db:generate
@@ -46,8 +47,11 @@ bun run db:migrate
 - `apps/api/src/proxy/policy.ts` — route-mode and Cloud-requirement decisions
 - `apps/api/src/common/config.ts` — environment configuration and validation
 - `apps/api/src/auth/`, `apps/api/src/api-keys/`, and `apps/api/src/settings/` — single-admin authentication and administration
-- `apps/api/src/prisma/` and `apps/api/prisma/` — Prisma client, mapped schema, and non-destructive baseline migration
-- `apps/api/src/audit/`, `cron/`, and `common/` — PostgreSQL audit persistence, authenticated Vercel maintenance cron, request middleware, and shared helpers
+- `apps/api/prisma/` — PostgreSQL schema and migrations, including the single-admin cutover
+- `apps/api/src/prisma/` — Prisma service/module and migration-compatibility tests
+- `apps/api/src/audit/` — PostgreSQL audit persistence and API
+- `apps/api/src/cron/` — authenticated Vercel maintenance cron
+- `apps/api/src/common/` — configuration, request middleware, and shared helpers
 - `apps/admin/src/` — root-hosted Vite React dashboard
 - `apps/api/vercel.json` / `apps/admin/vercel.json` — leaf Vercel project configuration
 - `README.md`, `QUICKSTART.md`, `SELF_HOST.md`, and `docs/DESIGN.md` — project and admin UI guidance
@@ -64,8 +68,8 @@ bun run db:migrate
 
 ## Maintainer Guide
 
-- Bun and Node `>=22` are required. API TypeScript is strict; the admin UI uses Vite, Tailwind CSS, and ESLint.
-- `bun run db:migrate` applies the source Prisma baseline; generated clients and build output are not source files.
+- Bun 1.3+ and Node.js 22+ are required. API TypeScript is strict; the admin UI uses Vite, Tailwind CSS, and ESLint.
+- `bun run db:migrate` applies the source Prisma migrations, including a destructive single-admin cutover; generated clients and build output are not source files.
 - Configuration examples belong in `.env.example`; runtime credentials must remain local.
 
 ## Source-of-Truth Files
@@ -75,7 +79,7 @@ bun run db:migrate
 - `.env.example` — configuration reference
 - `package.json`, `apps/api/package.json`, and `apps/admin/package.json` — package scripts and dependencies
 - `apps/api/src/common/config.ts` and `apps/api/src/proxy/policy.ts` — configuration defaults and routing behavior
-- `apps/api/prisma/schema.prisma` and its migrations — global key/audit schema and the approved destructive cutover
+- `apps/api/prisma/schema.prisma` and its migrations — global key/audit schema and migration history, including the single-admin cutover
 - `docs/DESIGN.md` — admin UI design rules
 - `README.md`, `QUICKSTART.md`, and `SELF_HOST.md` — user-facing setup and deployment guidance
 <!-- b-init-managed:end -->
