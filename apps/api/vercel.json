@@ -3,7 +3,6 @@
   "buildCommand": "bun run build",
   "functions": {
     "src/main.ts": {
-      "runtime": "nodejs22.x",
       "includeFiles": "prisma/**",
       "maxDuration": 120
     }
