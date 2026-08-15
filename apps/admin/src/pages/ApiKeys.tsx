@@ -121,9 +121,11 @@ export default function ApiKeys() {
     }
   }
 
-  async function copyExistingKey(id: string, key: string) {
+  async function copyExistingKey(id: string) {
     try {
-      await navigator.clipboard.writeText(key);
+      const json = await api.get<{ data: ApiKeyData }>(`/admin/api/api-keys/${id}`);
+      if (!json.data.key) throw new Error("API key unavailable");
+      await navigator.clipboard.writeText(json.data.key);
       setCopiedKeyId(id);
       setTimeout(() => setCopiedKeyId(null), 2000);
     } catch {
@@ -328,16 +330,9 @@ export default function ApiKeys() {
                       variant="ghost"
                       size="icon"
                       className="size-7 text-muted-foreground hover:text-foreground"
-                      onClick={() => k.key && void copyExistingKey(k.id, k.key)}
-                      disabled={!k.key}
-                      aria-label={
-                        !k.key
-                          ? "Copy unavailable for this API key"
-                          : copiedKeyId === k.id
-                            ? "API key copied"
-                            : "Copy API key"
-                      }
-                      title={!k.key ? "Copy unavailable" : copiedKeyId === k.id ? "Copied" : "Copy API key"}
+                      onClick={() => void copyExistingKey(k.id)}
+                      aria-label={copiedKeyId === k.id ? "API key copied" : "Copy API key"}
+                      title={copiedKeyId === k.id ? "Copied" : "Copy API key"}
                     >
                       {copiedKeyId === k.id ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
                     </Button>
