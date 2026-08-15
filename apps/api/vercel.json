@@ -4,7 +4,7 @@
   "functions": {
     "src/main.ts": {
       "runtime": "nodejs22.x",
-      "includeFiles": ["prisma/**"],
+      "includeFiles": "prisma/**",
       "maxDuration": 120
     }
   },
