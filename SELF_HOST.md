@@ -1,71 +1,29 @@
-# External Firecrawl Deployment Guide
+# External Service Guide
 
-This repository deploys only the Firecrawl Gateway. The Firecrawl API and PostgreSQL database must be hosted and operated separately.
-
-## Services
-
-- `gateway`: this repository's gateway and admin UI
-- External Firecrawl instance: configured in the Admin UI under **Configure > Routing**
-- Firecrawl Cloud: uses `https://api.firecrawl.dev`
-- External PostgreSQL: configured with `DATABASE_URL`
+This repository deploys a gateway, not Firecrawl or PostgreSQL. Configure both services outside this repository.
 
 ## Configure
 
 ```bash
 cp .env.example .env
+bun install
+bun run db:generate
+bun run db:migrate
 ```
 
-Set at least:
+Set migration-capable direct `DATABASE_URL`, `SESSION_SECRET`, `FIRECRAWL_KEYS_ENCRYPTION_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `CRON_SECRET`. Stop any running API process, run `bun run db:migrate`, then start/redeploy the API; it applies the additive legacy `audit_logs.target_url` compatibility and repair migrations before Prisma reads audit records. The single `ADMIN_EMAIL`/`ADMIN_PASSWORD` pair is the only administrator identity and is not stored in PostgreSQL; changing it changes the credentials accepted after the API restarts. The cutover migration intentionally deletes existing users, virtual API keys, and audit-log records before making keys and audits global. The same URL is used by runtime and migrations; do not use a transaction-only PgBouncer endpoint. This configuration does not silently guarantee serverless connection pooling. Configure the external self-hosted Firecrawl URL in the admin UI under **Configure > Routing**. The API function allows up to 120 seconds for streamed upstream requests, subject to the Vercel plan's maximum.
 
-```dotenv
-DATABASE_URL=postgresql://user:password@postgres.example.com:5432/firecrawl_gateway
-SESSION_SECRET=replace-with-a-long-random-secret
-FIRECRAWL_KEYS_ENCRYPTION_KEY=replace-with-64-character-hex-key
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=replace-with-a-strong-password
-```
+## Vercel projects
 
-Configure the external self-hosted Firecrawl URL in the Admin UI after startup. It must be reachable from the gateway container; use a resolvable hostname rather than `localhost`.
+Deploy `apps/api` and `apps/admin` separately. Set `VITE_API_BASE_URL` in the admin project to the API origin. Set exact `ADMIN_ORIGIN` and `API_ORIGIN` values in the API project. The API's `vercel.json` schedules `/api/cron/maintenance`; Vercel authenticates it with `CRON_SECRET`.
 
-## Start
+The API remains compatible with `/health`, `/ready`, `/v1/*`, `/v2/*`, and `/admin/api/*`. Admin sessions are signed HTTP-only cookies and may need to be re-created at cutover. User-management endpoints and UI have been removed; API keys and audit records are global.
 
-Using a source build:
-
-```bash
-docker compose up -d --build
-```
-
-Using the published gateway image:
-
-```bash
-docker compose -f docker-compose.prebuilt.yaml up -d
-```
-
-The gateway is available at `http://localhost:8080` by default. The admin UI is at `/admin` when authentication is enabled.
-
-## Routing
+## Routing modes
 
 - `self-hosted-first`: use the external self-hosted Firecrawl instance first and fall back to Cloud for eligible requests.
 - `self-hosted-only`: never send requests to Cloud.
-- `cloud-first`: use Cloud first and fall back to the external self-hosted Firecrawl instance when eligible.
-- `cloud-only`: use Cloud exclusively; never fall back to the external self-hosted Firecrawl instance.
+- `cloud-first`: use Cloud first and fall back to self-hosted when eligible.
+- `cloud-only`: use Cloud exclusively.
 
-The gateway starts cloud-first. Existing route settings and audit records are migrated automatically at startup. Change the live setting in **Configure > Routing**, or override an individual request with:
-
-```text
-X-Firecrawl-Route-Mode: self-hosted-first | self-hosted-only | cloud-first | cloud-only
-```
-
-Cloud API keys are managed in the Admin UI and injected only into upstream Cloud requests.
-
-## Troubleshooting
-
-Check gateway status and logs:
-
-```bash
-docker compose ps
-docker compose logs gateway
-curl http://localhost:8080/ready
-```
-
-A readiness failure indicates the gateway cannot connect to the configured external PostgreSQL database. Upstream Firecrawl connectivity is visible in gateway request audit logs and response headers.
+Cloud API keys remain encrypted in PostgreSQL. Sensitive headers/cookies and private target URLs continue to disable fallback.

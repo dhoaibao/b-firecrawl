@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bun run build",
+  "functions": {
+    "src/main.ts": {
+      "runtime": "nodejs22.x",
+      "includeFiles": ["prisma/**"],
+      "maxDuration": 120
+    }
+  },
+  "routes": [
+    { "src": "/(.*)", "dest": "/src/main.ts" }
+  ],
+  "crons": [
+    { "path": "/api/cron/maintenance", "schedule": "0 * * * *" }
+  ]
+}

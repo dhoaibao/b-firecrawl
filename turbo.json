@@ -1,0 +1,44 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": [".env", ".env.local"],
+  "globalPassThroughEnv": [
+    "PORT",
+    "FIRECRAWL_CLOUD_BASE_URL",
+    "API_REQUEST_TIMEOUT_MS",
+    "GATEWAY_REQUEST_TIMEOUT_MS",
+    "API_MAX_BODY_BYTES",
+    "GATEWAY_MAX_BODY_BYTES",
+    "AUTH_ENABLED",
+    "DATABASE_URL",
+    "SESSION_SECRET",
+    "FIRECRAWL_KEYS_ENCRYPTION_KEY",
+    "ADMIN_EMAIL",
+    "ADMIN_PASSWORD",
+    "ADMIN_ORIGIN",
+    "API_ORIGIN",
+    "TRUST_PROXY",
+    "LOG_LEVEL",
+    "CRON_SECRET",
+    "VITE_API_BASE_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": []
+    }
+  }
+}

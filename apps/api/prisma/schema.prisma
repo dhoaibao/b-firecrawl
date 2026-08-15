@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // DATABASE_URL is used by both the runtime and Prisma migrations. It must be migration-capable.
+  url      = env("DATABASE_URL")
+}
+
+model ApiKey {
+  id         String    @id
+  name       String    @db.VarChar(255)
+  keyHash    String    @map("key_hash") @db.VarChar(255)
+  keyValue   String?   @map("key_value") @db.VarChar(255)
+  keyPrefix  String    @map("key_prefix") @db.VarChar(255)
+  revoked    Boolean   @default(false)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
+  lastUsedAt DateTime? @map("last_used_at")
+
+  @@index([keyHash])
+  @@index([keyPrefix])
+  @@index([lastUsedAt])
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id             String   @id
+  createdAt      DateTime @map("created_at")
+  method         String
+  path           String
+  routeMode      String   @map("route_mode")
+  backendUsed    String   @map("backend_used")
+  fallbackUsed   Boolean  @default(false) @map("fallback_used")
+  fallbackReason String   @default("") @map("fallback_reason")
+  statusCode     Int      @map("status_code")
+  durationMs     Int      @map("duration_ms")
+  targetUrl      String   @default("") @map("target_url")
+  requestId      String?  @map("request_id")
+
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime @map("reset_at")
+
+  @@index([resetAt])
+  @@map("rate_limits")
+}

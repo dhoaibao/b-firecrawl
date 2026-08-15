@@ -46,8 +46,7 @@ A dark-themed, data-dense administrative dashboard for operating a hybrid Firecr
 ## Audience And Workflows
 
 - **Operators and admins** monitor live gateway traffic, success rates, fallback behavior, and latency.
-- **Admins** manage users (create, suspend, block, activate, delete) and API keys (create, revoke).
-- **Admins** configure routing policy, inactivity policies, and Firecrawl Cloud API key priority.
+- **The administrator** manages global API keys (create, revoke), audit history, routing policy, API-key inactivity policy, and Firecrawl Cloud API key priority. Credentials are environment-backed; there is no user-management workflow.
 - All authenticated pages share a persistent sidebar; the dashboard auto-refreshes every 5 seconds when "Live" is enabled.
 
 ## Visual Principles
@@ -61,7 +60,7 @@ A dark-themed, data-dense administrative dashboard for operating a hybrid Firecr
 ## Layout System
 
 - **App shell:** fixed 240 px left sidebar (`w-60`) on desktop; mobile uses a top bar and drawer overlay.
-- **Router basename:** Admin UI is served under `/admin` (`BrowserRouter basename="/admin"`).
+- **Router basename:** Admin UI is root-hosted (`BrowserRouter` uses the default `/` basename). API calls use `VITE_API_BASE_URL`.
 - **Content max-width:** `max-w-[1680px]` centered with `mx-auto`.
 - **Content padding:** `px-4 py-4 lg:px-6`.
 - **Main content offset:** `pt-14 lg:pt-0` to clear the mobile top bar.
@@ -74,7 +73,7 @@ A dark-themed, data-dense administrative dashboard for operating a hybrid Firecr
 
 ## Color System
 
-Source of truth is `gateway/admin-ui/src/index.css` using Tailwind CSS v4 `@theme`.
+Source of truth is `apps/admin/src/index.css` using Tailwind CSS v4 `@theme`.
 
 ### Base surfaces
 
@@ -164,7 +163,7 @@ Respect `prefers-reduced-motion: reduce` in `index.css`; do not add unbounded an
 
 ### Primitive source
 
-Use the components in `gateway/admin-ui/src/components/ui/`. Do not introduce new third-party UI libraries without explicit approval.
+Use the components in `apps/admin/src/components/ui/`. Do not introduce new third-party UI libraries without explicit approval.
 
 - **Button** (`button.tsx`): CVA-based with variants `default | destructive | outline | secondary | ghost | link` and sizes `default | sm | lg | icon`. Includes `active:translate-y-px`, focus ring, and `[&_svg]:size-4` defaults.
 - **Card** (`card.tsx`): `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`. Default card has `gap-6`, `rounded-lg`, `border`, `py-6`, and `shadow-[var(--shadow-card)]` with hover shadow.
@@ -238,7 +237,7 @@ Use the components in `gateway/admin-ui/src/components/ui/`. Do not introduce ne
 7. **Loading states:** use `PageSkeleton` for full-page loads, `Skeleton` for partial content, and inline spinner icons for button actions.
 8. **Toast feedback:** use `useToast()` for all async success/error feedback instead of inline alerts, except for persistent form-level errors.
 9. **Icons:** import from `lucide-react`; do not add new icon sets.
-10. **Routes:** pages are lazy-loaded in `App.tsx`; add new pages inside the authenticated layout unless they are public. Remember the `/admin` basename.
+10. **Routes:** pages are lazy-loaded in `App.tsx`; add new pages inside the authenticated layout unless they are public. Keep the admin root-hosted and use the API base helper for API calls.
 11. **Sortable lists:** reuse the existing `@dnd-kit` packages already used in Configure; do not add new drag-and-drop libraries.
 12. **EmptyState actions** currently use a custom button styled like `Button default`; prefer migrating to the `Button` primitive for consistency.
 
@@ -254,20 +253,20 @@ Before considering Admin UI work complete:
 - [ ] Async actions show toast feedback via `useToast()`.
 - [ ] Focus states and keyboard navigation work; dialogs trap focus and close on `Escape`.
 - [ ] Mobile layout does not break: tables scroll horizontally, sidebar collapses, content clears top bar.
-- [ ] `npm run lint` and `npm run build` pass in `gateway/admin-ui/`.
+- [ ] `bun run lint` and `bun run build` pass in `apps/admin/`.
 - [ ] No new arbitrary HSL values duplicated in components; values come from `@theme` tokens.
 - [ ] New dependencies are approved before being added.
 
 ## Source Evidence
 
-- Color/theme/animation/shadow definitions: `gateway/admin-ui/src/index.css`.
-- App shell, basename, and routing: `gateway/admin-ui/src/App.tsx`.
-- UI primitives: `gateway/admin-ui/src/components/ui/{button,card,table,badge,select,skeleton}.tsx`.
-- Layout components: `gateway/admin-ui/src/components/Sidebar.tsx`, `gateway/admin-ui/src/components/PageLayout.tsx`.
-- Page implementations: `gateway/admin-ui/src/pages/{Dashboard,ApiKeys,Users,Configure,Login}.tsx`.
-- Shared helpers: `gateway/admin-ui/src/lib/utils.ts`, `gateway/admin-ui/src/lib/routing.ts`.
-- Feedback components: `gateway/admin-ui/src/components/ToastStack.tsx`, `gateway/admin-ui/src/components/ConfirmDialog.tsx`.
-- Data display: `gateway/admin-ui/src/components/DataTable.tsx`, `gateway/admin-ui/src/components/MetricCard.tsx`, `gateway/admin-ui/src/components/MetricsGrid.tsx`.
+- Color/theme/animation/shadow definitions: `apps/admin/src/index.css`.
+- App shell, root routing, and protected layouts: `apps/admin/src/App.tsx`.
+- UI primitives: `apps/admin/src/components/ui/{button,card,table,badge,select,skeleton}.tsx`.
+- Layout components: `apps/admin/src/components/Sidebar.tsx`, `apps/admin/src/components/PageLayout.tsx`.
+- Page implementations: `apps/admin/src/pages/{Dashboard,ApiKeys,Configure,Account,Login}.tsx`.
+- Shared helpers: `apps/admin/src/lib/utils.ts`, `apps/admin/src/lib/routing.ts`, and `apps/admin/src/lib/api.ts`.
+- Feedback components: `apps/admin/src/components/ToastStack.tsx`, `apps/admin/src/components/ConfirmDialog.tsx`.
+- Data display: `apps/admin/src/components/DataTable.tsx`, `apps/admin/src/components/MetricCard.tsx`, `apps/admin/src/components/MetricsGrid.tsx`.
 
 ## Open Questions
 
