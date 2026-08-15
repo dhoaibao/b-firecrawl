@@ -12,6 +12,6 @@
     { "src": "/(.*)", "dest": "/src/main.ts" }
   ],
   "crons": [
-    { "path": "/api/cron/maintenance", "schedule": "0 * * * *" }
+    { "path": "/api/cron/maintenance", "schedule": "0 0 * * *" }
   ]
 }

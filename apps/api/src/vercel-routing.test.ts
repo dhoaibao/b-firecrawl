@@ -7,6 +7,7 @@ describe("Vercel API routing", () => {
     const config = JSON.parse(readFileSync(join(__dirname, "..", "vercel.json"), "utf8")) as {
       functions: Record<string, { runtime: string; maxDuration?: number; includeFiles?: string | string[] }>;
       routes: Array<{ src: string; dest: string }>;
+      crons: Array<{ path: string; schedule: string }>;
     };
     const fn = config.functions["src/main.ts"];
 
@@ -15,5 +16,6 @@ describe("Vercel API routing", () => {
     expect(fn?.includeFiles).toBe("prisma/**");
     expect(config.routes).toContainEqual({ src: "/(.*)", dest: "/src/main.ts" });
     expect(config.routes.every((route) => route.dest.startsWith("/"))).toBe(true);
+    expect(config.crons).toContainEqual({ path: "/api/cron/maintenance", schedule: "0 0 * * *" });
   });
 });

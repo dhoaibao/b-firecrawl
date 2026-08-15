@@ -22,7 +22,7 @@ Run the admin independently with `cd apps/admin && bun run dev`, using `VITE_API
 
 ## Vercel deployment
 
-Deploy `apps/api` and `apps/admin` as separate Vercel projects. Their leaf `vercel.json` files configure the NestJS function, Vite output, SPA fallback, and the authenticated hourly maintenance cron.
+Deploy `apps/api` and `apps/admin` as separate Vercel projects. Their leaf `vercel.json` files configure the NestJS function, Vite output, SPA fallback, and the authenticated daily maintenance cron at midnight UTC.
 
 The API project needs migration-capable direct `DATABASE_URL`, `FIRECRAWL_KEYS_ENCRYPTION_KEY`, `SESSION_SECRET`, `CRON_SECRET`, `ADMIN_ORIGIN`, and `API_ORIGIN`. The admin project needs `VITE_API_BASE_URL`. Use exact origins; credentialed requests must not use `*`. The same database URL is used by runtime and migrations, so do not use a transaction-only PgBouncer endpoint; this configuration does not silently guarantee serverless connection pooling. The API function allows up to 120 seconds for streamed upstream requests, subject to the Vercel plan's maximum.
 
