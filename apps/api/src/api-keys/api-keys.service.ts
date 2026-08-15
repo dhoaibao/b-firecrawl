@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { API_CONFIG } from "../common/config.provider";
 import type { ApiConfig } from "../common/config";
-import { decryptSettingValue, encryptSettingValue } from "../common/crypto";
+import { encryptSettingValue } from "../common/crypto";
 
 export interface ApiKeyRecord {
   id: string;
@@ -83,7 +83,6 @@ export class ApiKeysService {
 
   clearTouchDebouncer(): void { this.lastTouchById.clear(); }
 
-  decryptKey(value: string): string { return decryptSettingValue(value, this.config.firecrawlKeysEncryptionKey).value; }
   hashApiKey(key: string): string { return crypto.createHash("sha256").update(key).digest("hex"); }
 
   private recordTouch(id: string, timestamp: number): void {

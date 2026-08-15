@@ -29,7 +29,6 @@ export default function ApiKeys() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyData | null>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [gatewayCopied, setGatewayCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -116,18 +115,6 @@ export default function ApiKeys() {
       await navigator.clipboard.writeText(key);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      addToast("Failed to copy API key", "error");
-    }
-  }
-
-  async function copyExistingKey(id: string) {
-    try {
-      const json = await api.get<{ data: ApiKeyData }>(`/admin/api/api-keys/${id}`);
-      if (!json.data.key) throw new Error("API key unavailable");
-      await navigator.clipboard.writeText(json.data.key);
-      setCopiedKeyId(id);
-      setTimeout(() => setCopiedKeyId(null), 2000);
     } catch {
       addToast("Failed to copy API key", "error");
     }
@@ -260,7 +247,7 @@ export default function ApiKeys() {
 
       {createdKey && (
         <div className="mb-6 rounded-lg border border-success-muted bg-success-muted/30 p-4 space-y-2">
-          <p className="text-sm font-medium text-success-fg">API key created. You can copy it again from the key list.</p>
+          <p className="text-sm font-medium text-success-fg">API key created. Copy it now — it won't be shown again.</p>
           <div className="flex items-center gap-2">
             <code className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm font-mono text-foreground">
               {createdKey.key}
@@ -325,18 +312,6 @@ export default function ApiKeys() {
               render: (k) => (
                 <div className="flex items-center gap-1.5">
                   <span>{k.key_prefix}...</span>
-                  {!k.revoked && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 text-muted-foreground hover:text-foreground"
-                      onClick={() => void copyExistingKey(k.id)}
-                      aria-label={copiedKeyId === k.id ? "API key copied" : "Copy API key"}
-                      title={copiedKeyId === k.id ? "Copied" : "Copy API key"}
-                    >
-                      {copiedKeyId === k.id ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
-                    </Button>
-                  )}
                 </div>
               ),
             },

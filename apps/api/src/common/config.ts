@@ -33,6 +33,7 @@ export const configSchema = z.object({
   if (!value.authEnabled) return;
   if (!value.adminEmail.trim()) context.addIssue({ code: "custom", path: ["adminEmail"], message: "ADMIN_EMAIL is required when AUTH_ENABLED=true" });
   if (!value.adminPassword) context.addIssue({ code: "custom", path: ["adminPassword"], message: "ADMIN_PASSWORD is required when AUTH_ENABLED=true" });
+  if (!value.sessionSecret.trim()) context.addIssue({ code: "custom", path: ["sessionSecret"], message: "SESSION_SECRET is required when AUTH_ENABLED=true" });
 });
 
 export type ApiConfig = z.infer<typeof configSchema>;
