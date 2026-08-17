@@ -15,10 +15,13 @@ const MAX_CLOUD_API_KEYS = 10;
 const MIN_API_KEY_LENGTH = 8;
 
 export interface CreditUsageItem { keyIndex: number; keyPrefix: string; remainingCredits: number | null; planCredits: number | null; billingPeriodStart: string | null; billingPeriodEnd: string | null; error?: string }
+type CreditUsageDetails = Omit<CreditUsageItem, "keyIndex" | "keyPrefix">;
 
 @Controller("admin/api/settings")
 @UseGuards(AuthGuard)
 export class SettingsController {
+  private readonly creditUsageInFlight = new Map<string, Promise<CreditUsageDetails>>();
+
   constructor(private readonly settings: SettingsService, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
 
   @Get("credit-usage")
@@ -81,15 +84,31 @@ export class SettingsController {
 
   private async fetchCreditUsageForKey(keyIndex: number, apiKey: string): Promise<CreditUsageItem> {
     const keyPrefix = `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
+    const existing = this.creditUsageInFlight.get(apiKey);
+    if (existing) {
+      const details = await existing;
+      return { keyIndex, keyPrefix, ...details };
+    }
+    const request = (async (): Promise<CreditUsageDetails> => {
+      try {
+        const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
+        let response: Response;
+        try { response = await fetch(`${this.config.cloudBaseUrl}/v2/team/credit-usage`, { headers: { authorization: `Bearer ${apiKey}` }, signal: controller.signal }); }
+        finally { clearTimeout(timeout); }
+        if (!response.ok) return { remainingCredits: null, planCredits: null, billingPeriodStart: null, billingPeriodEnd: null, error: `HTTP ${response.status}: ${await response.text() || response.statusText}` };
+        const json = await response.json() as { data?: { remainingCredits?: number; planCredits?: number; billingPeriodStart?: string | null; billingPeriodEnd?: string | null } };
+        return { remainingCredits: json.data?.remainingCredits ?? null, planCredits: json.data?.planCredits ?? null, billingPeriodStart: json.data?.billingPeriodStart ?? null, billingPeriodEnd: json.data?.billingPeriodEnd ?? null };
+      } catch (error) { return { remainingCredits: null, planCredits: null, billingPeriodStart: null, billingPeriodEnd: null, error: (error as Error).message }; }
+    })();
+    this.creditUsageInFlight.set(apiKey, request);
     try {
-      const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
-      let response: Response;
-      try { response = await fetch(`${this.config.cloudBaseUrl}/v2/team/credit-usage`, { headers: { authorization: `Bearer ${apiKey}` }, signal: controller.signal }); }
-      finally { clearTimeout(timeout); }
-      if (!response.ok) return { keyIndex, keyPrefix, remainingCredits: null, planCredits: null, billingPeriodStart: null, billingPeriodEnd: null, error: `HTTP ${response.status}: ${await response.text() || response.statusText}` };
-      const json = await response.json() as { data?: { remainingCredits?: number; planCredits?: number; billingPeriodStart?: string | null; billingPeriodEnd?: string | null } };
-      return { keyIndex, keyPrefix, remainingCredits: json.data?.remainingCredits ?? null, planCredits: json.data?.planCredits ?? null, billingPeriodStart: json.data?.billingPeriodStart ?? null, billingPeriodEnd: json.data?.billingPeriodEnd ?? null };
-    } catch (error) { return { keyIndex, keyPrefix, remainingCredits: null, planCredits: null, billingPeriodStart: null, billingPeriodEnd: null, error: (error as Error).message }; }
+      const details = await request;
+      return { keyIndex, keyPrefix, ...details };
+    } finally {
+      if (this.creditUsageInFlight.get(apiKey) === request) {
+        this.creditUsageInFlight.delete(apiKey);
+      }
+    }
   }
 }
 
