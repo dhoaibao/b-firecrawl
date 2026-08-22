@@ -50,16 +50,17 @@ export function findObjectsByKey(value: unknown, key: string): unknown[] {
 }
 
 export function inspectBody(
-  bodyBuffer: Buffer,
+  body: unknown,
   headers: Record<string, string | string[] | undefined>,
 ): { json: unknown | null; parseError: string | null } {
   const contentType = String(headers["content-type"] || "");
-  if (!bodyBuffer.length || !contentType.includes("application/json")) {
+  if (body === undefined || body === null || !contentType.includes("application/json")) {
     return { json: null, parseError: null };
   }
+  if (!Buffer.isBuffer(body)) return { json: body, parseError: null };
 
   try {
-    return { json: JSON.parse(bodyBuffer.toString("utf8")), parseError: null };
+    return { json: JSON.parse(body.toString("utf8")), parseError: null };
   } catch (error) {
     return { json: null, parseError: (error as Error).message };
   }

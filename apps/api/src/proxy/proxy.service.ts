@@ -41,8 +41,11 @@ export class ProxyService {
       await this.audit.appendAudit(entry);
     };
 
-    const defaultRouteMode = await this.settings.getDefaultRouteMode(this.configDefaultRouteMode());
-    const selfHostedBaseUrl = (await this.settings.getSetting("self_hosted_firecrawl_url"))?.value?.replace(/\/+$/, "") || "";
+    const [defaultRouteMode, selfHostedSetting] = await Promise.all([
+      this.settings.getDefaultRouteMode(this.configDefaultRouteMode()),
+      this.settings.getSetting("self_hosted_firecrawl_url"),
+    ]);
+    const selfHostedBaseUrl = selfHostedSetting?.value?.replace(/\/+$/, "") || "";
     routeMode = getRouteMode(originalUrl, request.headers, defaultRouteMode);
 
     let apiKey: string | undefined;
@@ -58,7 +61,7 @@ export class ProxyService {
 
     const bodyBuffer = this.getBodyBuffer(request);
     if (bodyBuffer.length > this.config.maxBodyBytes) { await appendAuditEntry("none", 413, false, "Request body is too large for gateway inspection"); reply.code(413).send({ success: false, error: "Request body is too large for gateway inspection" }); return; }
-    const { json, parseError } = inspectBody(bodyBuffer, request.headers);
+    const { json, parseError } = inspectBody(request.body, request.headers);
     if (parseError) { await appendAuditEntry("none", 400, false, parseError); reply.code(400).send({ success: false, error: "Invalid JSON body", details: parseError }); return; }
     const targetUrls = collectTargetUrls(json);
     primaryTargetUrl = targetUrls[0] || "";
@@ -95,8 +98,12 @@ export class ProxyService {
       result = await this.proxyToBackend("self-hosted", request, bodyBuffer, this.backendUrl("self-hosted", originalUrl, selfHostedBaseUrl));
     }
     const status = result.kind === "network-error" ? 502 : result.response?.status || 502;
-    await appendAuditEntry(result.backend, status, fallbackUsed, fallbackReason || needsCloud.reason || "");
-    await this.sendProxyResponse(reply, result, { fallbackUsed, fallbackReason });
+    const auditPromise = appendAuditEntry(result.backend, status, fallbackUsed, fallbackReason || needsCloud.reason || "").catch(() => undefined);
+    try {
+      await this.sendProxyResponse(reply, result, { fallbackUsed, fallbackReason });
+    } finally {
+      await auditPromise;
+    }
   }
 
   private configDefaultRouteMode(): RouteMode { return "cloud-first"; }
@@ -167,9 +174,37 @@ export class ProxyService {
   }
 
   private async getRemainingCredits(apiKey: string): Promise<number | null> {
-    const cached = creditUsageCache.get(apiKey); if (cached && cached.expiresAt > Date.now()) return cached.remainingCredits; if (cached) creditUsageCache.delete(apiKey);
-    const existing = creditUsageInFlight.get(apiKey); if (existing) return existing;
-    const request = (async () => { const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000); try { const response = await fetch(`${this.config.cloudBaseUrl}/v2/team/credit-usage`, { headers: { authorization: `Bearer ${apiKey}` }, signal: controller.signal }); if (!response.ok) return null; const json = await response.json() as { data?: { remainingCredits?: number } }; const remaining = json.data?.remainingCredits; if (typeof remaining !== "number") return null; creditUsageCache.set(apiKey, { remainingCredits: remaining, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS }); return remaining; } catch { return null; } finally { clearTimeout(timeout); } })();
-    creditUsageInFlight.set(apiKey, request); try { return await request; } finally { if (creditUsageInFlight.get(apiKey) === request) creditUsageInFlight.delete(apiKey); }
+    const cached = creditUsageCache.get(apiKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.remainingCredits;
+    if (cached) {
+      void this.refreshRemainingCredits(apiKey);
+      return cached.remainingCredits;
+    }
+    return this.refreshRemainingCredits(apiKey);
+  }
+
+  private async refreshRemainingCredits(apiKey: string): Promise<number | null> {
+    const existing = creditUsageInFlight.get(apiKey);
+    if (existing) return existing;
+    const request = (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const response = await fetch(`${this.config.cloudBaseUrl}/v2/team/credit-usage`, { headers: { authorization: `Bearer ${apiKey}` }, signal: controller.signal });
+        if (!response.ok) return null;
+        const json = await response.json() as { data?: { remainingCredits?: number } };
+        const remaining = json.data?.remainingCredits;
+        if (typeof remaining !== "number") return null;
+        creditUsageCache.set(apiKey, { remainingCredits: remaining, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
+        return remaining;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timeout);
+      }
+    })();
+    creditUsageInFlight.set(apiKey, request);
+    try { return await request; }
+    finally { if (creditUsageInFlight.get(apiKey) === request) creditUsageInFlight.delete(apiKey); }
   }
 }

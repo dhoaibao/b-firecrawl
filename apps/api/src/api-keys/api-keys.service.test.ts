@@ -39,4 +39,39 @@ describe("ApiKeysService", () => {
     expect(validated?.id).toBe("key-1");
     expect(prisma.apiKey.findFirst).toHaveBeenCalledWith({ where: { keyHash: service.hashApiKey(key), revoked: false } });
   });
+
+  it("bounds validation cache entries for distinct caller-supplied keys", async () => {
+    const prisma = { apiKey: { findFirst: vi.fn().mockResolvedValue(null) } };
+    const service = new ApiKeysService(prisma as never, { firecrawlKeysEncryptionKey: encryptionKey } as never);
+
+    for (let index = 0; index <= 10_000; index++) await service.validateApiKey(`fc_distinct-${index}`);
+
+    const cache = (service as unknown as { validationCache: Map<string, unknown> }).validationCache;
+    expect(cache.size).toBe(10_000);
+  });
+
+  it("deduplicates validation and rejects a cached key immediately after revocation", async () => {
+    const key = "fc_global-cached";
+    let service!: ApiKeysService;
+    const prisma = {
+      apiKey: {
+        findFirst: vi.fn().mockResolvedValue(row({ keyHash: "unused" })),
+        update: vi.fn().mockImplementation(async () => row({ keyHash: service.hashApiKey(key), revoked: true })),
+      },
+    };
+    prisma.apiKey.findFirst.mockResolvedValue(row({ keyHash: new ApiKeysService({} as never, {} as never).hashApiKey(key) }));
+    service = new ApiKeysService(prisma as never, { firecrawlKeysEncryptionKey: encryptionKey } as never);
+
+    const validations = await Promise.all([service.validateApiKey(key), service.validateApiKey(key)]);
+
+    expect(validations[0]?.id).toBe("key-1");
+    expect(validations[1]?.id).toBe("key-1");
+    expect(prisma.apiKey.findFirst).toHaveBeenCalledTimes(1);
+
+    await service.revokeApiKey("key-1");
+    prisma.apiKey.findFirst.mockResolvedValue(null);
+
+    await expect(service.validateApiKey(key)).resolves.toBeNull();
+    expect(prisma.apiKey.findFirst).toHaveBeenCalledTimes(2);
+  });
 });
