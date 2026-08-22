@@ -33,16 +33,13 @@ export class AuditController {
   }
 
   @Get("data")
-  async data() {
-    const entries = await this.audit.readAuditEntries(500);
-    const durations = entries.map((entry) => Number(entry.duration_ms)).filter(Number.isFinite);
-    const totals = {
-      total: entries.length,
-      self_hosted: entries.filter((entry) => entry.backend_used === "self-hosted").length,
-      cloud: entries.filter((entry) => entry.backend_used === "cloud").length,
-      fallbacks: entries.filter((entry) => entry.fallback_used).length,
-      avgDuration: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0,
-    };
-    return { data: entries, totals };
+  async data(@Query("since") since: string | undefined) {
+    let sinceDate: Date | undefined;
+    if (since !== undefined && since !== "") {
+      sinceDate = new Date(since);
+      if (Number.isNaN(sinceDate.getTime())) apiError(400, "since must be a valid ISO timestamp");
+    }
+    const entries = await this.audit.readAuditEntries(500, sinceDate);
+    return { data: entries };
   }
 }

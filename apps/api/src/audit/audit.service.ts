@@ -44,8 +44,12 @@ export class AuditService {
     }
   }
 
-  async readAuditEntries(limit = 500): Promise<AuditEntry[]> {
-    const rows = await this.prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+  async readAuditEntries(limit = 500, since?: Date): Promise<AuditEntry[]> {
+    const rows = await this.prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      ...(since ? { where: { createdAt: { gte: since } } } : {}),
+    });
     return rows.map(toEntry);
   }
 

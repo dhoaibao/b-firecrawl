@@ -13,6 +13,7 @@ const SETTING_TYPES: Record<string, "string" | "number" | "json"> = {
 };
 const MAX_CLOUD_API_KEYS = 10;
 const MIN_API_KEY_LENGTH = 8;
+const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
 
 export interface CreditUsageItem { keyIndex: number; keyPrefix: string; remainingCredits: number | null; planCredits: number | null; billingPeriodStart: string | null; billingPeriodEnd: string | null; error?: string }
 type CreditUsageDetails = Omit<CreditUsageItem, "keyIndex" | "keyPrefix">;
@@ -21,6 +22,7 @@ type CreditUsageDetails = Omit<CreditUsageItem, "keyIndex" | "keyPrefix">;
 @UseGuards(AuthGuard)
 export class SettingsController {
   private readonly creditUsageInFlight = new Map<string, Promise<CreditUsageDetails>>();
+  private readonly creditUsageCache = new Map<string, { details: CreditUsageDetails; expiresAt: number }>();
 
   constructor(private readonly settings: SettingsService, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
 
@@ -84,6 +86,9 @@ export class SettingsController {
 
   private async fetchCreditUsageForKey(keyIndex: number, apiKey: string): Promise<CreditUsageItem> {
     const keyPrefix = `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
+    const cached = this.creditUsageCache.get(apiKey);
+    if (cached && cached.expiresAt > Date.now()) return { keyIndex, keyPrefix, ...cached.details };
+    if (cached) this.creditUsageCache.delete(apiKey);
     const existing = this.creditUsageInFlight.get(apiKey);
     if (existing) {
       const details = await existing;
@@ -103,6 +108,7 @@ export class SettingsController {
     this.creditUsageInFlight.set(apiKey, request);
     try {
       const details = await request;
+      if (!details.error) this.creditUsageCache.set(apiKey, { details, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
       return { keyIndex, keyPrefix, ...details };
     } finally {
       if (this.creditUsageInFlight.get(apiKey) === request) {

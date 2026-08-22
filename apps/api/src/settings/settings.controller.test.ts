@@ -74,7 +74,52 @@ describe("SettingsController creditUsage", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("makes a fresh remote fetch for non-overlapping requests after completion", async () => {
+  it("serves sequential polls from the TTL cache and refetches after expiry", async () => {
+    vi.useFakeTimers();
+    try {
+      const rawKeys = ["fc_test_key_1234567890abcdef"];
+      const encrypted = encryptSettingValue(JSON.stringify(rawKeys), encryptionKey);
+      const settings = {
+        getSetting: vi.fn().mockResolvedValue({ key: "firecrawl_api_keys", value: encrypted }),
+        setSetting: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ data: { remainingCredits: 500, planCredits: 1000 } }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ data: { remainingCredits: 450, planCredits: 1000 } }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const controller = new SettingsController(settings as never, config as never);
+
+      const res1 = await controller.creditUsage();
+      expect(res1.data[0].remainingCredits).toBe(500);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const res2 = await controller.creditUsage();
+      expect(res2.data[0].remainingCredits).toBe(500);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(30_000);
+
+      const res3 = await controller.creditUsage();
+      expect(res3.data[0].remainingCredits).toBe(450);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not cache HTTP error results across sequential polls", async () => {
     const rawKeys = ["fc_test_key_1234567890abcdef"];
     const encrypted = encryptSettingValue(JSON.stringify(rawKeys), encryptionKey);
     const settings = {
@@ -83,15 +128,10 @@ describe("SettingsController creditUsage", () => {
     };
 
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("boom", { status: 500, statusText: "Internal Server Error" }))
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ data: { remainingCredits: 500, planCredits: 1000 } }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ data: { remainingCredits: 450, planCredits: 1000 } }),
+          JSON.stringify({ data: { remainingCredits: 300, planCredits: 1000 } }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
       );
@@ -100,11 +140,12 @@ describe("SettingsController creditUsage", () => {
     const controller = new SettingsController(settings as never, config as never);
 
     const res1 = await controller.creditUsage();
-    expect(res1.data[0].remainingCredits).toBe(500);
+    expect(res1.data[0].error).toBe("HTTP 500: boom");
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const res2 = await controller.creditUsage();
-    expect(res2.data[0].remainingCredits).toBe(450);
+    expect(res2.data[0].error).toBeUndefined();
+    expect(res2.data[0].remainingCredits).toBe(300);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

@@ -117,18 +117,43 @@ export default function Dashboard() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const fetchingRef = useRef(false)
   const creditUsageFetchingRef = useRef(false)
+  const entriesRef = useRef<AuditEntry[]>([])
+  const lastFullRefreshAtRef = useRef(0)
 
   useEffect(() => { document.title = "Dashboard — Firecrawl Gateway" }, [])
 
   const { addToast } = useToast()
   const { confirm: confirmDelete, dialog: confirmDialog } = useConfirmDialog()
 
-  const fetchData = useCallback(async () => {
+  const replaceEntries = useCallback((next: AuditEntry[]) => {
+    entriesRef.current = next
+    setEntries(next)
+  }, [])
+
+  const mergeEntries = useCallback((incoming: AuditEntry[]) => {
+    const byId = new Map<string, AuditEntry>()
+    for (const entry of entriesRef.current) byId.set(entry.id, entry)
+    for (const entry of incoming) byId.set(entry.id, entry)
+    const merged = [...byId.values()]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 500)
+    replaceEntries(merged)
+  }, [replaceEntries])
+
+  const fetchData = useCallback(async (options?: { full?: boolean }) => {
+    const full = options?.full ?? false
     if (fetchingRef.current) return
     fetchingRef.current = true
     try {
-      const json = await api.get<{ data: AuditEntry[] }>("/admin/api/data")
-      setEntries(Array.isArray(json.data) ? json.data : [])
+      const since = full ? undefined : entriesRef.current[0]?.created_at
+      const query = since ? `?since=${encodeURIComponent(since)}` : ""
+      const json = await api.get<{ data: AuditEntry[] }>(`/admin/api/data${query}`)
+      const incoming = Array.isArray(json.data) ? json.data : []
+      if (full) {
+        replaceEntries(incoming)
+        lastFullRefreshAtRef.current = Date.now()
+      }
+      else mergeEntries(incoming)
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load audit data"
       addToast(msg, "error")
@@ -136,7 +161,7 @@ export default function Dashboard() {
       fetchingRef.current = false
       setLoading(false)
     }
-  }, [addToast])
+  }, [addToast, mergeEntries, replaceEntries])
 
   const fetchCreditUsage = useCallback(async () => {
     if (creditUsageFetchingRef.current) return
@@ -163,7 +188,7 @@ export default function Dashboard() {
         next.delete(id)
         return next
       })
-      void fetchData()
+      void fetchData({ full: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to delete log"
       addToast(msg, "error")
@@ -193,7 +218,7 @@ export default function Dashboard() {
       addToast(`${json.deleted} ${json.deleted === 1 ? "log" : "logs"} deleted`, "success")
       setSelectedIds(new Set())
       setSelectedEntry(null)
-      void fetchData()
+      void fetchData({ full: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to delete selected logs"
       addToast(msg, "error")
@@ -227,7 +252,7 @@ export default function Dashboard() {
       )
       setShowDeleteDialog(false)
       setSelectedIds(new Set())
-      void fetchData()
+      void fetchData({ full: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to delete history"
       addToast(msg, "error")
@@ -238,14 +263,18 @@ export default function Dashboard() {
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => {
-      void fetchData()
+      void fetchData({ full: true })
       void fetchCreditUsage()
     }, 0)
 
     let interval: number | undefined
     const refreshWhenVisible = () => {
       if (live && !document.hidden) {
-        void fetchData()
+        // Escalate to a full refresh at most every 60s so server-side
+        // deletions and prunes still converge; the timestamp check
+        // self-heals after skipped or drifted ticks.
+        const full = Date.now() - lastFullRefreshAtRef.current >= 60_000
+        void fetchData(full ? { full: true } : undefined)
         void fetchCreditUsage()
       }
     }
@@ -446,7 +475,7 @@ export default function Dashboard() {
         document.querySelector<HTMLInputElement>('input[placeholder="Search logs"]')?.focus()
       } else if (event.key.toLowerCase() === "r") {
         event.preventDefault()
-        void fetchData()
+        void fetchData({ full: true })
       }
     }
     document.addEventListener("keydown", handleShortcut)
