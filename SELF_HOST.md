@@ -28,7 +28,7 @@ Two constraints from this repository's setup apply:
 
 Deploy `apps/api` and `apps/admin` separately. Set `VITE_API_BASE_URL` in the admin project to the API origin. Set exact `ADMIN_ORIGIN` and `API_ORIGIN` values in the API project. The API's `vercel.json` schedules `/api/cron/maintenance`; Vercel authenticates it with `CRON_SECRET`. This daily maintenance cron permanently deletes audit entries older than 30 days; deletion is batched, so a large existing backlog drains over several daily runs. The 30-day window is fixed in code and not configurable.
 
-The API remains compatible with `/health`, `/ready`, `/v1/*`, `/v2/*`, and `/admin/api/*`. Admin sessions are signed HTTP-only cookies and may need to be re-created at cutover. User-management endpoints and UI have been removed; API keys and audit records are global.
+The API remains compatible with `/health`, `/ready`, `/v1/*`, `/v2/*`, and `/admin/api/*`. Request bodies are decoded as UTF-8 before being forwarded: non-UTF-8 payloads such as binary uploads or Latin-1 text are corrupted in transit, so the gateway is intended for UTF-8 JSON traffic. Admin sessions are signed HTTP-only cookies and may need to be re-created at cutover. User-management endpoints and UI have been removed; API keys and audit records are global.
 
 ## Routing modes
 

@@ -1,15 +1,61 @@
-import Fastify from "fastify";
-import rawBody from "fastify-raw-body";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Capture the options the REAL createApp() passes to fastify-raw-body while
+// passing through to the genuine implementation, so this test guards the
+// actual registration (main.ts) instead of a hand-built Fastify instance.
+const capturedRawBodyOptions: Array<Record<string, unknown> | undefined> = [];
+
+vi.mock("fastify-raw-body", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fastify-raw-body")>();
+  const realPlugin = actual.default as unknown as ((...pluginArgs: unknown[]) => unknown) & Record<PropertyKey, unknown>;
+  const plugin = (...args: unknown[]) => {
+    capturedRawBodyOptions.push(args[1] as Record<string, unknown> | undefined);
+    return realPlugin(...args);
+  };
+  // fastify-plugin attaches skip-override/plugin-meta symbols to the exported
+  // function; copying them keeps Fastify from creating a child encapsulation
+  // context, so decorations and hooks land on the root instance as in prod.
+  return { default: Object.assign(plugin, realPlugin) };
+});
+
+// Must run before "./main" is imported (static imports are hoisted): main.ts
+// auto-invokes bootstrap() unless VERCEL=1, so the test environment must be
+// complete and VERCEL must be set before the module evaluates.
+const savedEnv = vi.hoisted(() => {
+  const saved = { ...process.env };
+  Object.assign(process.env, {
+    DATABASE_URL: "postgresql://user:password@localhost:5432/firecrawl_gateway_test",
+    // Prisma connects lazily on first query, so a non-listening URL is safe here.
+    FIRECRAWL_KEYS_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    AUTH_ENABLED: "false",
+    LOG_LEVEL: "silent",
+    VERCEL: "1", // prevent main.ts from auto-bootstrapping and listening
+  });
+  return saved;
+});
+
+import { createApp } from "./main";
+
+let app: Awaited<ReturnType<typeof createApp>>;
+
+beforeAll(async () => {
+  app = await createApp();
+});
+
+afterAll(async () => {
+  await app?.close();
+  process.env = savedEnv;
+});
 
 describe("raw request body handling", () => {
-  it("keeps Fastify's existing malformed JSON 400 response", async () => {
-    const fastify = Fastify();
-    await fastify.register(rawBody as any, { field: "rawBody", global: true, encoding: "utf8", runFirst: true });
-    fastify.post("/v1/test", (_request, reply) => reply.send({ success: true }));
-    await fastify.ready();
+  it("registers fastify-raw-body via createApp with UTF-8 decoding", () => {
+    expect(capturedRawBodyOptions).toEqual([
+      { field: "rawBody", global: true, encoding: "utf8", runFirst: true },
+    ]);
+  });
 
-    const response = await fastify.inject({
+  it("keeps the malformed JSON 400 through the real app pipeline", async () => {
+    const response = await app.inject({
       method: "POST",
       url: "/v1/test",
       headers: { "content-type": "application/json" },
@@ -17,12 +63,12 @@ describe("raw request body handling", () => {
     });
 
     expect(response.statusCode).toBe(400);
+    // The real createApp pipeline serializes the parse failure through the
+    // Nest/Fastify exception handling, which differs from a bare Fastify
+    // instance: statusCode + message only, no code/error fields.
     expect(JSON.parse(response.body)).toEqual({
       statusCode: 400,
-      code: "FST_ERR_CTP_INVALID_JSON_BODY",
-      error: "Bad Request",
       message: "Body is not valid JSON but content-type is set to 'application/json'",
     });
-    await fastify.close();
   });
 });

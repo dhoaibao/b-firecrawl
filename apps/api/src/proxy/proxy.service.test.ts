@@ -175,4 +175,28 @@ describe("ProxyService", () => {
     for (let i = 0; i < 6; i++) await Promise.resolve();
     await expect(remainingCredits(service, key)).resolves.toBe(425);
   });
+
+  it("serves a stale value within the max-staleness bound and drops it beyond", async () => {
+    vi.useFakeTimers({ now: 1_000_000 });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { remainingCredits: 500 } }), { status: 200 }))
+      // Every refresh after the first fails, so the value never gets renewed.
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const service = makeService();
+    const key = "fc_staleness-credit-test";
+
+    await expect(remainingCredits(service, key)).resolves.toBe(500);
+
+    // Just inside the 5-minute staleness bound: stale value still served.
+    vi.setSystemTime(1_000_000 + 4 * 60 * 1000);
+    await expect(remainingCredits(service, key)).resolves.toBe(500);
+
+    // Beyond the bound: entry is dropped and the failed refresh falls back
+    // to null, exactly like a cache miss.
+    vi.setSystemTime(1_000_000 + 5 * 60 * 1000 + 1);
+    await expect(remainingCredits(service, key)).resolves.toBeNull();
+    // A subsequent read also misses the cache (no stale pinning).
+    await expect(remainingCredits(service, key)).resolves.toBeNull();
+  });
 });

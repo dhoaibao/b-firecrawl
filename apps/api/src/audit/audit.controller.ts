@@ -36,6 +36,10 @@ export class AuditController {
   async data(@Query("since") since: string | undefined) {
     let sinceDate: Date | undefined;
     if (since !== undefined && since !== "") {
+      // Strict ISO-8601 UTC datetime, exactly the format the API emits via
+      // toISOString() (the dashboard cursor depends on it). Loose forms such
+      // as "2026-01-01" or "Jan 1 2026" are rejected.
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(since)) apiError(400, "since must be a valid ISO timestamp");
       sinceDate = new Date(since);
       if (Number.isNaN(sinceDate.getTime())) apiError(400, "since must be a valid ISO timestamp");
     }

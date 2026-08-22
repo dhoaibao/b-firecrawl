@@ -14,7 +14,11 @@ import { AuditService } from "../audit/audit.service";
 const hopByHopHeaders = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"]);
 const RETRYABLE_CLOUD_STATUS = new Set([401, 403, 429]);
 const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
-const creditUsageCache = new Map<string, { remainingCredits: number; expiresAt: number }>();
+// Stale values are served only while younger than this; older entries are
+// dropped so ordering falls back to the no-cache behavior (failed refreshes
+// sort last) instead of pinning a permanently stale value.
+const CREDIT_USAGE_MAX_STALENESS_MS = 5 * 60 * 1000;
+const creditUsageCache = new Map<string, { remainingCredits: number; expiresAt: number; storedAt: number }>();
 const creditUsageInFlight = new Map<string, Promise<number | null>>();
 
 @Injectable()
@@ -177,8 +181,13 @@ export class ProxyService {
     const cached = creditUsageCache.get(apiKey);
     if (cached && cached.expiresAt > Date.now()) return cached.remainingCredits;
     if (cached) {
-      void this.refreshRemainingCredits(apiKey);
-      return cached.remainingCredits;
+      if (Date.now() - cached.storedAt < CREDIT_USAGE_MAX_STALENESS_MS) {
+        void this.refreshRemainingCredits(apiKey);
+        return cached.remainingCredits;
+      }
+      // Staleness bound exceeded: stop serving the stale value and fall back
+      // to the same path as a cache miss (a failed refresh returns null).
+      creditUsageCache.delete(apiKey);
     }
     return this.refreshRemainingCredits(apiKey);
   }
@@ -195,7 +204,7 @@ export class ProxyService {
         const json = await response.json() as { data?: { remainingCredits?: number } };
         const remaining = json.data?.remainingCredits;
         if (typeof remaining !== "number") return null;
-        creditUsageCache.set(apiKey, { remainingCredits: remaining, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
+        creditUsageCache.set(apiKey, { remainingCredits: remaining, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS, storedAt: Date.now() });
         return remaining;
       } catch {
         return null;

@@ -64,6 +64,9 @@ bun run db:migrate
 - The admin UI is root-hosted; admin endpoints remain under `/admin/api/*` on the API origin.
 - Virtual API keys are `fc_`-prefixed, stored as hashes with encrypted key values, and their plaintext is returned only at creation. Keep `.env` and credential-bearing files out of output and commits.
 - Routing defaults to `cloud-first`; supported modes and API-key inactivity settings are stored in PostgreSQL. Sensitive headers/cookies and private target URLs restrict fallback.
+- A revoked API key can remain valid for up to 30 seconds per running instance: `validateApiKey` caches results in-process, and `CronService.revokeInactiveKeys` updates rows directly with `updateMany` rather than going through `revokeApiKey`, so it never invalidates any instance's cache.
+- The daily maintenance cron permanently deletes audit entries older than 30 days; the window is fixed in code.
+- Request bodies are decoded as UTF-8 before being forwarded, so non-UTF-8 payloads (binary uploads, Latin-1 text) are corrupted in transit; the gateway is intended for UTF-8 JSON traffic.
 - Audit logs are stored only in PostgreSQL. Do not add file, filesystem, or line-oriented audit persistence.
 
 ## Maintainer Guide

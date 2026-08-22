@@ -62,6 +62,19 @@ describe("AuditController data", () => {
     expect(audit.readAuditEntries).toHaveBeenCalledWith(500, new Date("2026-08-22T10:00:00.000Z"));
   });
 
+  it("accepts the exact format the API emits via toISOString", async () => {
+    // The dashboard cursor is the newest entry.created_at, produced by
+    // nowIso() -> new Date().toISOString(); that exact format must keep working.
+    const audit = makeAuditMock();
+    const controller = new AuditController(audit as unknown as AuditService);
+    const cursor = new Date("2026-02-14T09:26:53.489Z").toISOString();
+
+    await controller.data(cursor);
+
+    expect(cursor).toBe("2026-02-14T09:26:53.489Z");
+    expect(audit.readAuditEntries).toHaveBeenCalledWith(500, new Date(cursor));
+  });
+
   it("rejects a non-ISO since value with 400", async () => {
     const audit = makeAuditMock();
     const controller = new AuditController(audit as unknown as AuditService);
@@ -70,6 +83,19 @@ describe("AuditController data", () => {
       status: 400,
       response: { error: "since must be a valid ISO timestamp" },
     });
+    expect(audit.readAuditEntries).not.toHaveBeenCalled();
+  });
+
+  it("rejects loose date-only and prose inputs even though Date parses them", async () => {
+    const audit = makeAuditMock();
+    const controller = new AuditController(audit as unknown as AuditService);
+
+    for (const loose of ["2026-01-01", "Jan 1 2026"]) {
+      await expect(controller.data(loose)).rejects.toMatchObject({
+        status: 400,
+        response: { error: "since must be a valid ISO timestamp" },
+      });
+    }
     expect(audit.readAuditEntries).not.toHaveBeenCalled();
   });
 
