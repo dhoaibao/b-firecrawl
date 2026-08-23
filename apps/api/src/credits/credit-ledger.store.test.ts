@@ -65,6 +65,23 @@ describe("RedisCreditLedgerStore", () => {
     expect(scripts[2]).toContain("DEL");
   });
 
+  it("settles actual usage through an atomic reservation adjustment", async () => {
+    const client = {
+      isOpen: true,
+      connect: vi.fn(),
+      quit: vi.fn(),
+      eval: vi.fn().mockResolvedValue(1),
+    };
+    const store = new RedisCreditLedgerStore(config as never, client as never);
+
+    await expect(store.settleActualUsage("opaque-key", "opaque-reservation", 4)).resolves.toBe(true);
+    const [script, options] = client.eval.mock.calls[0] as [string, { keys: string[]; arguments: string[] }];
+    expect(script).toContain("math.min");
+    expect(script).toContain("HINCRBY");
+    expect(script).toContain("DEL");
+    expect(options.arguments).toEqual(["4"]);
+  });
+
   it("captures a reservation sequence and reconciles through Redis", async () => {
     const client = {
       isOpen: true,

@@ -1,3 +1,4 @@
+import { Writable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RequestWithContext } from "../common/types";
 import { encryptSettingValue } from "../common/crypto";
@@ -25,12 +26,14 @@ function makeRequest(overrides: Record<string, unknown> = {}): RequestWithContex
 }
 
 function makeReply(events: string[] = []) {
+  const raw = new Writable({ write(_chunk, _encoding, callback) { callback(); } }) as Writable & { writeHead: ReturnType<typeof vi.fn> };
+  raw.writeHead = vi.fn();
   const reply = {
     code: vi.fn(),
     headers: vi.fn(),
     send: vi.fn(),
     hijack: vi.fn(),
-    raw: {},
+    raw,
   };
   reply.code.mockReturnValue(reply);
   reply.headers.mockReturnValue(reply);
@@ -185,6 +188,62 @@ describe("ProxyService", () => {
       headers: expect.objectContaining({ authorization: `Bearer ${key}` }),
     }));
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/v2/team/credit-usage"))).toBe(false);
+  });
+
+  it("observes streamed actual credits without delaying the client response", async () => {
+    const key = "fc_cloud_key_1234567890";
+    const encrypted = encryptSettingValue(JSON.stringify([key]), config.firecrawlKeysEncryptionKey);
+    const settings = {
+      getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-only"),
+      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+    };
+    const credits = makeCredits();
+    credits.reserve.mockResolvedValue({ key, keyId: "opaque-key-id", amount: 1, source: "redis", reservationKey: "reservation-key" });
+    let resolveSettlement!: () => void;
+    const settlement = new Promise<void>((resolve) => { resolveSettlement = resolve; });
+    credits.recordResponse.mockImplementation((_reservation: unknown, _status: number, actualCreditsUsed?: number) => actualCreditsUsed === 3 ? settlement : Promise.resolve());
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"metadata":{"cred'));
+        controller.enqueue(new TextEncoder().encode('itsUsed":3}}'));
+        controller.close();
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream, { status: 200, headers: { "content-type": "application/json" } })));
+
+    const service = makeService(settings, undefined, credits);
+    const handled = service.handle(makeRequest(), makeReply() as never);
+    const outcome = await Promise.race([
+      handled.then(() => "handled"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("timed-out"), 100)),
+    ]);
+
+    expect(outcome).toBe("handled");
+    expect(credits.recordResponse).toHaveBeenCalledWith(expect.objectContaining({ keyId: "opaque-key-id" }), 200, 3);
+    resolveSettlement();
+  });
+
+  it("does not observe non-JSON streams for creditsUsed", async () => {
+    const key = "fc_cloud_key_1234567890";
+    const encrypted = encryptSettingValue(JSON.stringify([key]), config.firecrawlKeysEncryptionKey);
+    const settings = {
+      getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-only"),
+      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+    };
+    const credits = makeCredits();
+    credits.reserve.mockResolvedValue({ key, keyId: "opaque-key-id", amount: 1, source: "redis", reservationKey: "reservation-key" });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"metadata":{"creditsUsed":3}}'));
+        controller.close();
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream, { status: 200, headers: { "content-type": "text/plain" } })));
+
+    const service = makeService(settings, undefined, credits);
+    await service.handle(makeRequest(), makeReply() as never);
+
+    expect(credits.recordResponse).not.toHaveBeenCalled();
   });
 
   it("disables a 402 key and retries the request with another reserved key", async () => {

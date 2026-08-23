@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CreditRoutingService } from "./credit-routing.service";
+import { CreditRoutingService, extractCreditsUsed, observeCreditsUsedStream } from "./credit-routing.service";
 
 const config = {
   cloudBaseUrl: "https://cloud.test",
@@ -13,6 +13,7 @@ function makeLedger(overrides: Record<string, unknown> = {}) {
     capture: vi.fn().mockResolvedValue({ available: false, sequence: 0 }),
     reconcile: vi.fn().mockResolvedValue(true),
     settle: vi.fn().mockResolvedValue(true),
+    settleActualUsage: vi.fn().mockResolvedValue(true),
     ...overrides,
   };
 }
@@ -101,6 +102,50 @@ describe("CreditRoutingService", () => {
 
     expect(ledger.settle).toHaveBeenNthCalledWith(1, expect.any(String), "opaque-reservation", "disabled");
     expect(ledger.settle).toHaveBeenNthCalledWith(2, "another-opaque-id", "opaque-reservation-2", "cooldown", expect.any(Number));
+  });
+
+  it("adjusts Redis reservations to zero and higher actual usage", async () => {
+    const ledger = makeLedger({ reserve: vi.fn().mockResolvedValue({ kind: "reserved", index: 0, sequence: 1, reservationKey: "opaque-reservation" }) });
+    const service = new CreditRoutingService(config as never, ledger as never);
+    const reservation = await service.reserve(["fc_secret_key"], 1);
+
+    await service.recordResponse(reservation!, 200, 0);
+    await service.recordResponse({ ...reservation!, reservationKey: "opaque-reservation-2" }, 201, 4);
+
+    expect(ledger.settleActualUsage).toHaveBeenNthCalledWith(1, expect.any(String), "opaque-reservation", 0);
+    expect(ledger.settleActualUsage).toHaveBeenNthCalledWith(2, expect.any(String), "opaque-reservation-2", 4);
+  });
+
+  it("extracts only direct metadata creditsUsed values", () => {
+    expect(extractCreditsUsed(new TextEncoder().encode('{"data":{"creditsUsed":2},"metadata":{"creditsUsed":7}}'))).toBe(7);
+    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"nested":{"creditsUsed":2},"creditsUsed":7}}'))).toBe(7);
+    expect(extractCreditsUsed(new TextEncoder().encode('{"message":"\\"creditsUsed\\": 99","metadata":{"creditsUsed":3}}'))).toBe(3);
+    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"creditsUsed":-1}}'))).toBeNull();
+    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"creditsUsed":1.5}}'))).toBeNull();
+    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"other":2}}'))).toBeNull();
+    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"credits\\uUsed":2}}'))).toBeNull();
+  });
+
+  it("observes streamed creditsUsed across chunks without awaiting settlement", async () => {
+    let settleStarted = false;
+    let resolveSettlement!: () => void;
+    const settlement = new Promise<void>((resolve) => { resolveSettlement = resolve; });
+    const source = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"metadata":{"cred'));
+        controller.enqueue(new TextEncoder().encode('itsUsed": 7}}'));
+        controller.close();
+      },
+    });
+    const observed = observeCreditsUsedStream(source, async (creditsUsed) => {
+      settleStarted = creditsUsed === 7;
+      await settlement;
+    });
+
+    const body = await new Response(observed).text();
+    expect(body).toBe('{"metadata":{"creditsUsed": 7}}');
+    expect(settleStarted).toBe(true);
+    resolveSettlement();
   });
 
   it("reconciles successful authoritative refreshes but retains state after failed refreshes", async () => {

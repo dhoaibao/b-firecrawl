@@ -94,6 +94,32 @@ end
 return settled
 `;
 
+const ACTUAL_USAGE_SCRIPT = `
+local pool = KEYS[1]
+local reservation = KEYS[2]
+local reservations = KEYS[3]
+local actual = tonumber(ARGV[1]) or -1
+if actual < 0 then return 0 end
+local state = redis.call('HGET', reservation, 'state')
+if state ~= 'open' then
+  redis.call('DEL', reservation)
+  return 0
+end
+local estimated = tonumber(redis.call('HGET', reservation, 'amount') or '0') or 0
+local delta = actual - estimated
+if delta > 0 then
+  local credits = tonumber(redis.call('HGET', pool, 'credits') or '0') or 0
+  local deduction = math.min(delta, math.max(0, credits))
+  if deduction > 0 then redis.call('HINCRBY', pool, 'credits', -deduction) end
+elseif delta < 0 then
+  redis.call('HINCRBY', pool, 'credits', -delta)
+end
+redis.call('HINCRBY', pool, 'reserved', -estimated)
+redis.call('ZREM', reservations, reservation)
+redis.call('DEL', reservation)
+return 1
+`;
+
 const RECONCILE_SCRIPT = `
 local pool = KEYS[1]
 local reservations = KEYS[2]
@@ -180,6 +206,15 @@ export class RedisCreditLedgerStore implements OnModuleDestroy {
     const result = await this.run((client) => client.eval(CAPTURE_SCRIPT, { keys: [this.poolKey(keyId)], arguments: [] }));
     if (!result.available) return { available: false, sequence: 0 };
     return { available: true, sequence: asNumber(result.value) ?? 0 };
+  }
+
+  async settleActualUsage(keyId: string, reservationKey: string, actualCredits: number): Promise<boolean> {
+    if (!this.client || !Number.isSafeInteger(actualCredits) || actualCredits < 0) return false;
+    const result = await this.run((client) => client.eval(ACTUAL_USAGE_SCRIPT, {
+      keys: [this.poolKey(keyId), reservationKey, this.reservationSetKey(keyId)],
+      arguments: [String(actualCredits)],
+    }));
+    return result.available && asNumber(result.value) === 1;
   }
 
   async reconcile(keyId: string, remainingCredits: number, snapshotSequence: number): Promise<boolean> {

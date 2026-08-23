@@ -10,11 +10,16 @@ import { chooseInitialBackend, getRouteMode, hasSensitiveHeaders, isCloudQuotaFa
 import { SettingsService, type RouteMode } from "../settings/settings.service";
 import { ApiKeysService } from "../api-keys/api-keys.service";
 import { AuditService } from "../audit/audit.service";
-import { CreditRoutingService, estimateCreditCost, type CreditReservation } from "../credits/credit-routing.service";
+import { CreditRoutingService, estimateCreditCost, extractCreditsUsed, observeCreditsUsedStream, type CreditReservation } from "../credits/credit-routing.service";
 
 const hopByHopHeaders = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"]);
 const RETRYABLE_CLOUD_STATUS = new Set([401, 402, 403, 429]);
 const CLOUD_CAPACITY_STATUS = new Set([402, 429]);
+
+function isJsonContentType(contentType: string | null): boolean {
+  const mediaType = contentType?.split(";", 1)[0].trim().toLowerCase();
+  return mediaType === "application/json" || mediaType?.endsWith("+json") === true;
+}
 
 @Injectable()
 export class ProxyService {
@@ -80,7 +85,17 @@ export class ProxyService {
       if (!reservation) return null;
       attemptedCloudKeyIds.add(reservation.keyId);
       const cloudResult = await this.proxyToBackend("cloud", request, bodyBuffer, this.backendUrl("cloud", originalUrl, selfHostedBaseUrl), reservation.key);
-      if (cloudResult.kind === "response" && cloudResult.response) await this.credits.recordResponse(reservation, cloudResult.response.status);
+      if (cloudResult.kind === "response" && cloudResult.response) {
+        const status = cloudResult.response.status;
+        const jsonResponse = isJsonContentType(cloudResult.response.headers.get("content-type"));
+        if (cloudResult.stream && cloudResult.response.ok && jsonResponse) {
+          cloudResult.stream = observeCreditsUsedStream(cloudResult.stream, (creditsUsed) => this.credits.recordResponse(reservation, status, creditsUsed));
+        } else if (!(cloudResult.stream && !jsonResponse)) {
+          const actualCreditsUsed = jsonResponse && cloudResult.body ? extractCreditsUsed(cloudResult.body) : null;
+          if (actualCreditsUsed === null) await this.credits.recordResponse(reservation, status);
+          else await this.credits.recordResponse(reservation, status, actualCreditsUsed);
+        }
+      }
       return { result: cloudResult, reservation };
     };
 

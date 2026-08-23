@@ -24,6 +24,193 @@ export interface CreditReservation {
 const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
 const CREDIT_KEY_COOLDOWN_MS = 30_000;
 const REDIS_FAILURE_COOLDOWN_MS = 5_000;
+const CREDITS_USED_KEY = "creditsUsed";
+const METADATA_KEY = "metadata";
+const MAX_SAFE_CREDITS_USED = Number.MAX_SAFE_INTEGER;
+const MAX_SCANNED_KEY_LENGTH = Math.max(CREDITS_USED_KEY.length, METADATA_KEY.length);
+
+type CreditsUsedScanState = "outside" | "string" | "after-key" | "after-colon" | "digits" | "after-digits";
+
+class CreditsUsedScanner {
+  private state: CreditsUsedScanState = "outside";
+  private escaped = false;
+  private candidate = "";
+  private hasEscape = false;
+  private pendingKey: string | null = null;
+  private value = 0;
+  private overflow = false;
+  private found = false;
+  private objectDepth = 0;
+  private arrayDepth = 0;
+  private metadataObjectDepth: number | null = null;
+  private metadataArrayDepth: number | null = null;
+
+  constructor(private readonly onFound: (creditsUsed: number) => void) {}
+
+  push(chunk: Uint8Array): void {
+    for (const byte of chunk) {
+      let processAgain = true;
+      while (processAgain && !this.found) processAgain = this.processByte(byte);
+    }
+  }
+
+  finish(): void {}
+
+  private processByte(byte: number): boolean {
+    if (this.state === "outside") {
+      if (byte === 34) {
+        this.state = "string";
+        this.candidate = "";
+        this.hasEscape = false;
+      } else {
+        this.updateContainerDepth(byte);
+      }
+      return false;
+    }
+
+    if (this.state === "string") {
+      if (this.escaped) {
+        this.escaped = false;
+        this.hasEscape = true;
+        return false;
+      }
+      if (byte === 92) {
+        this.escaped = true;
+        this.hasEscape = true;
+        return false;
+      }
+      if (byte === 34) {
+        this.pendingKey = this.hasEscape ? null : this.candidate;
+        this.state = "after-key";
+        return false;
+      }
+      if (this.candidate.length <= MAX_SCANNED_KEY_LENGTH) {
+        this.candidate += byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : "\\0";
+      }
+      return false;
+    }
+
+    if (this.state === "after-key") {
+      if (isJsonWhitespace(byte)) return false;
+      if (byte === 58) {
+        this.state = "after-colon";
+        return false;
+      }
+      this.pendingKey = null;
+      this.state = "outside";
+      return true;
+    }
+
+    if (this.state === "after-colon") {
+      if (isJsonWhitespace(byte)) return false;
+      if (byte === 123 || byte === 91) {
+        const metadataValue = this.pendingKey === METADATA_KEY && this.objectDepth === 1 && this.arrayDepth === 0 && byte === 123;
+        this.updateContainerDepth(byte);
+        if (metadataValue) {
+          this.metadataObjectDepth = this.objectDepth;
+          this.metadataArrayDepth = this.arrayDepth;
+        }
+        this.pendingKey = null;
+        this.state = "outside";
+        return false;
+      }
+      if (byte >= 48 && byte <= 57 && this.pendingKey === CREDITS_USED_KEY
+        && this.metadataObjectDepth === this.objectDepth && this.metadataArrayDepth === this.arrayDepth) {
+        this.state = "digits";
+        this.value = byte - 48;
+        this.overflow = false;
+        this.pendingKey = null;
+        return false;
+      }
+      this.pendingKey = null;
+      this.state = "outside";
+      return true;
+    }
+
+    if (this.state === "digits") {
+      if (byte >= 48 && byte <= 57) {
+        const digit = byte - 48;
+        if (this.value > Math.floor((MAX_SAFE_CREDITS_USED - digit) / 10)) this.overflow = true;
+        else if (!this.overflow) this.value = this.value * 10 + digit;
+        return false;
+      }
+      if (isJsonWhitespace(byte)) {
+        this.state = "after-digits";
+        return false;
+      }
+      if (isJsonDelimiter(byte)) {
+        this.emitValue();
+        this.updateContainerDepth(byte);
+        this.state = "outside";
+        return false;
+      }
+      this.state = "outside";
+      return true;
+    }
+
+    if (isJsonWhitespace(byte)) return false;
+    if (isJsonDelimiter(byte)) {
+      this.emitValue();
+      this.updateContainerDepth(byte);
+      this.state = "outside";
+      return false;
+    }
+    this.state = "outside";
+    return true;
+  }
+
+  private updateContainerDepth(byte: number): void {
+    if (byte === 123) this.objectDepth++;
+    if (byte === 91) this.arrayDepth++;
+    if (byte === 125) {
+      if (this.metadataObjectDepth === this.objectDepth) {
+        this.metadataObjectDepth = null;
+        this.metadataArrayDepth = null;
+      }
+      this.objectDepth = Math.max(0, this.objectDepth - 1);
+    }
+    if (byte === 93) this.arrayDepth = Math.max(0, this.arrayDepth - 1);
+  }
+
+  private emitValue(): void {
+    if (!this.overflow) {
+      this.found = true;
+      this.onFound(this.value);
+    }
+  }
+}
+
+function isJsonWhitespace(byte: number): boolean {
+  return byte === 9 || byte === 10 || byte === 13 || byte === 32;
+}
+
+function isJsonDelimiter(byte: number): boolean {
+  return byte === 44 || byte === 93 || byte === 125;
+}
+
+export function extractCreditsUsed(body: Uint8Array): number | null {
+  let creditsUsed: number | null = null;
+  new CreditsUsedScanner((value) => { creditsUsed = value; }).push(body);
+  return creditsUsed;
+}
+
+export function observeCreditsUsedStream(
+  stream: ReadableStream<Uint8Array>,
+  onCreditsUsed: (creditsUsed: number) => Promise<void> | void,
+): ReadableStream<Uint8Array> {
+  const scanner = new CreditsUsedScanner((value) => {
+    queueMicrotask(() => { void Promise.resolve().then(() => onCreditsUsed(value)).catch(() => undefined); });
+  });
+  return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      scanner.push(chunk);
+      controller.enqueue(chunk);
+    },
+    flush() {
+      scanner.finish();
+    },
+  }));
+}
 
 @Injectable()
 export class CreditRoutingService {
@@ -68,7 +255,7 @@ export class CreditRoutingService {
     return this.reserveLocally(candidates, normalizedAmount);
   }
 
-  async recordResponse(reservation: CreditReservation, status: number): Promise<void> {
+  async recordResponse(reservation: CreditReservation, status: number, actualCreditsUsed?: number): Promise<void> {
     if (status === 402) {
       this.localDisabled.add(reservation.keyId);
       this.localCooldownUntil.delete(reservation.keyId);
@@ -92,6 +279,12 @@ export class CreditRoutingService {
     // the next authoritative refresh because the upstream may have consumed it.
     if ((status === 401 || status === 403) && reservation.source === "redis" && reservation.reservationKey) {
       await this.ledger.settle(reservation.keyId, reservation.reservationKey, "refund");
+      return;
+    }
+
+    if (status >= 200 && status < 300 && reservation.source === "redis" && reservation.reservationKey
+      && actualCreditsUsed !== undefined && Number.isSafeInteger(actualCreditsUsed) && actualCreditsUsed >= 0) {
+      await this.ledger.settleActualUsage(reservation.keyId, reservation.reservationKey, actualCreditsUsed);
     }
   }
 
