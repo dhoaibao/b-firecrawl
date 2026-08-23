@@ -18,6 +18,11 @@ describe("loadConfig", () => {
     expect(loadConfig(baseEnv).sessionSecret).toBe("session-secret");
   });
 
+  it("accepts an optional Redis TCP URL", () => {
+    expect(loadConfig({ ...baseEnv, REDIS_URL: "redis://localhost:6379" }).redisUrl).toBe("redis://localhost:6379");
+    expect(loadConfig(baseEnv).redisUrl).toBe("");
+  });
+
   it("allows an empty session secret when authentication is disabled", () => {
     const config = loadConfig({ AUTH_ENABLED: "false", ...baseEnv, SESSION_SECRET: undefined });
 

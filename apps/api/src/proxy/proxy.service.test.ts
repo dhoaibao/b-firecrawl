@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RequestWithContext } from "../common/types";
+import { encryptSettingValue } from "../common/crypto";
 import { ProxyService } from "./proxy.service";
 
 const config = {
@@ -49,17 +50,25 @@ function makeSettings() {
   };
 }
 
-function makeService(settings = makeSettings(), audit = { appendAudit: vi.fn().mockResolvedValue(undefined) }) {
+function makeCredits() {
+  return {
+    reserve: vi.fn(),
+    recordResponse: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+function makeService(
+  settings = makeSettings(),
+  audit = { appendAudit: vi.fn().mockResolvedValue(undefined) },
+  credits = makeCredits(),
+) {
   return new ProxyService(
     config as never,
     settings as never,
     { validateApiKey: vi.fn() } as never,
     audit as never,
+    credits as never,
   );
-}
-
-function remainingCredits(service: ProxyService, key: string): Promise<number | null> {
-  return (service as unknown as { getRemainingCredits: (apiKey: string) => Promise<number | null> }).getRemainingCredits(key);
 }
 
 afterEach(() => {
@@ -155,48 +164,51 @@ describe("ProxyService", () => {
     expect(audit.appendAudit).toHaveBeenCalledWith(expect.objectContaining({ route_mode: "self-hosted-only" }));
   });
 
-  it("serves expired credit data while refreshing it in the background", async () => {
-    vi.useFakeTimers({ now: 1_000_000 });
-    let resolveRefresh!: (response: Response) => void;
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { remainingCredits: 500 } }), { status: 200 }))
-      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveRefresh = resolve; }));
+  it("reserves a configured cloud key before proxying and never fetches credit usage on a normal request", async () => {
+    const key = "fc_cloud_key_1234567890";
+    const encrypted = encryptSettingValue(JSON.stringify([key]), config.firecrawlKeysEncryptionKey);
+    const settings = {
+      getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-first"),
+      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+    };
+    const credits = makeCredits();
+    credits.reserve.mockResolvedValue({ key, keyId: "opaque-key-id", amount: 1, source: "local" });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
-    const service = makeService();
-    const key = "fc_swr-credit-test";
 
-    await expect(remainingCredits(service, key)).resolves.toBe(500);
-    vi.setSystemTime(1_000_000 + 30_001);
+    const service = makeService(settings, undefined, credits);
+    await service.handle(makeRequest(), makeReply() as never);
 
-    await expect(remainingCredits(service, key)).resolves.toBe(500);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    resolveRefresh(new Response(JSON.stringify({ data: { remainingCredits: 425 } }), { status: 200 }));
-    for (let i = 0; i < 6; i++) await Promise.resolve();
-    await expect(remainingCredits(service, key)).resolves.toBe(425);
+    expect(credits.reserve).toHaveBeenCalledWith([key], 1, expect.any(Set));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("https://cloud.test/v1/test", expect.objectContaining({
+      headers: expect.objectContaining({ authorization: `Bearer ${key}` }),
+    }));
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/v2/team/credit-usage"))).toBe(false);
   });
 
-  it("serves a stale value within the max-staleness bound and drops it beyond", async () => {
-    vi.useFakeTimers({ now: 1_000_000 });
+  it("disables a 402 key and retries the request with another reserved key", async () => {
+    const keys = ["fc_cloud_key_1111111111", "fc_cloud_key_2222222222"];
+    const encrypted = encryptSettingValue(JSON.stringify(keys), config.firecrawlKeysEncryptionKey);
+    const settings = {
+      getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-only"),
+      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+    };
+    const credits = makeCredits();
+    credits.reserve
+      .mockResolvedValueOnce({ key: keys[0], keyId: "opaque-1", amount: 1, source: "local" })
+      .mockResolvedValueOnce({ key: keys[1], keyId: "opaque-2", amount: 1, source: "local" });
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { remainingCredits: 500 } }), { status: 200 }))
-      // Every refresh after the first fails, so the value never gets renewed.
-      .mockResolvedValue(new Response(null, { status: 503 }));
+      .mockResolvedValueOnce(new Response("credits exhausted", { status: 402 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
-    const service = makeService();
-    const key = "fc_staleness-credit-test";
 
-    await expect(remainingCredits(service, key)).resolves.toBe(500);
+    const service = makeService(settings, undefined, credits);
+    await service.handle(makeRequest(), makeReply() as never);
 
-    // Just inside the 5-minute staleness bound: stale value still served.
-    vi.setSystemTime(1_000_000 + 4 * 60 * 1000);
-    await expect(remainingCredits(service, key)).resolves.toBe(500);
-
-    // Beyond the bound: entry is dropped and the failed refresh falls back
-    // to null, exactly like a cache miss.
-    vi.setSystemTime(1_000_000 + 5 * 60 * 1000 + 1);
-    await expect(remainingCredits(service, key)).resolves.toBeNull();
-    // A subsequent read also misses the cache (no stale pinning).
-    await expect(remainingCredits(service, key)).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ headers: expect.objectContaining({ authorization: `Bearer ${keys[0]}` }) }));
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ headers: expect.objectContaining({ authorization: `Bearer ${keys[1]}` }) }));
+    expect(credits.recordResponse).toHaveBeenCalledWith(expect.objectContaining({ keyId: "opaque-1" }), 402);
   });
 });

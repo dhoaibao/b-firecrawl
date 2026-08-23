@@ -4,6 +4,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SettingsService } from "../settings/settings.service";
 import { API_CONFIG } from "../common/config.provider";
 import type { ApiConfig } from "../common/config";
+import { encryptSettingValue } from "../common/crypto";
+import { CreditRoutingService, parseCreditKeys } from "../credits/credit-routing.service";
 
 @Injectable()
 export class CronService {
@@ -11,17 +13,36 @@ export class CronService {
   // pruned. AUDIT_RETENTION_DAYS is the single greppable source of the cutoff.
   private static readonly AUDIT_RETENTION_DAYS = 30;
 
-  constructor(private readonly prisma: PrismaService, private readonly settings: SettingsService, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
+    private readonly credits: CreditRoutingService,
+  ) {}
 
   isAuthorized(authorization: string | undefined): boolean {
     return Boolean(this.config.cronSecret) && authorization === `Bearer ${this.config.cronSecret}`;
   }
 
-  async runMaintenance(): Promise<{ revoked: number; rateLimitsDeleted: number; auditLogsDeleted: number }> {
+  async runMaintenance(): Promise<{ revoked: number; rateLimitsDeleted: number; auditLogsDeleted: number; creditUsageRefreshed: number }> {
+    const creditUsageRefreshed = await this.refreshCreditUsage();
     const revoked = await this.revokeInactiveKeys();
     const rateLimitsDeleted = await this.deleteExpiredRateLimits();
     const auditLogsDeleted = await this.pruneOldAuditLogs();
-    return { revoked, rateLimitsDeleted, auditLogsDeleted };
+    return { revoked, rateLimitsDeleted, auditLogsDeleted, creditUsageRefreshed };
+  }
+
+  private async refreshCreditUsage(): Promise<number> {
+    const record = await this.settings.getSetting("firecrawl_api_keys");
+    if (!record?.value) return 0;
+    try {
+      const parsed = parseCreditKeys(record.value, this.config.firecrawlKeysEncryptionKey);
+      if (!parsed.encrypted) await this.settings.setSetting(record.key, encryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey));
+      const details = await this.credits.refreshCreditUsageForKeys(parsed.keys);
+      return details.filter((item) => !item.error && item.remainingCredits !== null).length;
+    } catch {
+      return 0;
+    }
   }
 
   /**

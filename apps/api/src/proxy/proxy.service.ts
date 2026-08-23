@@ -4,22 +4,17 @@ import type { FastifyReply } from "fastify";
 import { API_CONFIG } from "../common/config.provider";
 import type { ApiConfig } from "../common/config";
 import type { AuditEntry, ProxyResult, RequestWithContext } from "../common/types";
-import { cryptoRandomId, collectTargetUrls, hasPrivateTargetUrl, inspectBody, nowIso, shuffleArray } from "../common/utils";
+import { cryptoRandomId, collectTargetUrls, hasPrivateTargetUrl, inspectBody, nowIso } from "../common/utils";
 import { decryptSettingValue, encryptSettingValue } from "../common/crypto";
 import { chooseInitialBackend, getRouteMode, hasSensitiveHeaders, isCloudQuotaFallbackAllowed, isFallbackAllowed, isFallbackEligible, requestNeedsCloud } from "./policy";
 import { SettingsService, type RouteMode } from "../settings/settings.service";
 import { ApiKeysService } from "../api-keys/api-keys.service";
 import { AuditService } from "../audit/audit.service";
+import { CreditRoutingService, estimateCreditCost, type CreditReservation } from "../credits/credit-routing.service";
 
 const hopByHopHeaders = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length"]);
-const RETRYABLE_CLOUD_STATUS = new Set([401, 403, 429]);
-const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
-// Stale values are served only while younger than this; older entries are
-// dropped so ordering falls back to the no-cache behavior (failed refreshes
-// sort last) instead of pinning a permanently stale value.
-const CREDIT_USAGE_MAX_STALENESS_MS = 5 * 60 * 1000;
-const creditUsageCache = new Map<string, { remainingCredits: number; expiresAt: number; storedAt: number }>();
-const creditUsageInFlight = new Map<string, Promise<number | null>>();
+const RETRYABLE_CLOUD_STATUS = new Set([401, 402, 403, 429]);
+const CLOUD_CAPACITY_STATUS = new Set([402, 429]);
 
 @Injectable()
 export class ProxyService {
@@ -28,6 +23,7 @@ export class ProxyService {
     private readonly settings: SettingsService,
     private readonly keys: ApiKeysService,
     private readonly audit: AuditService,
+    private readonly credits: CreditRoutingService,
   ) {}
 
   async handle(request: RequestWithContext, reply: FastifyReply, originalUrl = request.raw.url || request.url): Promise<void> {
@@ -74,31 +70,75 @@ export class ProxyService {
     const initialBackend = chooseInitialBackend(routeMode, needsCloud);
     let cloudApiKeys: string[] = [];
     if (initialBackend === "cloud" || (initialBackend === "self-hosted" && routeMode !== "self-hosted-only" && isFallbackAllowed(routeMode, privacy))) cloudApiKeys = await this.getCloudApiKeys();
-    const primaryCloudApiKey = cloudApiKeys[0];
-    if (initialBackend === "cloud" && !primaryCloudApiKey) { await appendAuditEntry("none", 502, false, "No Firecrawl Cloud API key configured"); reply.code(502).send({ success: false, error: "No Firecrawl Cloud API key configured. Add one in Settings." }); return; }
+    if (initialBackend === "cloud" && !cloudApiKeys.length) { await appendAuditEntry("none", 502, false, "No Firecrawl Cloud API key configured"); reply.code(502).send({ success: false, error: "No Firecrawl Cloud API key configured. Add one in Settings." }); return; }
     if (initialBackend === "reject") { await appendAuditEntry("none", 409, false, needsCloud.reason); reply.code(409).send({ success: false, error: "This request requires Firecrawl Cloud, but route mode is self-hosted-only.", reason: needsCloud.reason }); return; }
 
-    let result = await this.proxyToBackend(initialBackend, request, bodyBuffer, this.backendUrl(initialBackend, originalUrl, selfHostedBaseUrl), primaryCloudApiKey);
+    const estimatedCredits = estimateCreditCost(parsedUrl.pathname, json);
+    const attemptedCloudKeyIds = new Set<string>();
+    const proxyCloud = async (): Promise<{ result: ProxyResult; reservation: CreditReservation } | null> => {
+      const reservation = await this.credits.reserve(cloudApiKeys, estimatedCredits, attemptedCloudKeyIds);
+      if (!reservation) return null;
+      attemptedCloudKeyIds.add(reservation.keyId);
+      const cloudResult = await this.proxyToBackend("cloud", request, bodyBuffer, this.backendUrl("cloud", originalUrl, selfHostedBaseUrl), reservation.key);
+      if (cloudResult.kind === "response" && cloudResult.response) await this.credits.recordResponse(reservation, cloudResult.response.status);
+      return { result: cloudResult, reservation };
+    };
+
     let fallbackUsed = false; let fallbackReason = "";
-    if (initialBackend === "self-hosted" && Boolean(primaryCloudApiKey) && isFallbackEligible(result) && isFallbackAllowed(routeMode, privacy)) {
-      fallbackUsed = true; fallbackReason = result.kind === "network-error" ? result.error?.message || "self-hosted network error" : `self-hosted returned ${result.response?.status}`;
-      result = await this.proxyToBackend("cloud", request, bodyBuffer, this.backendUrl("cloud", originalUrl, selfHostedBaseUrl), primaryCloudApiKey);
+    let cloudAttempt: { result: ProxyResult; reservation: CreditReservation } | null = null;
+    let result: ProxyResult;
+    if (initialBackend === "cloud") {
+      cloudAttempt = await proxyCloud();
+      if (!cloudAttempt) {
+        if (isCloudQuotaFallbackAllowed(routeMode, needsCloud) && selfHostedBaseUrl) {
+          fallbackUsed = true;
+          fallbackReason = "No available Firecrawl Cloud credit pool; falling back to self-hosted";
+          result = await this.proxyToBackend("self-hosted", request, bodyBuffer, this.backendUrl("self-hosted", originalUrl, selfHostedBaseUrl));
+        } else {
+          await appendAuditEntry("cloud", 429, false, "No available Firecrawl Cloud credit pool");
+          reply.code(429).send({ success: false, error: "No available Firecrawl Cloud credit pool. Refresh credit usage or try again later." });
+          return;
+        }
+      } else {
+        result = cloudAttempt.result;
+      }
+    } else {
+      result = await this.proxyToBackend(initialBackend, request, bodyBuffer, this.backendUrl(initialBackend, originalUrl, selfHostedBaseUrl));
+      if (initialBackend === "self-hosted" && cloudApiKeys.length > 0 && isFallbackEligible(result) && isFallbackAllowed(routeMode, privacy)) {
+        cloudAttempt = await proxyCloud();
+        if (cloudAttempt) {
+          fallbackUsed = true;
+          fallbackReason = result.kind === "network-error" ? result.error?.message || "self-hosted network error" : `self-hosted returned ${result.response?.status}`;
+          result = cloudAttempt.result;
+        }
+      }
     }
 
     let allCloudKeysQuotaLimited = false;
-    if (result.backend === "cloud" && result.kind === "response" && result.response && RETRYABLE_CLOUD_STATUS.has(result.response.status)) {
-      const remaining = cloudApiKeys.slice(1); let quotaAttempts = result.response.status === 429 ? 1 : 0; let attempts = 1; const firstStatus = result.response.status;
-      if (!remaining.length) allCloudKeysQuotaLimited = result.response.status === 429;
-      for (const nextKey of remaining) {
-        const next = await this.proxyToBackend("cloud", request, bodyBuffer, this.backendUrl("cloud", originalUrl, selfHostedBaseUrl), nextKey); attempts++;
-        if (next.kind === "response" && next.response?.status === 429) quotaAttempts++;
-        if (next.kind === "response" && next.response && !RETRYABLE_CLOUD_STATUS.has(next.response.status)) { fallbackUsed = true; fallbackReason = `primary cloud key failed with ${firstStatus}, next key succeeded`; result = next; break; }
-        result = next;
+    if (cloudAttempt && result.backend === "cloud" && result.kind === "response" && result.response && RETRYABLE_CLOUD_STATUS.has(result.response.status)) {
+      const firstStatus = result.response.status;
+      let attempts = 1;
+      let quotaAttempts = CLOUD_CAPACITY_STATUS.has(firstStatus) ? 1 : 0;
+      while (true) {
+        const next = await proxyCloud();
+        if (!next) break;
+        attempts++;
+        if (next.result.kind === "response" && next.result.response && CLOUD_CAPACITY_STATUS.has(next.result.response.status)) quotaAttempts++;
+        if (next.result.kind === "response" && next.result.response && !RETRYABLE_CLOUD_STATUS.has(next.result.response.status)) {
+          fallbackUsed = true;
+          fallbackReason = `primary cloud key failed with ${firstStatus}, next key succeeded`;
+          result = next.result;
+          cloudAttempt = next;
+          break;
+        }
+        result = next.result;
+        cloudAttempt = next;
       }
-      allCloudKeysQuotaLimited = quotaAttempts === attempts && attempts === cloudApiKeys.length;
+      allCloudKeysQuotaLimited = quotaAttempts === attempts;
     }
-    if (allCloudKeysQuotaLimited && result.backend === "cloud" && result.kind === "response" && result.response?.status === 429 && isCloudQuotaFallbackAllowed(routeMode, needsCloud)) {
-      fallbackUsed = true; fallbackReason = `all ${cloudApiKeys.length} cloud API key(s) returned 429; falling back to self-hosted`;
+    if (allCloudKeysQuotaLimited && result.backend === "cloud" && result.kind === "response" && result.response && CLOUD_CAPACITY_STATUS.has(result.response.status) && isCloudQuotaFallbackAllowed(routeMode, needsCloud)) {
+      fallbackUsed = true;
+      fallbackReason = `all ${cloudApiKeys.length} cloud API key(s) are unavailable (${result.response.status}); falling back to self-hosted`;
       result = await this.proxyToBackend("self-hosted", request, bodyBuffer, this.backendUrl("self-hosted", originalUrl, selfHostedBaseUrl));
     }
     const status = result.kind === "network-error" ? 502 : result.response?.status || 502;
@@ -168,52 +208,14 @@ export class ProxyService {
 
   private async getCloudApiKeys(): Promise<string[]> {
     try {
-      const record = await this.settings.getSetting("firecrawl_api_keys"); if (!record?.value) return [];
+      const record = await this.settings.getSetting("firecrawl_api_keys");
+      if (!record?.value) return [];
       const decrypted = decryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey);
       if (!decrypted.encrypted) await this.settings.setSetting(record.key, encryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey));
-      const parsed = JSON.parse(decrypted.value) as unknown; const keys = Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string" && key.length > 0) : [];
-      const credits = await Promise.all(keys.map(async (key) => ({ key, remainingCredits: await this.getRemainingCredits(key) })));
-      return shuffleArray(credits).sort((a, b) => (b.remainingCredits ?? Number.NEGATIVE_INFINITY) - (a.remainingCredits ?? Number.NEGATIVE_INFINITY)).map(({ key }) => key);
-    } catch { return []; }
-  }
-
-  private async getRemainingCredits(apiKey: string): Promise<number | null> {
-    const cached = creditUsageCache.get(apiKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.remainingCredits;
-    if (cached) {
-      if (Date.now() - cached.storedAt < CREDIT_USAGE_MAX_STALENESS_MS) {
-        void this.refreshRemainingCredits(apiKey);
-        return cached.remainingCredits;
-      }
-      // Staleness bound exceeded: stop serving the stale value and fall back
-      // to the same path as a cache miss (a failed refresh returns null).
-      creditUsageCache.delete(apiKey);
+      const parsed = JSON.parse(decrypted.value) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string" && key.length > 0) : [];
+    } catch {
+      return [];
     }
-    return this.refreshRemainingCredits(apiKey);
-  }
-
-  private async refreshRemainingCredits(apiKey: string): Promise<number | null> {
-    const existing = creditUsageInFlight.get(apiKey);
-    if (existing) return existing;
-    const request = (async () => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-      try {
-        const response = await fetch(`${this.config.cloudBaseUrl}/v2/team/credit-usage`, { headers: { authorization: `Bearer ${apiKey}` }, signal: controller.signal });
-        if (!response.ok) return null;
-        const json = await response.json() as { data?: { remainingCredits?: number } };
-        const remaining = json.data?.remainingCredits;
-        if (typeof remaining !== "number") return null;
-        creditUsageCache.set(apiKey, { remainingCredits: remaining, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS, storedAt: Date.now() });
-        return remaining;
-      } catch {
-        return null;
-      } finally {
-        clearTimeout(timeout);
-      }
-    })();
-    creditUsageInFlight.set(apiKey, request);
-    try { return await request; }
-    finally { if (creditUsageInFlight.get(apiKey) === request) creditUsageInFlight.delete(apiKey); }
   }
 }

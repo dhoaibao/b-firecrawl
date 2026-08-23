@@ -23,7 +23,7 @@ The API listens on `http://localhost:8080`. Set `VITE_API_BASE_URL` to that API 
 
 Create two Vercel projects with roots `apps/api` and `apps/admin`. Each root contains its own `vercel.json`:
 
-- API: configure the API variables in `.env.example`, including the migration-capable `DATABASE_URL` and `CRON_SECRET`.
+- API: configure the API variables in `.env.example`, including the migration-capable `DATABASE_URL` and `CRON_SECRET`. Set the optional `REDIS_URL` to enable shared per-key estimated-credit reservations; without it, the API safely uses local key rotation.
 - Admin: configure `VITE_API_BASE_URL` to the API's exact origin.
 - Set `ADMIN_ORIGIN` and `API_ORIGIN` to the exact deployed origins so credentialed CORS is restricted.
 - Stop any running API process, run `bun run db:migrate` against the existing PostgreSQL database, then start/redeploy the API. Prisma does not apply migrations during startup. This applies the additive legacy audit compatibility and repair migrations before Prisma reads `audit_logs`; the cutover migration intentionally deletes existing users, virtual API keys, and audit-log records, then removes user ownership from the new global key/audit tables. Configure the single administrator with `ADMIN_EMAIL` and `ADMIN_PASSWORD`; these environment credentials are the only admin credentials and are not stored in PostgreSQL. The same `DATABASE_URL` is used by runtime and migrations, so it must be a migration-capable direct PostgreSQL connection, not a transaction-only PgBouncer endpoint. This configuration does not silently guarantee serverless connection pooling. The API function is configured for up to 120 seconds, subject to the Vercel plan's maximum.

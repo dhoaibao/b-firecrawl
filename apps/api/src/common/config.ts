@@ -13,6 +13,11 @@ const optionalOrigin = z.preprocess((value) => {
   return String(value).trim().replace(/\/$/, "");
 }, z.string());
 
+const optionalRedisUrl = z.preprocess((value) => {
+  if (!value || String(value).trim() === "") return "";
+  return String(value).trim();
+}, z.union([z.literal(""), z.string().url()]));
+
 export const configSchema = z.object({
   port: z.coerce.number().int().positive().default(8080),
   cloudBaseUrl: z.string().url().default("https://api.firecrawl.dev").transform((value) => value.replace(/\/+$/, "")),
@@ -29,6 +34,7 @@ export const configSchema = z.object({
   trustProxy: z.union([z.boolean(), z.string()]).default(false),
   logLevel: z.string().default("info"),
   cronSecret: z.string().default(""),
+  redisUrl: optionalRedisUrl,
 }).superRefine((value, context) => {
   if (!value.authEnabled) return;
   if (!value.adminEmail.trim()) context.addIssue({ code: "custom", path: ["adminEmail"], message: "ADMIN_EMAIL is required when AUTH_ENABLED=true" });
@@ -55,5 +61,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     trustProxy: env.TRUST_PROXY,
     logLevel: env.LOG_LEVEL,
     cronSecret: env.CRON_SECRET,
+    redisUrl: env.REDIS_URL,
   });
 }

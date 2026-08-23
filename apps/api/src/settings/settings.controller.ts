@@ -5,6 +5,7 @@ import { decryptSettingValue, encryptSettingValue } from "../common/crypto";
 import { apiError } from "../common/http";
 import { AuthGuard } from "../auth/guards";
 import { SettingsService, VALID_ROUTE_MODES } from "./settings.service";
+import { creditKeyPrefix, parseCreditKeys, CreditRoutingService } from "../credits/credit-routing.service";
 
 const VALID_SETTINGS = ["firecrawl_api_keys", "api_key_inactivity_revoke_days", "default_route_mode", "self_hosted_firecrawl_url"] as const;
 const SETTING_TYPES: Record<string, "string" | "number" | "json"> = {
@@ -13,18 +14,16 @@ const SETTING_TYPES: Record<string, "string" | "number" | "json"> = {
 };
 const MAX_CLOUD_API_KEYS = 10;
 const MIN_API_KEY_LENGTH = 8;
-const CREDIT_USAGE_CACHE_TTL_MS = 30_000;
-
 export interface CreditUsageItem { keyIndex: number; keyPrefix: string; remainingCredits: number | null; planCredits: number | null; billingPeriodStart: string | null; billingPeriodEnd: string | null; error?: string }
-type CreditUsageDetails = Omit<CreditUsageItem, "keyIndex" | "keyPrefix">;
 
 @Controller("admin/api/settings")
 @UseGuards(AuthGuard)
 export class SettingsController {
-  private readonly creditUsageInFlight = new Map<string, Promise<CreditUsageDetails>>();
-  private readonly creditUsageCache = new Map<string, { details: CreditUsageDetails; expiresAt: number }>();
-
-  constructor(private readonly settings: SettingsService, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+  constructor(
+    private readonly settings: SettingsService,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
+    private readonly credits: CreditRoutingService,
+  ) {}
 
   @Get("credit-usage")
   async creditUsage() { return { data: await this.fetchCreditUsage() }; }
@@ -76,45 +75,14 @@ export class SettingsController {
     if (!record?.value) return [];
     let keys: string[];
     try {
-      const decrypted = decryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey);
-      if (!decrypted.encrypted) await this.settings.setSetting(record.key, encryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey));
-      const parsed = JSON.parse(decrypted.value) as unknown;
-      keys = Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string" && key.length > 0) : [];
-    } catch { return []; }
-    return Promise.all(keys.map((key, index) => this.fetchCreditUsageForKey(index, key)));
-  }
-
-  private async fetchCreditUsageForKey(keyIndex: number, apiKey: string): Promise<CreditUsageItem> {
-    const keyPrefix = `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
-    const cached = this.creditUsageCache.get(apiKey);
-    if (cached && cached.expiresAt > Date.now()) return { keyIndex, keyPrefix, ...cached.details };
-    if (cached) this.creditUsageCache.delete(apiKey);
-    const existing = this.creditUsageInFlight.get(apiKey);
-    if (existing) {
-      const details = await existing;
-      return { keyIndex, keyPrefix, ...details };
+      const parsed = parseCreditKeys(record.value, this.config.firecrawlKeysEncryptionKey);
+      keys = parsed.keys;
+      if (!parsed.encrypted) await this.settings.setSetting(record.key, encryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey));
+    } catch {
+      return [];
     }
-    const request = (async (): Promise<CreditUsageDetails> => {
-      try {
-        const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
-        let response: Response;
-        try { response = await fetch(`${this.config.cloudBaseUrl}/v2/team/credit-usage`, { headers: { authorization: `Bearer ${apiKey}` }, signal: controller.signal }); }
-        finally { clearTimeout(timeout); }
-        if (!response.ok) return { remainingCredits: null, planCredits: null, billingPeriodStart: null, billingPeriodEnd: null, error: `HTTP ${response.status}: ${await response.text() || response.statusText}` };
-        const json = await response.json() as { data?: { remainingCredits?: number; planCredits?: number; billingPeriodStart?: string | null; billingPeriodEnd?: string | null } };
-        return { remainingCredits: json.data?.remainingCredits ?? null, planCredits: json.data?.planCredits ?? null, billingPeriodStart: json.data?.billingPeriodStart ?? null, billingPeriodEnd: json.data?.billingPeriodEnd ?? null };
-      } catch (error) { return { remainingCredits: null, planCredits: null, billingPeriodStart: null, billingPeriodEnd: null, error: (error as Error).message }; }
-    })();
-    this.creditUsageInFlight.set(apiKey, request);
-    try {
-      const details = await request;
-      if (!details.error) this.creditUsageCache.set(apiKey, { details, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
-      return { keyIndex, keyPrefix, ...details };
-    } finally {
-      if (this.creditUsageInFlight.get(apiKey) === request) {
-        this.creditUsageInFlight.delete(apiKey);
-      }
-    }
+    const details = await this.credits.refreshCreditUsageForKeys(keys);
+    return details.map((item, index) => ({ keyIndex: index, keyPrefix: creditKeyPrefix(keys[index]), ...item }));
   }
 }
 

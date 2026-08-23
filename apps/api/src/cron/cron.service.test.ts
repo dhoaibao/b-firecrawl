@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CronService } from "./cron.service";
+import { encryptSettingValue } from "../common/crypto";
 
 type Sql = { text: string; values: unknown[] };
 
@@ -10,7 +11,8 @@ const MAX_BATCHES = (CronService as unknown as { MAX_PRUNE_BATCHES: number }).MA
 function makeService(queryRaw: ReturnType<typeof vi.fn>) {
   const prisma = { $queryRaw: queryRaw };
   const settings = { getSetting: vi.fn().mockResolvedValue(null) };
-  return new CronService(prisma as never, settings as never, { cronSecret: "secret" } as never);
+  const credits = { refreshCreditUsageForKeys: vi.fn().mockResolvedValue([]) };
+  return new CronService(prisma as never, settings as never, { cronSecret: "secret", firecrawlKeysEncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" } as never, credits as never);
 }
 
 interface FakeAuditRow { id: string; created_at: Date }
@@ -51,13 +53,30 @@ function makeDispatchPrisma(options: { onRateLimits?: () => Promise<unknown[]>; 
 }
 
 describe("CronService", () => {
+  it("refreshes configured credit pools as part of daily maintenance", async () => {
+    const key = "fc_cron_key_12345678";
+    const encryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const settings = {
+      getSetting: vi.fn()
+        .mockResolvedValueOnce({ key: "firecrawl_api_keys", value: encryptSettingValue(JSON.stringify([key]), encryptionKey) })
+        .mockResolvedValueOnce(null),
+      setSetting: vi.fn(),
+    };
+    const credits = { refreshCreditUsageForKeys: vi.fn().mockResolvedValue([{ remainingCredits: 100 }]) };
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const service = new CronService({ $queryRaw: queryRaw } as never, settings as never, { cronSecret: "secret", firecrawlKeysEncryptionKey: encryptionKey } as never, credits as never);
+
+    await expect(service.runMaintenance()).resolves.toMatchObject({ creditUsageRefreshed: 1 });
+    expect(credits.refreshCreditUsageForKeys).toHaveBeenCalledWith([key]);
+  });
+
   it("cleans a drained batch of expired rate-limit rows and reports both prune totals", async () => {
     const queryRaw = vi.fn()
       .mockResolvedValueOnce([{ key: "expired-1" }, { key: "expired-2" }])
       .mockResolvedValue([]);
     const service = makeService(queryRaw);
 
-    await expect(service.runMaintenance()).resolves.toEqual({ revoked: 0, rateLimitsDeleted: 2, auditLogsDeleted: 0 });
+    await expect(service.runMaintenance()).resolves.toEqual({ revoked: 0, rateLimitsDeleted: 2, auditLogsDeleted: 0, creditUsageRefreshed: 0 });
     expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 

@@ -9,9 +9,10 @@ import { AuditModule } from "./audit/audit.module";
 import { ProxyModule } from "./proxy/proxy.module";
 import { HealthModule } from "./health/health.module";
 import { CronModule } from "./cron/cron.module";
+import { CreditsModule } from "./credits/credits.module";
 
 @Module({
-  imports: [ApiConfigModule, PrismaModule, AuthModule, ApiKeysModule, SettingsModule, AuditModule, ProxyModule, HealthModule, CronModule],
+  imports: [ApiConfigModule, CreditsModule, PrismaModule, AuthModule, ApiKeysModule, SettingsModule, AuditModule, ProxyModule, HealthModule, CronModule],
   providers: [RateLimitMiddleware],
 })
 export class AppModule implements NestModule {
