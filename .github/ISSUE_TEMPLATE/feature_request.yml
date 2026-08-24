@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest an improvement to the gateway or admin dashboard.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape the project. Please keep the request focused and avoid including secrets or private customer data.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What user or operator problem would this feature address?
+      placeholder: I need to ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or interface you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches or workarounds have you tried?
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add examples, links, or screenshots that help explain the request. Redact sensitive information.
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Safety check
+      options:
+        - label: I have removed secrets and private or customer data from this request.
+          required: true
