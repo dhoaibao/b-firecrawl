@@ -8,7 +8,6 @@ import rawBody from "fastify-raw-body";
 import { AppModule } from "./app.module";
 import { loadConfig } from "./common/config";
 import { randomUUID } from "node:crypto";
-import type { RequestWithContext } from "./common/types";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 let appPromise: ReturnType<typeof createApp> | undefined;
@@ -20,29 +19,40 @@ export async function createApp(): Promise<NestFastifyApplication> {
     trustProxy: config.trustProxy === true || config.trustProxy === "true",
     logger: { level: config.logLevel },
   });
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, { bufferLogs: true });
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
+    bufferLogs: true,
+  });
   const fastify = app.getHttpAdapter().getInstance();
-  fastify.addHook("onRequest", (request: any, reply: any, done: () => void) => {
+  type FastifyRegisterPlugin = Parameters<typeof fastify.register>[0];
+  fastify.addHook("onRequest", (request, reply, done) => {
     const requestId = String(request.headers["x-request-id"] || randomUUID());
-    (request as RequestWithContext).requestId = requestId;
+    (request as typeof request & { requestId: string }).requestId = requestId;
     reply.header("x-request-id", requestId);
     done();
   });
-  await fastify.register(cookie as any);
-  await fastify.register(rawBody as any, { field: "rawBody", global: true, encoding: "utf8", runFirst: true });
+  await fastify.register(cookie as unknown as FastifyRegisterPlugin);
+  await fastify.register(rawBody as unknown as FastifyRegisterPlugin, {
+    field: "rawBody",
+    global: true,
+    encoding: "utf8",
+    runFirst: true,
+  });
   const allowedOrigins = [config.adminOrigin, config.apiOrigin].filter(Boolean);
-  await fastify.register(cors as any, {
+  await fastify.register(cors as unknown as FastifyRegisterPlugin, {
     origin: allowedOrigins.length ? allowedOrigins : false,
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
-  await fastify.register(helmet as any);
+  await fastify.register(helmet as unknown as FastifyRegisterPlugin);
   await app.init();
-  const handled = config.authEnabled ? "/v1/*, /v2/*, /health, /ready, and /admin" : "/v1/*, /v2/*, /health, and /ready";
+  const handled = config.authEnabled
+    ? "/v1/*, /v2/*, /health, /ready, and /admin"
+    : "/v1/*, /v2/*, /health, and /ready";
   fastify.route({
     method: ["GET", "HEAD", "TRACE", "DELETE", "PATCH", "PUT", "POST", "QUERY"],
     url: "/*",
-    handler: (_request: any, reply: any) => reply.code(404).send({ success: false, error: `Only ${handled} are handled.` }),
+    handler: (_request, reply) =>
+      reply.code(404).send({ success: false, error: `Only ${handled} are handled.` }),
   });
   await fastify.ready();
   return app;
@@ -54,7 +64,10 @@ async function bootstrap(): Promise<void> {
   await app.listen(config.port, "0.0.0.0");
 }
 
-export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
+export default async function handler(
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
   appPromise ??= createApp();
   const app = await appPromise;
   app.getHttpAdapter().getInstance().server.emit("request", request, response);

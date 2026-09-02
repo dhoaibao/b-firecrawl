@@ -1,21 +1,14 @@
-import {
-  Activity,
-  Cloud,
-  Clock,
-  CreditCard,
-  Radio,
-  Server,
-} from "lucide-react"
-import { MetricCard } from "@/components/MetricCard"
-import { Skeleton } from "@/components/ui/skeleton"
-import { formatPercent, formatLatency } from "@/hooks/useAuditMetrics"
-import type { AuditMetrics } from "@/hooks/useAuditMetrics"
-import type { CreditUsageItem } from "@/types"
+import { Activity, Cloud, Clock, CreditCard, Radio, Server } from "lucide-react";
+import { MetricCard } from "@/components/MetricCard";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatPercent, formatLatency } from "@/hooks/useAuditMetrics";
+import type { AuditMetrics } from "@/hooks/useAuditMetrics";
+import type { CreditUsageItem } from "@/types";
 
 interface MetricsGridProps {
-  metrics: AuditMetrics
-  loading: boolean
-  creditUsage?: CreditUsageItem[]
+  metrics: AuditMetrics;
+  loading: boolean;
+  creditUsage?: CreditUsageItem[];
 }
 
 function MetricsSkeleton() {
@@ -35,32 +28,32 @@ function MetricsSkeleton() {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 export default function MetricsGrid({ metrics, loading, creditUsage }: MetricsGridProps) {
   if (loading) {
-    return <MetricsSkeleton />
+    return <MetricsSkeleton />;
   }
 
   const successfulCreditUsage = (creditUsage ?? []).filter(
     (usage) => !usage.error && typeof usage.remainingCredits === "number",
-  )
+  );
   const totalRemainingCredits = successfulCreditUsage.reduce(
     (total, usage) => total + (usage.remainingCredits ?? 0),
     0,
-  )
+  );
   const totalPlanCredits = successfulCreditUsage.reduce(
     (total, usage) => total + (usage.planCredits ?? 0),
     0,
-  )
+  );
 
   const creditDetail =
     !creditUsage || creditUsage.length === 0
       ? "No saved API keys"
       : successfulCreditUsage.length > 0 && totalPlanCredits > 0
         ? `of ${totalPlanCredits.toLocaleString()} combined plan credits`
-        : `${successfulCreditUsage.length} of ${creditUsage.length} key balances included`
+        : `${successfulCreditUsage.length} of ${creditUsage.length} key balances included`;
 
   const cards = [
     {
@@ -96,13 +89,11 @@ export default function MetricsGrid({ metrics, loading, creditUsage }: MetricsGr
     {
       label: "Available Credits",
       value:
-        !creditUsage || creditUsage.length === 0
-          ? "—"
-          : totalRemainingCredits.toLocaleString(),
+        !creditUsage || creditUsage.length === 0 ? "—" : totalRemainingCredits.toLocaleString(),
       detail: creditDetail,
       icon: CreditCard,
     },
-  ]
+  ];
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 animate-slide-up">
@@ -116,5 +107,5 @@ export default function MetricsGrid({ metrics, loading, creditUsage }: MetricsGr
         />
       ))}
     </div>
-  )
+  );
 }

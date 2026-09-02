@@ -1,9 +1,13 @@
 import { spawn } from "node:child_process";
 
-const tsc = spawn(process.platform === "win32" ? "tsc.cmd" : "tsc", ["--watch", "-p", "tsconfig.json"], {
-  stdio: "inherit",
-  env: process.env,
-});
+const tsc = spawn(
+  process.platform === "win32" ? "tsc.cmd" : "tsc",
+  ["--watch", "-p", "tsconfig.json"],
+  {
+    stdio: "inherit",
+    env: process.env,
+  },
+);
 const server = spawn(process.execPath, ["--watch", "dist/main.js"], {
   stdio: "inherit",
   env: process.env,

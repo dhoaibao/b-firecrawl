@@ -10,16 +10,23 @@ const baseEnv: NodeJS.ProcessEnv = {
 };
 
 describe("loadConfig", () => {
-  it.each([undefined, "", "   "]) ("requires SESSION_SECRET when authentication is enabled (%j)", (sessionSecret) => {
-    expect(() => loadConfig({ ...baseEnv, SESSION_SECRET: sessionSecret })).toThrow(/SESSION_SECRET is required/);
-  });
+  it.each([undefined, "", "   "])(
+    "requires SESSION_SECRET when authentication is enabled (%j)",
+    (sessionSecret) => {
+      expect(() => loadConfig({ ...baseEnv, SESSION_SECRET: sessionSecret })).toThrow(
+        /SESSION_SECRET is required/,
+      );
+    },
+  );
 
   it("loads an authenticated configuration with a session secret", () => {
     expect(loadConfig(baseEnv).sessionSecret).toBe("session-secret");
   });
 
   it("accepts an optional Redis TCP URL", () => {
-    expect(loadConfig({ ...baseEnv, REDIS_URL: "redis://localhost:6379" }).redisUrl).toBe("redis://localhost:6379");
+    expect(loadConfig({ ...baseEnv, REDIS_URL: "redis://localhost:6379" }).redisUrl).toBe(
+      "redis://localhost:6379",
+    );
     expect(loadConfig(baseEnv).redisUrl).toBe("");
   });
 

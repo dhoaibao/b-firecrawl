@@ -1,25 +1,25 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState } from "react";
 
-import type { AuditEntry } from "@/types"
+import type { AuditEntry } from "@/types";
 
 interface TopEndpointsChartProps {
-  entries: AuditEntry[]
+  entries: AuditEntry[];
 }
 
 export function TopEndpointsChart({ entries }: TopEndpointsChartProps) {
-  const [hovered, setHovered] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null);
 
   const topPaths = useMemo(() => {
-    const counts = new Map<string, number>()
+    const counts = new Map<string, number>();
     entries.forEach((entry) => {
-      counts.set(entry.path, (counts.get(entry.path) || 0) + 1)
-    })
+      counts.set(entry.path, (counts.get(entry.path) || 0) + 1);
+    });
     return Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-  }, [entries])
+      .slice(0, 6);
+  }, [entries]);
 
-  const maxCount = Math.max(1, ...topPaths.map(([, count]) => count))
+  const maxCount = Math.max(1, ...topPaths.map(([, count]) => count));
 
   return (
     <div className="relative h-36 overflow-hidden rounded-lg border border-white/5 bg-surface-2 px-4 py-3">
@@ -30,8 +30,8 @@ export function TopEndpointsChart({ entries }: TopEndpointsChartProps) {
       ) : (
         <div className="flex h-full flex-col justify-center gap-2">
           {topPaths.map(([path, count]) => {
-            const width = Math.max(count ? 4 : 0, (count / maxCount) * 100)
-            const isHovered = hovered === path
+            const width = Math.max(count ? 4 : 0, (count / maxCount) * 100);
+            const isHovered = hovered === path;
 
             return (
               <div
@@ -53,10 +53,10 @@ export function TopEndpointsChart({ entries }: TopEndpointsChartProps) {
                   {count}
                 </span>
               </div>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }

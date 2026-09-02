@@ -1,15 +1,15 @@
-import { Suspense, lazy } from "react"
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom"
-import { useAuth } from "@/contexts/AuthContext"
-import { ToastProvider } from "@/contexts/ToastContext"
-import ErrorBoundary from "@/components/ErrorBoundary"
-import Sidebar from "@/components/Sidebar"
+import { Suspense, lazy } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/contexts/ToastContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import Sidebar from "@/components/Sidebar";
 
-const Dashboard = lazy(() => import("@/pages/Dashboard"))
-const Login = lazy(() => import("@/pages/Login"))
-const ApiKeys = lazy(() => import("@/pages/ApiKeys"))
-const Configure = lazy(() => import("@/pages/Configure"))
-const Account = lazy(() => import("@/pages/Account"))
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Login = lazy(() => import("@/pages/Login"));
+const ApiKeys = lazy(() => import("@/pages/ApiKeys"));
+const Configure = lazy(() => import("@/pages/Configure"));
+const Account = lazy(() => import("@/pages/Account"));
 
 function LoadingScreen() {
   return (
@@ -21,14 +21,14 @@ function LoadingScreen() {
         <div className="h-2 w-24 animate-pulse rounded-full bg-white/[0.06]"></div>
       </div>
     </div>
-  )
+  );
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { admin, loading } = useAuth()
-  if (loading) return <LoadingScreen />
-  if (!admin) return <Navigate to="/login" replace />
-  return <>{children}</>
+  const { admin, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!admin) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 }
 
 function AuthenticatedLayout() {
@@ -39,7 +39,7 @@ function AuthenticatedLayout() {
         <Outlet />
       </main>
     </div>
-  )
+  );
 }
 
 export default function App() {
@@ -47,19 +47,62 @@ export default function App() {
     <ErrorBoundary>
       <ToastProvider>
         <BrowserRouter>
-          <a href="#content" className="skip-link">Skip to content</a>
+          <a href="#content" className="skip-link">
+            Skip to content
+          </a>
           <Routes>
-            <Route path="/login" element={<Suspense fallback={<LoadingScreen />}><Login /></Suspense>} />
-            <Route element={<RequireAuth><AuthenticatedLayout /></RequireAuth>}>
-              <Route path="/" element={<Suspense fallback={<LoadingScreen />}><Dashboard /></Suspense>} />
-              <Route path="/api-keys" element={<Suspense fallback={<LoadingScreen />}><ApiKeys /></Suspense>} />
-              <Route path="/configure" element={<Suspense fallback={<LoadingScreen />}><Configure /></Suspense>} />
-              <Route path="/account" element={<Suspense fallback={<LoadingScreen />}><Account /></Suspense>} />
+            <Route
+              path="/login"
+              element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <Login />
+                </Suspense>
+              }
+            />
+            <Route
+              element={
+                <RequireAuth>
+                  <AuthenticatedLayout />
+                </RequireAuth>
+              }
+            >
+              <Route
+                path="/"
+                element={
+                  <Suspense fallback={<LoadingScreen />}>
+                    <Dashboard />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/api-keys"
+                element={
+                  <Suspense fallback={<LoadingScreen />}>
+                    <ApiKeys />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/configure"
+                element={
+                  <Suspense fallback={<LoadingScreen />}>
+                    <Configure />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/account"
+                element={
+                  <Suspense fallback={<LoadingScreen />}>
+                    <Account />
+                  </Suspense>
+                }
+              />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>
     </ErrorBoundary>
-  )
+  );
 }

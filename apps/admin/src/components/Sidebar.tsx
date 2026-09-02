@@ -1,41 +1,33 @@
-import { useEffect, useState } from "react"
-import { useLocation, Link } from "react-router-dom"
-import {
-  LayoutDashboard,
-  Key,
-  LogOut,
-  Menu,
-  X,
-  Shield,
-  Settings,
-  KeyRound,
-} from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/contexts/AuthContext"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react";
+import { useLocation, Link } from "react-router-dom";
+import { LayoutDashboard, Key, LogOut, Menu, X, Shield, Settings, KeyRound } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "API Keys", href: "/api-keys", icon: Key },
   { label: "Configure", href: "/configure", icon: Settings },
   { label: "Account", href: "/account", icon: KeyRound },
-]
+];
 
 export default function Sidebar() {
-  const { admin, logout } = useAuth()
-  const location = useLocation()
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const { admin, logout } = useAuth();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (!mobileOpen) return
+    if (!mobileOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false)
-    }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [mobileOpen])
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
 
-  const isActive = (href: string) => href === "/" ? location.pathname === "/" : location.pathname === href
+  const isActive = (href: string) =>
+    href === "/" ? location.pathname === "/" : location.pathname === href;
 
   const sidebarContent = (
     <>
@@ -49,7 +41,7 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main">
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const active = isActive(item.href)
+            const active = isActive(item.href);
             return (
               <li key={item.href}>
                 <Link
@@ -67,7 +59,7 @@ export default function Sidebar() {
                   {item.label}
                 </Link>
               </li>
-            )
+            );
           })}
         </ul>
       </nav>
@@ -92,28 +84,44 @@ export default function Sidebar() {
         </Button>
       </div>
     </>
-  )
+  );
 
   return (
     <>
       <div className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-white/[0.06] bg-surface-2/90 px-4 backdrop-blur lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-white/[0.08] bg-surface-3 text-muted-foreground"><Shield className="size-4" /></div>
+          <div className="flex size-8 items-center justify-center rounded-lg border border-white/[0.08] bg-surface-3 text-muted-foreground">
+            <Shield className="size-4" />
+          </div>
           <span className="text-sm font-semibold text-foreground">Firecrawl</span>
         </div>
-        <Button variant="outline" size="icon" className="size-8 border-white/[0.08] bg-surface-3 text-foreground" onClick={() => setMobileOpen((v) => !v)} aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen}>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8 border-white/[0.08] bg-surface-3 text-foreground"
+          onClick={() => setMobileOpen((v) => !v)}
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileOpen}
+        >
           {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
         </Button>
       </div>
 
-      {mobileOpen && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
 
-      <aside className={cn(
-        "fixed bottom-0 left-0 top-0 z-50 flex w-60 flex-col border-r border-white/[0.06] bg-surface-1 transition-transform duration-200 lg:translate-x-0",
-        mobileOpen ? "translate-x-0" : "-translate-x-full",
-      )}>
+      <aside
+        className={cn(
+          "fixed bottom-0 left-0 top-0 z-50 flex w-60 flex-col border-r border-white/[0.06] bg-surface-1 transition-transform duration-200 lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
         {sidebarContent}
       </aside>
     </>
-  )
+  );
 }

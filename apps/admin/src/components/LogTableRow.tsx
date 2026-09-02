@@ -1,84 +1,78 @@
-import React from "react"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { TableCell, TableRow } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
-import type { AuditEntry } from "@/types"
+import React from "react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import type { AuditEntry } from "@/types";
 
 type BadgeVariant =
-  | "default"
-  | "secondary"
-  | "destructive"
-  | "outline"
-  | "success"
-  | "warning"
-  | "info"
+  "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info";
 
 function formatTime(value: string): string {
-  if (!value) return "unknown"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  if (!value) return "unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("en-US", {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-  })
+  });
 }
 
 function statusVariant(status: number): BadgeVariant {
-  if (!Number.isFinite(status)) return "outline"
-  if (status < 300) return "success"
-  if (status < 500) return "warning"
-  return "destructive"
+  if (!Number.isFinite(status)) return "outline";
+  if (status < 300) return "success";
+  if (status < 500) return "warning";
+  return "destructive";
 }
 
 function backendVariant(backend: string): BadgeVariant {
-  if (backend === "self-hosted") return "success"
-  if (backend === "cloud") return "info"
-  return "outline"
+  if (backend === "self-hosted") return "success";
+  if (backend === "cloud") return "info";
+  return "outline";
 }
 
 function methodClassName(method: string): string {
   switch (method) {
     case "GET":
-      return "border-success-muted bg-success-muted text-success-fg"
+      return "border-success-muted bg-success-muted text-success-fg";
     case "POST":
-      return "border-info-muted bg-info-muted text-info-fg"
+      return "border-info-muted bg-info-muted text-info-fg";
     case "DELETE":
-      return "border-danger-muted bg-danger-muted text-danger-fg"
+      return "border-danger-muted bg-danger-muted text-danger-fg";
     default:
-      return "border-white/10 bg-white/[0.03] text-slate-200"
+      return "border-white/10 bg-white/[0.03] text-slate-200";
   }
 }
 
 function formatLatency(value: number): string {
-  if (!Number.isFinite(value)) return "0ms"
-  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`
-  return `${Math.round(value)}ms`
+  if (!Number.isFinite(value)) return "0ms";
+  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
+  return `${Math.round(value)}ms`;
 }
 
 function statusBorderColor(status: number): string {
-  if (status >= 200 && status < 400) return "bg-success"
-  if (status >= 400 && status < 500) return "bg-warning"
-  return "bg-danger"
+  if (status >= 200 && status < 400) return "bg-success";
+  if (status >= 400 && status < 500) return "bg-warning";
+  return "bg-danger";
 }
 
 function isSafeExternalUrl(url: string): boolean {
   try {
-    const parsed = new URL(url, window.location.href)
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
+    const parsed = new URL(url, window.location.href);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
-    return false
+    return false;
   }
 }
 
 interface LogTableRowProps {
-  entry: AuditEntry
-  onSelect?: (entry: AuditEntry) => void
-  selected?: boolean
-  onToggleSelect?: (id: string) => void
+  entry: AuditEntry;
+  onSelect?: (entry: AuditEntry) => void;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const LogTableRow = React.memo(function LogTableRow({
@@ -93,8 +87,8 @@ export const LogTableRow = React.memo(function LogTableRow({
       onClick={() => onSelect?.(entry)}
       onKeyDown={(event) => {
         if ((event.key === "Enter" || event.key === " ") && onSelect) {
-          event.preventDefault()
-          onSelect(entry)
+          event.preventDefault();
+          onSelect(entry);
         }
       }}
       tabIndex={onSelect ? 0 : undefined}
@@ -140,10 +134,7 @@ export const LogTableRow = React.memo(function LogTableRow({
         </Badge>
       </TableCell>
       <TableCell>
-        <Badge
-          variant={backendVariant(entry.backend_used)}
-          className="border-white/[0.06]"
-        >
+        <Badge variant={backendVariant(entry.backend_used)} className="border-white/[0.06]">
           {entry.backend_used || "none"}
         </Badge>
       </TableCell>
@@ -163,10 +154,7 @@ export const LogTableRow = React.memo(function LogTableRow({
         {entry.fallback_reason || "-"}
       </TableCell>
       <TableCell>
-        <Badge
-          variant={statusVariant(entry.status_code)}
-          className="font-mono text-[11px]"
-        >
+        <Badge variant={statusVariant(entry.status_code)} className="font-mono text-[11px]">
           {entry.status_code}
         </Badge>
       </TableCell>
@@ -187,7 +175,10 @@ export const LogTableRow = React.memo(function LogTableRow({
               {entry.target_url}
             </a>
           ) : (
-            <span className="block max-w-[300px] truncate whitespace-nowrap text-muted-foreground" title={entry.target_url}>
+            <span
+              className="block max-w-[300px] truncate whitespace-nowrap text-muted-foreground"
+              title={entry.target_url}
+            >
               {entry.target_url}
             </span>
           )
@@ -196,5 +187,5 @@ export const LogTableRow = React.memo(function LogTableRow({
         )}
       </TableCell>
     </TableRow>
-  )
-})
+  );
+});

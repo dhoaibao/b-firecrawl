@@ -16,7 +16,9 @@ describe("Vercel API routing", () => {
     const fn = config.functions["api/index.js"];
 
     expect(packageJson.engines?.node).toBe("22.x");
-    expect(handlerSource).toBe('const { default: handler } = require("../dist/main.js");\n\nmodule.exports = handler;');
+    expect(handlerSource).toBe(
+      'const { default: handler } = require("../dist/main.js");\n\nmodule.exports = handler;',
+    );
     expect(fn?.maxDuration).toBe(120);
     expect(fn?.includeFiles).toBe("prisma/**");
     expect(config.routes).toContainEqual({ src: "/(.*)", dest: "/api/index.js" });

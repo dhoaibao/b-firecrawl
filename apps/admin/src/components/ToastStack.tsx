@@ -1,14 +1,14 @@
-import { AlertCircle, CheckCircle, X } from "lucide-react"
-import { cn } from "@/lib/utils"
-import type { Toast } from "@/hooks/useToast"
+import { AlertCircle, CheckCircle, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { Toast } from "@/hooks/useToast";
 
 interface ToastStackProps {
-  toasts: Toast[]
-  onRemove: (id: number) => void
+  toasts: Toast[];
+  onRemove: (id: number) => void;
 }
 
 export function ToastStack({ toasts, onRemove }: ToastStackProps) {
-  if (toasts.length === 0) return null
+  if (toasts.length === 0) return null;
   return (
     <div className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
       {toasts.map((toast) => (
@@ -38,5 +38,5 @@ export function ToastStack({ toasts, onRemove }: ToastStackProps) {
         </div>
       ))}
     </div>
-  )
+  );
 }

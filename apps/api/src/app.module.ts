@@ -12,7 +12,18 @@ import { CronModule } from "./cron/cron.module";
 import { CreditsModule } from "./credits/credits.module";
 
 @Module({
-  imports: [ApiConfigModule, CreditsModule, PrismaModule, AuthModule, ApiKeysModule, SettingsModule, AuditModule, ProxyModule, HealthModule, CronModule],
+  imports: [
+    ApiConfigModule,
+    CreditsModule,
+    PrismaModule,
+    AuthModule,
+    ApiKeysModule,
+    SettingsModule,
+    AuditModule,
+    ProxyModule,
+    HealthModule,
+    CronModule,
+  ],
   providers: [RateLimitMiddleware],
 })
 export class AppModule implements NestModule {

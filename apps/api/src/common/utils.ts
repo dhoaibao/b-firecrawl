@@ -14,7 +14,10 @@ export function escapeHtml(value: string): string {
 }
 
 export function writeJson(
-  res: { writeHead: (status: number, headers: Record<string, string>) => void; end: (body: Buffer) => void },
+  res: {
+    writeHead: (status: number, headers: Record<string, string>) => void;
+    end: (body: Buffer) => void;
+  },
   statusCode: number,
   payload: unknown,
   extraHeaders: Record<string, string> = {},
@@ -120,10 +123,7 @@ function isPrivateHostname(hostname: string): boolean {
     if (!firstHextet) return host === "::1";
     const value = parseInt(firstHextet, 16);
     if (Number.isNaN(value)) return false;
-    return (
-      (value >= 0xfc00 && value <= 0xfdff) ||
-      (value >= 0xfe80 && value <= 0xfebf)
-    );
+    return (value >= 0xfc00 && value <= 0xfdff) || (value >= 0xfe80 && value <= 0xfebf);
   }
 
   const ipv4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);

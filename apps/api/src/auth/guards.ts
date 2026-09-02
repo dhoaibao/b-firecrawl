@@ -20,7 +20,8 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithContext>();
     const reply = context.switchToHttp().getResponse<FastifyReply>();
-    if (!this.config.authEnabled) return deny(reply, 404, "Admin API is unavailable when AUTH_ENABLED=false.");
+    if (!this.config.authEnabled)
+      return deny(reply, 404, "Admin API is unavailable when AUTH_ENABLED=false.");
     const admin = this.sessions.getAdmin(request);
     if (!admin) return deny(reply, 401, "Unauthorized");
     request.admin = admin;

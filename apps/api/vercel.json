@@ -7,10 +7,6 @@
       "maxDuration": 120
     }
   },
-  "routes": [
-    { "src": "/(.*)", "dest": "/api/index.js" }
-  ],
-  "crons": [
-    { "path": "/api/cron/maintenance", "schedule": "0 0 * * *" }
-  ]
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.js" }],
+  "crons": [{ "path": "/api/cron/maintenance", "schedule": "0 0 * * *" }]
 }

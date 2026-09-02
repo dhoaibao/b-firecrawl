@@ -6,8 +6,17 @@ import type { AuditEntry } from "../common/types";
 export type DeleteFilter = "today" | "week" | "month" | "all";
 
 function toEntry(entry: {
-  id: string; createdAt: Date; method: string; path: string; routeMode: string; backendUsed: string;
-  fallbackUsed: boolean; fallbackReason: string; statusCode: number; durationMs: number; targetUrl: string;
+  id: string;
+  createdAt: Date;
+  method: string;
+  path: string;
+  routeMode: string;
+  backendUsed: string;
+  fallbackUsed: boolean;
+  fallbackReason: string;
+  statusCode: number;
+  durationMs: number;
+  targetUrl: string;
   requestId: string | null;
 }): AuditEntry {
   return {
@@ -32,12 +41,22 @@ export class AuditService {
 
   async appendAudit(entry: AuditEntry): Promise<void> {
     try {
-      await this.prisma.auditLog.create({ data: {
-        id: entry.id, createdAt: new Date(entry.created_at), method: entry.method, path: entry.path,
-        routeMode: entry.route_mode, backendUsed: entry.backend_used, fallbackUsed: entry.fallback_used,
-        fallbackReason: entry.fallback_reason, statusCode: entry.status_code, durationMs: entry.duration_ms,
-        targetUrl: entry.target_url, requestId: entry.request_id ?? null,
-      } });
+      await this.prisma.auditLog.create({
+        data: {
+          id: entry.id,
+          createdAt: new Date(entry.created_at),
+          method: entry.method,
+          path: entry.path,
+          routeMode: entry.route_mode,
+          backendUsed: entry.backend_used,
+          fallbackUsed: entry.fallback_used,
+          fallbackReason: entry.fallback_reason,
+          statusCode: entry.status_code,
+          durationMs: entry.duration_ms,
+          targetUrl: entry.target_url,
+          requestId: entry.request_id ?? null,
+        },
+      });
     } catch (error) {
       // An audit failure must not make an upstream request fail.
       console.warn("Failed to write audit entry", { id: entry.id, error });
@@ -54,22 +73,43 @@ export class AuditService {
   }
 
   async deleteAuditEntry(id: string): Promise<boolean> {
-    try { await this.prisma.auditLog.delete({ where: { id } }); return true; }
-    catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return false; throw error; }
+    try {
+      await this.prisma.auditLog.delete({ where: { id } });
+      return true;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025")
+        return false;
+      throw error;
+    }
   }
 
   async deleteAuditEntriesByIds(ids: string[]): Promise<number> {
-    return (await this.prisma.auditLog.deleteMany({ where: { id: { in: [...new Set(ids.filter(Boolean))] } } })).count;
+    return (
+      await this.prisma.auditLog.deleteMany({
+        where: { id: { in: [...new Set(ids.filter(Boolean))] } },
+      })
+    ).count;
   }
 
   async deleteAuditEntries(filter: DeleteFilter): Promise<number> {
     if (filter === "all") return (await this.prisma.auditLog.deleteMany()).count;
     const now = new Date();
-    const from = filter === "today" ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-      : filter === "month" ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const to = filter === "today" ? new Date(from.getTime() + 24 * 60 * 60 * 1000)
-      : filter === "month" ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) : undefined;
-    return (await this.prisma.auditLog.deleteMany({ where: { createdAt: { gte: from, ...(to ? { lt: to } : {}) } } })).count;
+    const from =
+      filter === "today"
+        ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+        : filter === "month"
+          ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+          : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const to =
+      filter === "today"
+        ? new Date(from.getTime() + 24 * 60 * 60 * 1000)
+        : filter === "month"
+          ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+          : undefined;
+    return (
+      await this.prisma.auditLog.deleteMany({
+        where: { createdAt: { gte: from, ...(to ? { lt: to } : {}) } },
+      })
+    ).count;
   }
 }

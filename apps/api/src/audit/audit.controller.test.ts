@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { HttpException } from "@nestjs/common";
 import { AuditController } from "./audit.controller";
 import { AuditService } from "./audit.service";
 import type { PrismaService } from "../prisma/prisma.service";
@@ -103,7 +102,11 @@ describe("AuditController data", () => {
     // Two entries sharing the cursor millisecond must both survive the
     // incremental fetch: the query uses gte, not gt.
     const cursor = new Date("2026-08-22T10:00:00.000Z");
-    const rows = [makeRow("newer", new Date("2026-08-22T10:00:01.000Z")), makeRow("sibling", new Date(cursor)), makeRow("older", new Date("2026-08-22T09:59:59.999Z"))];
+    const rows = [
+      makeRow("newer", new Date("2026-08-22T10:00:01.000Z")),
+      makeRow("sibling", new Date(cursor)),
+      makeRow("older", new Date("2026-08-22T09:59:59.999Z")),
+    ];
     const findMany = vi.fn().mockResolvedValue(rows);
     const prisma = { auditLog: { findMany } } as unknown as PrismaService;
     const service = new AuditService(prisma);

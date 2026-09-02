@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, Key, Copy, Check, RefreshCw, Search, KeyRound, Globe } from "lucide-react";
 import { useConfirmDialog } from "@/components/ConfirmDialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -40,7 +46,9 @@ export default function ApiKeys() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => { document.title = "API Keys — Firecrawl Gateway" }, []);
+  useEffect(() => {
+    document.title = "API Keys — Firecrawl Gateway";
+  }, []);
 
   const filteredKeys = keys.filter((k) => {
     const matchesSearch =
@@ -48,8 +56,7 @@ export default function ApiKeys() {
       k.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       k.key_prefix.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" ? !k.revoked : k.revoked);
+      statusFilter === "all" || (statusFilter === "active" ? !k.revoked : k.revoked);
     return matchesSearch && matchesStatus;
   });
 
@@ -144,12 +151,21 @@ export default function ApiKeys() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setRefreshing(true); void fetchKeys().then(() => setRefreshing(false)); }}
+            onClick={() => {
+              setRefreshing(true);
+              void fetchKeys().then(() => setRefreshing(false));
+            }}
             disabled={refreshing}
           >
             <RefreshCw className={`size-4 mr-1 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </Button>
-          <Button size="sm" onClick={() => { setShowForm(true); setCreatedKey(null); }}>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowForm(true);
+              setCreatedKey(null);
+            }}
+          >
             <Plus className="size-4 mr-1" /> New key
           </Button>
         </>
@@ -162,10 +178,15 @@ export default function ApiKeys() {
               <Globe className="size-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-info-fg">Connection details</p>
-              <h2 className="mt-1 text-sm font-semibold text-foreground">Use your gateway endpoint</h2>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-info-fg">
+                Connection details
+              </p>
+              <h2 className="mt-1 text-sm font-semibold text-foreground">
+                Use your gateway endpoint
+              </h2>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                Send Firecrawl API requests through this URL using one of your active virtual API keys.
+                Send Firecrawl API requests through this URL using one of your active virtual API
+                keys.
               </p>
               <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                 <code
@@ -181,7 +202,11 @@ export default function ApiKeys() {
                   onClick={() => void copyGatewayUrl()}
                   aria-label={gatewayCopied ? "Gateway endpoint copied" : "Copy gateway endpoint"}
                 >
-                  {gatewayCopied ? <Check className="size-4 mr-1" /> : <Copy className="size-4 mr-1" />}
+                  {gatewayCopied ? (
+                    <Check className="size-4 mr-1" />
+                  ) : (
+                    <Copy className="size-4 mr-1" />
+                  )}
                   {gatewayCopied ? "Copied" : "Copy URL"}
                 </Button>
               </div>
@@ -201,13 +226,32 @@ export default function ApiKeys() {
 
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         {[
-          { label: "Active keys", value: keys.filter((k) => !k.revoked).length, tone: "text-success-fg" },
-          { label: "Revoked keys", value: keys.filter((k) => k.revoked).length, tone: "text-danger-fg" },
-          { label: "Never used", value: keys.filter((k) => !k.last_used_at && !k.revoked).length, tone: "text-warning-fg" },
+          {
+            label: "Active keys",
+            value: keys.filter((k) => !k.revoked).length,
+            tone: "text-success-fg",
+          },
+          {
+            label: "Revoked keys",
+            value: keys.filter((k) => k.revoked).length,
+            tone: "text-danger-fg",
+          },
+          {
+            label: "Never used",
+            value: keys.filter((k) => !k.last_used_at && !k.revoked).length,
+            tone: "text-warning-fg",
+          },
         ].map((item) => (
-          <div key={item.label} className="rounded-lg border border-white/[0.06] bg-surface-2 px-4 py-3">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-            <p className={`mt-1 font-mono text-2xl font-semibold tabular-nums ${item.tone}`}>{item.value}</p>
+          <div
+            key={item.label}
+            className="rounded-lg border border-white/[0.06] bg-surface-2 px-4 py-3"
+          >
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {item.label}
+            </p>
+            <p className={`mt-1 font-mono text-2xl font-semibold tabular-nums ${item.tone}`}>
+              {item.value}
+            </p>
           </div>
         ))}
       </div>
@@ -220,11 +264,20 @@ export default function ApiKeys() {
             type="text"
             placeholder="Search by name or prefix..."
             value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             className="pl-9 pr-3"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | "active" | "revoked"); setPage(1); }}>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v as "all" | "active" | "revoked");
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="h-10 bg-surface-3 text-sm px-3">
             <SelectValue />
           </SelectTrigger>
@@ -238,7 +291,11 @@ export default function ApiKeys() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setSearchQuery(""); setStatusFilter("active"); setPage(1); }}
+            onClick={() => {
+              setSearchQuery("");
+              setStatusFilter("active");
+              setPage(1);
+            }}
           >
             Clear
           </Button>
@@ -247,7 +304,9 @@ export default function ApiKeys() {
 
       {createdKey && (
         <div className="mb-6 rounded-lg border border-success-muted bg-success-muted/30 p-4 space-y-2">
-          <p className="text-sm font-medium text-success-fg">API key created. Copy it now — it won't be shown again.</p>
+          <p className="text-sm font-medium text-success-fg">
+            API key created. Copy it now — it won't be shown again.
+          </p>
           <div className="flex items-center gap-2">
             <code className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm font-mono text-foreground">
               {createdKey.key}
@@ -263,7 +322,10 @@ export default function ApiKeys() {
               {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
             </Button>
           </div>
-          <button onClick={() => setCreatedKey(null)} className="text-sm text-muted-foreground hover:text-foreground">
+          <button
+            onClick={() => setCreatedKey(null)}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
             Dismiss
           </button>
         </div>
@@ -297,7 +359,9 @@ export default function ApiKeys() {
             required
             autoComplete="off"
           />
-          <p className="text-xs text-muted-foreground">Use a name that describes where this key is used.</p>
+          <p className="text-xs text-muted-foreground">
+            Use a name that describes where this key is used.
+          </p>
         </form>
       </Dialog>
 
@@ -320,18 +384,31 @@ export default function ApiKeys() {
               header: "Status",
               render: (k) =>
                 k.revoked ? (
-                  <span className="rounded-md bg-danger-muted px-2 py-0.5 text-xs text-danger-fg">Revoked</span>
+                  <span className="rounded-md bg-danger-muted px-2 py-0.5 text-xs text-danger-fg">
+                    Revoked
+                  </span>
                 ) : (
-                  <span className="rounded-md bg-success-muted px-2 py-0.5 text-xs text-success-fg">Active</span>
+                  <span className="rounded-md bg-success-muted px-2 py-0.5 text-xs text-success-fg">
+                    Active
+                  </span>
                 ),
             },
-            { key: "created", header: "Created", className: "text-muted-foreground", render: (k) => formatDate(k.created_at) },
+            {
+              key: "created",
+              header: "Created",
+              className: "text-muted-foreground",
+              render: (k) => formatDate(k.created_at),
+            },
             {
               key: "lastUsed",
               header: "Last Used",
               className: "text-muted-foreground",
               render: (k) =>
-                k.last_used_at ? formatDate(k.last_used_at) : <span className="text-xs italic opacity-60">Never</span>,
+                k.last_used_at ? (
+                  formatDate(k.last_used_at)
+                ) : (
+                  <span className="text-xs italic opacity-60">Never</span>
+                ),
             },
             {
               key: "actions",
@@ -359,8 +436,16 @@ export default function ApiKeys() {
             <EmptyState
               icon={KeyRound}
               title={keys.length === 0 ? "No API keys found" : "No API keys match your filters"}
-              description={keys.length === 0 ? "Create your first API key to start using the gateway." : "Try adjusting your search or filter criteria."}
-              action={keys.length === 0 ? { label: "Create key", onClick: () => setShowForm(true) } : undefined}
+              description={
+                keys.length === 0
+                  ? "Create your first API key to start using the gateway."
+                  : "Try adjusting your search or filter criteria."
+              }
+              action={
+                keys.length === 0
+                  ? { label: "Create key", onClick: () => setShowForm(true) }
+                  : undefined
+              }
             />
           }
         />

@@ -1,16 +1,12 @@
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PageSkeletonProps {
-  columns: number
-  rows?: number
-  hasSearch?: boolean
+  columns: number;
+  rows?: number;
+  hasSearch?: boolean;
 }
 
-export default function PageSkeleton({
-  columns,
-  rows = 6,
-  hasSearch = true,
-}: PageSkeletonProps) {
+export default function PageSkeleton({ columns, rows = 6, hasSearch = true }: PageSkeletonProps) {
   return (
     <div className="min-h-screen bg-background text-foreground animate-fade-in">
       <div className="mx-auto max-w-[1680px] px-4 py-4 lg:px-6">
@@ -41,11 +37,7 @@ export default function PageSkeleton({
           {/* Table header */}
           <div className="flex h-10 items-center gap-4 border-b border-white/[0.06] bg-surface-3 px-4">
             {Array.from({ length: columns }).map((_, i) => (
-              <Skeleton
-                key={i}
-                className="h-3 flex-1"
-                style={{ minWidth: i === 0 ? 140 : 80 }}
-              />
+              <Skeleton key={i} className="h-3 flex-1" style={{ minWidth: i === 0 ? 140 : 80 }} />
             ))}
           </div>
 
@@ -67,5 +59,5 @@ export default function PageSkeleton({
         </div>
       </div>
     </div>
-  )
+  );
 }

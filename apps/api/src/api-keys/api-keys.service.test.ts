@@ -21,30 +21,54 @@ function row(overrides: Record<string, unknown> = {}) {
 describe("ApiKeysService", () => {
   it("creates global keys without a user owner", async () => {
     const prisma = { apiKey: { create: vi.fn().mockResolvedValue(row()) } };
-    const service = new ApiKeysService(prisma as never, { firecrawlKeysEncryptionKey: encryptionKey } as never);
+    const service = new ApiKeysService(
+      prisma as never,
+      { firecrawlKeysEncryptionKey: encryptionKey } as never,
+    );
 
     const created = await service.createApiKey("global");
 
-    expect(prisma.apiKey.create).toHaveBeenCalledWith({ data: expect.not.objectContaining({ userId: expect.anything() }) });
-    expect(created).toEqual(expect.objectContaining({ id: "key-1", name: "global", key: expect.stringMatching(/^fc_/) }));
+    expect(prisma.apiKey.create).toHaveBeenCalledWith({
+      data: expect.not.objectContaining({ userId: expect.anything() }),
+    });
+    expect(created).toEqual(
+      expect.objectContaining({ id: "key-1", name: "global", key: expect.stringMatching(/^fc_/) }),
+    );
   });
 
   it("validates a non-revoked key without loading a user relation", async () => {
     const key = "fc_global-test";
-    const prisma = { apiKey: { findFirst: vi.fn().mockResolvedValue(row({ keyHash: new ApiKeysService({} as never, {} as never).hashApiKey(key) })) } };
-    const service = new ApiKeysService(prisma as never, { firecrawlKeysEncryptionKey: encryptionKey } as never);
+    const prisma = {
+      apiKey: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue(
+            row({ keyHash: new ApiKeysService({} as never, {} as never).hashApiKey(key) }),
+          ),
+      },
+    };
+    const service = new ApiKeysService(
+      prisma as never,
+      { firecrawlKeysEncryptionKey: encryptionKey } as never,
+    );
 
     const validated = await service.validateApiKey(key);
 
     expect(validated?.id).toBe("key-1");
-    expect(prisma.apiKey.findFirst).toHaveBeenCalledWith({ where: { keyHash: service.hashApiKey(key), revoked: false } });
+    expect(prisma.apiKey.findFirst).toHaveBeenCalledWith({
+      where: { keyHash: service.hashApiKey(key), revoked: false },
+    });
   });
 
   it("bounds validation cache entries for distinct caller-supplied keys", async () => {
     const prisma = { apiKey: { findFirst: vi.fn().mockResolvedValue(null) } };
-    const service = new ApiKeysService(prisma as never, { firecrawlKeysEncryptionKey: encryptionKey } as never);
+    const service = new ApiKeysService(
+      prisma as never,
+      { firecrawlKeysEncryptionKey: encryptionKey } as never,
+    );
 
-    for (let index = 0; index <= 10_000; index++) await service.validateApiKey(`fc_distinct-${index}`);
+    for (let index = 0; index <= 10_000; index++)
+      await service.validateApiKey(`fc_distinct-${index}`);
 
     const cache = (service as unknown as { validationCache: Map<string, unknown> }).validationCache;
     expect(cache.size).toBe(10_000);
@@ -56,13 +80,23 @@ describe("ApiKeysService", () => {
     const prisma = {
       apiKey: {
         findFirst: vi.fn().mockResolvedValue(row({ keyHash: "unused" })),
-        update: vi.fn().mockImplementation(async () => row({ keyHash: service.hashApiKey(key), revoked: true })),
+        update: vi
+          .fn()
+          .mockImplementation(async () => row({ keyHash: service.hashApiKey(key), revoked: true })),
       },
     };
-    prisma.apiKey.findFirst.mockResolvedValue(row({ keyHash: new ApiKeysService({} as never, {} as never).hashApiKey(key) }));
-    service = new ApiKeysService(prisma as never, { firecrawlKeysEncryptionKey: encryptionKey } as never);
+    prisma.apiKey.findFirst.mockResolvedValue(
+      row({ keyHash: new ApiKeysService({} as never, {} as never).hashApiKey(key) }),
+    );
+    service = new ApiKeysService(
+      prisma as never,
+      { firecrawlKeysEncryptionKey: encryptionKey } as never,
+    );
 
-    const validations = await Promise.all([service.validateApiKey(key), service.validateApiKey(key)]);
+    const validations = await Promise.all([
+      service.validateApiKey(key),
+      service.validateApiKey(key),
+    ]);
 
     expect(validations[0]?.id).toBe("key-1");
     expect(validations[1]?.id).toBe("key-1");

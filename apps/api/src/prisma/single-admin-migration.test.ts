@@ -3,9 +3,21 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
-const migration = readFileSync(resolve(process.cwd(), "prisma/migrations/20260815130000_single_admin_cutover/migration.sql"), "utf8");
-const compatibilityMigration = readFileSync(resolve(process.cwd(), "prisma/migrations/20260815140000_audit_target_url_compatibility/migration.sql"), "utf8");
-const repairMigration = readFileSync(resolve(process.cwd(), "prisma/migrations/20260815150000_audit_target_url_repair/migration.sql"), "utf8");
+const migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260815130000_single_admin_cutover/migration.sql"),
+  "utf8",
+);
+const compatibilityMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "prisma/migrations/20260815140000_audit_target_url_compatibility/migration.sql",
+  ),
+  "utf8",
+);
+const repairMigration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260815150000_audit_target_url_repair/migration.sql"),
+  "utf8",
+);
 
 describe("single-admin cutover", () => {
   it("models only global keys and audits", () => {
@@ -26,17 +38,24 @@ describe("single-admin cutover", () => {
 
   it("adds target_url for legacy audit tables before Prisma reads AuditLog", () => {
     expect(compatibilityMigration).toContain("ALTER TABLE audit_logs");
-    expect(compatibilityMigration).toContain("ADD COLUMN IF NOT EXISTS target_url TEXT NOT NULL DEFAULT ''");
+    expect(compatibilityMigration).toContain(
+      "ADD COLUMN IF NOT EXISTS target_url TEXT NOT NULL DEFAULT ''",
+    );
   });
 
   it("ships a pending repair migration after the recorded compatibility migration", () => {
-    const migrations = readdirSync(resolve(process.cwd(), "prisma/migrations"), { withFileTypes: true })
+    const migrations = readdirSync(resolve(process.cwd(), "prisma/migrations"), {
+      withFileTypes: true,
+    })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
     expect(migrations).toContain("20260815150000_audit_target_url_repair");
-    expect(migrations.indexOf("20260815150000_audit_target_url_repair"))
-      .toBeGreaterThan(migrations.indexOf("20260815140000_audit_target_url_compatibility"));
-    expect(repairMigration).toContain("ADD COLUMN IF NOT EXISTS target_url TEXT NOT NULL DEFAULT ''");
+    expect(migrations.indexOf("20260815150000_audit_target_url_repair")).toBeGreaterThan(
+      migrations.indexOf("20260815140000_audit_target_url_compatibility"),
+    );
+    expect(repairMigration).toContain(
+      "ADD COLUMN IF NOT EXISTS target_url TEXT NOT NULL DEFAULT ''",
+    );
   });
 });

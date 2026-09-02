@@ -1,4 +1,5 @@
 <!-- b-init-managed:start -->
+
 # Agent Instructions
 
 ## Repository Purpose
@@ -85,4 +86,5 @@ bun run db:migrate
 - `apps/api/prisma/schema.prisma` and its migrations — global key/audit schema and migration history, including the single-admin cutover
 - `docs/DESIGN.md` — admin UI design rules
 - `README.md`, `QUICKSTART.md`, and `SELF_HOST.md` — user-facing setup and deployment guidance
+
 <!-- b-init-managed:end -->

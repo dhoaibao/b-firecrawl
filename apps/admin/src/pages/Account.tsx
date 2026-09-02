@@ -1,13 +1,15 @@
-import { useEffect } from "react"
-import { KeyRound, ShieldCheck } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import PageLayout from "@/components/PageLayout"
-import { useAuth } from "@/contexts/AuthContext"
+import { useEffect } from "react";
+import { KeyRound, ShieldCheck } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import PageLayout from "@/components/PageLayout";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Account() {
-  const { admin } = useAuth()
+  const { admin } = useAuth();
 
-  useEffect(() => { document.title = "Account — Firecrawl Gateway" }, [])
+  useEffect(() => {
+    document.title = "Account — Firecrawl Gateway";
+  }, []);
 
   return (
     <PageLayout title="Account" icon={KeyRound}>
@@ -18,7 +20,9 @@ export default function Account() {
             <CardDescription className="mt-1.5">{admin?.email}</CardDescription>
           </CardHeader>
           <CardContent className="px-5 py-5 text-sm text-muted-foreground">
-            The administrator email and password are managed through the API environment variables <code>ADMIN_EMAIL</code> and <code>ADMIN_PASSWORD</code>. Restart the API after changing them.
+            The administrator email and password are managed through the API environment variables{" "}
+            <code>ADMIN_EMAIL</code> and <code>ADMIN_PASSWORD</code>. Restart the API after changing
+            them.
           </CardContent>
         </Card>
 
@@ -35,10 +39,12 @@ export default function Account() {
               "Use a password you do not reuse elsewhere",
               "Keep ADMIN_PASSWORD private",
               "Restart the API after changing the environment credentials",
-            ].map((item) => <div key={item}>{item}</div>)}
+            ].map((item) => (
+              <div key={item}>{item}</div>
+            ))}
           </CardContent>
         </Card>
       </div>
     </PageLayout>
-  )
+  );
 }

@@ -19,7 +19,13 @@ export class SessionService {
     const email = this.config.adminEmail.trim().toLowerCase();
     const signature = request.cookies?.[SESSION_COOKIE] ?? "";
     const expected = email ? this.sign(email) : "";
-    if (!email || !signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    if (
+      !email ||
+      !signature ||
+      signature.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    )
+      return null;
     return { email };
   }
 

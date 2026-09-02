@@ -24,7 +24,12 @@ export class CronService {
     return Boolean(this.config.cronSecret) && authorization === `Bearer ${this.config.cronSecret}`;
   }
 
-  async runMaintenance(): Promise<{ revoked: number; rateLimitsDeleted: number; auditLogsDeleted: number; creditUsageRefreshed: number }> {
+  async runMaintenance(): Promise<{
+    revoked: number;
+    rateLimitsDeleted: number;
+    auditLogsDeleted: number;
+    creditUsageRefreshed: number;
+  }> {
     const creditUsageRefreshed = await this.refreshCreditUsage();
     const revoked = await this.revokeInactiveKeys();
     const rateLimitsDeleted = await this.deleteExpiredRateLimits();
@@ -37,7 +42,11 @@ export class CronService {
     if (!record?.value) return 0;
     try {
       const parsed = parseCreditKeys(record.value, this.config.firecrawlKeysEncryptionKey);
-      if (!parsed.encrypted) await this.settings.setSetting(record.key, encryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey));
+      if (!parsed.encrypted)
+        await this.settings.setSetting(
+          record.key,
+          encryptSettingValue(record.value, this.config.firecrawlKeysEncryptionKey),
+        );
       const details = await this.credits.refreshCreditUsageForKeys(parsed.keys);
       return details.filter((item) => !item.error && item.remainingCredits !== null).length;
     } catch {
@@ -117,6 +126,15 @@ export class CronService {
     const days = Number(record?.value);
     if (!Number.isFinite(days) || days <= 0) return 0;
     const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    return (await this.prisma.apiKey.updateMany({ where: { revoked: false, createdAt: { lt: threshold }, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: threshold } }] }, data: { revoked: true } })).count;
+    return (
+      await this.prisma.apiKey.updateMany({
+        where: {
+          revoked: false,
+          createdAt: { lt: threshold },
+          OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: threshold } }],
+        },
+        data: { revoked: true },
+      })
+    ).count;
   }
 }

@@ -1,18 +1,18 @@
-import { useState } from "react"
+import { useState } from "react";
 
 export interface BarChartItem {
-  key: string
-  label: string
-  count: number
-  gradient?: string
-  textColor?: string
+  key: string;
+  label: string;
+  count: number;
+  gradient?: string;
+  textColor?: string;
 }
 
 interface BarChartProps {
-  data: BarChartItem[]
-  emptyMessage?: string
-  labelWidth?: string
-  countWidth?: string
+  data: BarChartItem[];
+  emptyMessage?: string;
+  labelWidth?: string;
+  countWidth?: string;
 }
 
 export default function BarChart({
@@ -21,12 +21,12 @@ export default function BarChart({
   labelWidth = "w-20",
   countWidth = "w-12",
 }: BarChartProps) {
-  const [hovered, setHovered] = useState<string | null>(null)
-  const total = data.reduce((sum, d) => sum + d.count, 0) || 1
-  const maxCount = Math.max(1, ...data.map((d) => d.count))
+  const [hovered, setHovered] = useState<string | null>(null);
+  const total = data.reduce((sum, d) => sum + d.count, 0) || 1;
+  const maxCount = Math.max(1, ...data.map((d) => d.count));
 
-  const defaultGradient = "bg-gradient-to-r from-info/40 to-info"
-  const defaultText = "text-info-fg"
+  const defaultGradient = "bg-gradient-to-r from-info/40 to-info";
+  const defaultText = "text-info-fg";
 
   if (data.length === 0 || total <= 0) {
     return (
@@ -35,16 +35,16 @@ export default function BarChart({
           {emptyMessage}
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="relative h-36 overflow-hidden rounded-lg border border-white/5 bg-surface-2 px-4 py-3">
       <div className="flex h-full flex-col justify-center gap-2">
         {data.map((item) => {
-          const pct = Math.round((item.count / total) * 100)
-          const width = Math.max(item.count ? 4 : 0, (item.count / maxCount) * 100)
-          const isHovered = hovered === item.key
+          const pct = Math.round((item.count / total) * 100);
+          const width = Math.max(item.count ? 4 : 0, (item.count / maxCount) * 100);
+          const isHovered = hovered === item.key;
 
           return (
             <div
@@ -62,13 +62,15 @@ export default function BarChart({
                   style={{ width: `${width}%` }}
                 />
               </div>
-              <span className={`${countWidth} shrink-0 text-right text-[10px] font-medium ${item.textColor || defaultText}`}>
+              <span
+                className={`${countWidth} shrink-0 text-right text-[10px] font-medium ${item.textColor || defaultText}`}
+              >
                 {item.count} ({pct}%)
               </span>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

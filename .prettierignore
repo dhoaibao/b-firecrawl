@@ -1,0 +1,16 @@
+# Local secrets and environment files
+.env*
+
+# Dependencies
+node_modules/
+
+# Generated output and caches
+**/dist/
+**/.turbo/
+.codegraph/
+.serena/
+.playwright-mcp/
+*.tsbuildinfo
+
+# Test and coverage output
+**/coverage/

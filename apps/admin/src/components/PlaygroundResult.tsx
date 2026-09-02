@@ -1,15 +1,15 @@
-import { useState, type ReactNode } from "react"
-import { Check, Copy, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import { useState, type ReactNode } from "react";
+import { Check, Copy, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface PlaygroundResultProps {
-  loading?: boolean
-  error?: string | null
-  result?: unknown
-  className?: string
-  children?: ReactNode
+  loading?: boolean;
+  error?: string | null;
+  result?: unknown;
+  className?: string;
+  children?: ReactNode;
 }
 
 export default function PlaygroundResult({
@@ -19,19 +19,19 @@ export default function PlaygroundResult({
   className,
   children,
 }: PlaygroundResultProps) {
-  const [copied, setCopied] = useState(false)
-  const [expanded, setExpanded] = useState(true)
+  const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   async function handleCopy() {
-    if (result === undefined) return
-    const text = typeof result === "string" ? result : JSON.stringify(result, null, 2)
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    if (result === undefined) return;
+    const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   if (!loading && !error && result === undefined) {
-    return null
+    return null;
   }
 
   return (
@@ -66,11 +66,7 @@ export default function PlaygroundResult({
                 className="h-7 px-2 text-xs"
                 onClick={() => void handleCopy()}
               >
-                {copied ? (
-                  <Check className="size-3.5 mr-1" />
-                ) : (
-                  <Copy className="size-3.5 mr-1" />
-                )}
+                {copied ? <Check className="size-3.5 mr-1" /> : <Copy className="size-3.5 mr-1" />}
                 {copied ? "Copied" : "Copy"}
               </Button>
             )}
@@ -81,11 +77,7 @@ export default function PlaygroundResult({
               onClick={() => setExpanded((v) => !v)}
               disabled={loading}
             >
-              {expanded ? (
-                <ChevronUp className="size-3.5" />
-              ) : (
-                <ChevronDown className="size-3.5" />
-              )}
+              {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
             </Button>
           </div>
         </div>
@@ -108,5 +100,5 @@ export default function PlaygroundResult({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

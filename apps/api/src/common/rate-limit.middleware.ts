@@ -30,7 +30,10 @@ export class RateLimitMiddleware implements NestMiddleware {
   private readonly buckets = new Map<string, RateLimitBucket>();
   private readonly flushInFlight = new Map<string, Promise<void>>();
 
-  constructor(private readonly prisma: PrismaService, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
+  ) {}
 
   async use(request: FastifyRequest, reply: FastifyReply, next: () => void): Promise<void> {
     if (request.url === "/health" || request.url === "/ready") return next();
@@ -62,7 +65,9 @@ export class RateLimitMiddleware implements NestMiddleware {
       reply.header("X-RateLimit-Remaining", String(Math.max(0, MAX_REQUESTS - effective)));
       reply.header("X-RateLimit-Reset", String(Math.ceil(resetAt / 1000)));
       if (effective > MAX_REQUESTS) {
-        void reply.code(429).send({ success: false, error: "Too many requests. Please try again later." });
+        void reply
+          .code(429)
+          .send({ success: false, error: "Too many requests. Please try again later." });
         return;
       }
     } catch {
@@ -86,14 +91,17 @@ export class RateLimitMiddleware implements NestMiddleware {
     // during the flush accumulate into a fresh pendingDelta and survive.
     bucket.pendingDelta = 0;
     bucket.lastFlushAt = Date.now();
-    const request = this.prisma.$queryRaw<Array<{ count: number; reset_at: Date }>>(Prisma.sql`
+    const request = this.prisma
+      .$queryRaw<Array<{ count: number; reset_at: Date }>>(
+        Prisma.sql`
       INSERT INTO rate_limits (key, count, reset_at)
       VALUES (${ip}, ${delta}, NOW() + interval '1 minute')
       ON CONFLICT (key) DO UPDATE SET
         count = CASE WHEN rate_limits.reset_at <= NOW() THEN ${delta} ELSE rate_limits.count + ${delta} END,
         reset_at = CASE WHEN rate_limits.reset_at <= NOW() THEN NOW() + interval '1 minute' ELSE rate_limits.reset_at END
       RETURNING count, reset_at
-    `)
+    `,
+      )
       .then((rows) => {
         const entry = rows[0];
         if (entry) {

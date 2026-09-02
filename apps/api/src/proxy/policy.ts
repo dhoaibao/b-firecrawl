@@ -1,7 +1,12 @@
 import type { NeedsCloudResult } from "../common/types";
 import { findObjectsByKey, walk } from "../common/utils";
 
-const validRouteModes = new Set(["self-hosted-first", "self-hosted-only", "cloud-first", "cloud-only"]);
+const validRouteModes = new Set([
+  "self-hosted-first",
+  "self-hosted-only",
+  "cloud-first",
+  "cloud-only",
+]);
 
 const cloudOnlyPathPatterns = [
   /^\/v\d+\/agent(?:\/|$)/,
@@ -35,9 +40,7 @@ export function hasSensitiveHeaders(
   headers: Record<string, string | string[] | undefined>,
   jsonBody: unknown,
 ): boolean {
-  const normalizedKeys = new Set(
-    Object.keys(headers).map((key) => key.toLowerCase()),
-  );
+  const normalizedKeys = new Set(Object.keys(headers).map((key) => key.toLowerCase()));
   if (normalizedKeys.has("authorization") || normalizedKeys.has("cookie")) return true;
 
   const bodyHeaders = findObjectsByKey(jsonBody, "headers");
@@ -59,10 +62,7 @@ export function hasSensitiveHeaders(
   return false;
 }
 
-export function requestNeedsCloud(
-  pathname: string,
-  jsonBody: unknown,
-): NeedsCloudResult {
+export function requestNeedsCloud(pathname: string, jsonBody: unknown): NeedsCloudResult {
   for (const pattern of cloudOnlyPathPatterns) {
     if (pattern.test(pathname)) {
       return {
@@ -76,7 +76,10 @@ export function requestNeedsCloud(
   walk(jsonBody, (value: unknown) => {
     if (reason || !value || typeof value !== "object") return;
 
-    if (Array.isArray((value as Record<string, unknown>).actions) && ((value as Record<string, unknown[]>).actions).length > 0) {
+    if (
+      Array.isArray((value as Record<string, unknown>).actions) &&
+      (value as Record<string, unknown[]>).actions.length > 0
+    ) {
       reason = "actions require Fire-engine-backed Cloud behavior";
       return;
     }
@@ -101,10 +104,7 @@ export function requestNeedsCloud(
   return { required: Boolean(reason), reason: reason || "" };
 }
 
-export function chooseInitialBackend(
-  routeMode: string,
-  needsCloud: NeedsCloudResult,
-): string {
+export function chooseInitialBackend(routeMode: string, needsCloud: NeedsCloudResult): string {
   if (routeMode === "cloud-first" || routeMode === "cloud-only") return "cloud";
   if (routeMode === "self-hosted-only") return needsCloud.required ? "reject" : "self-hosted";
   return needsCloud.required ? "cloud" : "self-hosted";

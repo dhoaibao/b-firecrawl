@@ -4,7 +4,10 @@ import { RateLimitMiddleware } from "./rate-limit.middleware";
 
 type QueryRawMock = ReturnType<typeof vi.fn>;
 
-const FOUR_TWENTY_NINE_BODY = { success: false, error: "Too many requests. Please try again later." };
+const FOUR_TWENTY_NINE_BODY = {
+  success: false,
+  error: "Too many requests. Please try again later.",
+};
 
 function makeRequest(url = "/v1/scrape", ip = "203.0.113.10"): FastifyRequest {
   return { url, ip, raw: { socket: { remoteAddress: undefined } } } as unknown as FastifyRequest;
@@ -41,9 +44,11 @@ describe("RateLimitMiddleware (hybrid in-memory counting)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-22T12:00:00.000Z"));
     authoritativeCount = 0;
-    queryRaw = vi.fn().mockImplementation(() =>
-      Promise.resolve([{ count: authoritativeCount, reset_at: new Date(Date.now() + 60_000) }]),
-    );
+    queryRaw = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve([{ count: authoritativeCount, reset_at: new Date(Date.now() + 60_000) }]),
+      );
   });
 
   afterEach(() => {
@@ -54,7 +59,11 @@ describe("RateLimitMiddleware (hybrid in-memory counting)", () => {
   async function makeRequestThrough(middleware: RateLimitMiddleware, ip?: string, url?: string) {
     const reply = makeReply();
     const next = vi.fn();
-    await middleware.use(url !== undefined ? makeRequest(url, ip) : makeRequest(undefined, ip), reply.reply, next);
+    await middleware.use(
+      url !== undefined ? makeRequest(url, ip) : makeRequest(undefined, ip),
+      reply.reply,
+      next,
+    );
     return { reply, next };
   }
 
@@ -118,7 +127,11 @@ describe("RateLimitMiddleware (hybrid in-memory counting)", () => {
     expect(after.next).toHaveBeenCalled();
     expect(after.reply.code).not.toHaveBeenCalled();
     expect(after.reply.headers["X-RateLimit-Remaining"]).toBe("300");
-    const bucket = (middleware as unknown as { buckets: Map<string, { syncedCount: number; pendingDelta: number }> }).buckets.get("203.0.113.10");
+    const bucket = (
+      middleware as unknown as {
+        buckets: Map<string, { syncedCount: number; pendingDelta: number }>;
+      }
+    ).buckets.get("203.0.113.10");
     expect(bucket?.syncedCount).toBe(0);
     expect(bucket?.pendingDelta).toBe(0);
   });
@@ -174,7 +187,11 @@ describe("RateLimitMiddleware (hybrid in-memory counting)", () => {
 
     // The leader flushed its delta of 1; the four later arrivals survive
     // in pendingDelta. Total accounted: 1 synced + 4 pending = 5.
-    const bucket = (middleware as unknown as { buckets: Map<string, { syncedCount: number; pendingDelta: number }> }).buckets.get("203.0.113.10");
+    const bucket = (
+      middleware as unknown as {
+        buckets: Map<string, { syncedCount: number; pendingDelta: number }>;
+      }
+    ).buckets.get("203.0.113.10");
     expect(bucket?.syncedCount).toBe(1);
     expect(bucket?.pendingDelta).toBe(4);
 
@@ -213,9 +230,11 @@ describe("RateLimitMiddleware (hybrid in-memory counting)", () => {
     expect(third.next).toHaveBeenCalled();
     expect(third.reply.code).not.toHaveBeenCalled();
     expect(third.reply.headers["X-RateLimit-Remaining"]).toBe("0");
-    expect(Object.keys(third.reply.headers).sort()).toEqual(
-      ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
-    );
+    expect(Object.keys(third.reply.headers).sort()).toEqual([
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+    ]);
 
     // effective 301 -> blocked, remaining stays floored at 0.
     const fourth = await makeRequestThrough(middleware);
@@ -223,6 +242,8 @@ describe("RateLimitMiddleware (hybrid in-memory counting)", () => {
     expect(fourth.reply.code).toHaveBeenCalledWith(429);
     expect(fourth.reply.send).toHaveBeenCalledWith(FOUR_TWENTY_NINE_BODY);
     expect(fourth.reply.headers["X-RateLimit-Remaining"]).toBe("0");
-    expect(Number(fourth.reply.headers["X-RateLimit-Reset"])).toBe(Math.ceil((Date.now() + 60_000) / 1000));
+    expect(Number(fourth.reply.headers["X-RateLimit-Reset"])).toBe(
+      Math.ceil((Date.now() + 60_000) / 1000),
+    );
   });
 });

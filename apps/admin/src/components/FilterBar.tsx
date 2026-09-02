@@ -1,51 +1,51 @@
-import { CalendarDays, Server, Activity, SlidersHorizontal } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { CalendarDays, Server, Activity, SlidersHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { cn } from "@/lib/utils"
-import type { BackendFilter, StatusFilter, DateRange } from "@/types"
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import type { BackendFilter, StatusFilter, DateRange } from "@/types";
 
 const backendFilters: Array<{ label: string; value: BackendFilter }> = [
   { label: "All", value: "" },
   { label: "Self-hosted", value: "self-hosted" },
   { label: "Cloud", value: "cloud" },
-]
+];
 
 const statusFilters: Array<{ label: string; value: StatusFilter }> = [
   { label: "All status", value: "" },
   { label: "2xx", value: "2xx" },
   { label: "4xx", value: "4xx" },
   { label: "5xx", value: "5xx" },
-]
+];
 
 const datePresets: Array<{ label: string; value: DateRange }> = [
   { label: "All", value: "all" },
   { label: "Today", value: "today" },
   { label: "This Week", value: "week" },
   { label: "This Month", value: "month" },
-]
+];
 
 interface FilterBarProps {
-  dateRange: DateRange
-  setDateRange: (value: DateRange) => void
-  dayFilter: string
-  setDayFilter: (value: string) => void
-  monthFilter: string
-  setMonthFilter: (value: string) => void
-  yearFilter: string
-  setYearFilter: (value: string) => void
-  backendFilter: BackendFilter
-  setBackendFilter: (value: BackendFilter) => void
-  fallbackOnly: boolean
-  setFallbackOnly: (value: boolean) => void
-  statusFilter: StatusFilter
-  setStatusFilter: (value: StatusFilter) => void
-  onChange: () => void
+  dateRange: DateRange;
+  setDateRange: (value: DateRange) => void;
+  dayFilter: string;
+  setDayFilter: (value: string) => void;
+  monthFilter: string;
+  setMonthFilter: (value: string) => void;
+  yearFilter: string;
+  setYearFilter: (value: string) => void;
+  backendFilter: BackendFilter;
+  setBackendFilter: (value: BackendFilter) => void;
+  fallbackOnly: boolean;
+  setFallbackOnly: (value: boolean) => void;
+  statusFilter: StatusFilter;
+  setStatusFilter: (value: StatusFilter) => void;
+  onChange: () => void;
 }
 
 export default function FilterBar({
@@ -85,8 +85,8 @@ export default function FilterBar({
                   : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
               )}
               onClick={() => {
-                setDateRange(preset.value)
-                onChange()
+                setDateRange(preset.value);
+                onChange();
               }}
             >
               {preset.label}
@@ -102,8 +102,8 @@ export default function FilterBar({
                 : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
             )}
             onClick={() => {
-              setDateRange(dateRange === "custom" ? "all" : "custom")
-              onChange()
+              setDateRange(dateRange === "custom" ? "all" : "custom");
+              onChange();
             }}
           >
             <SlidersHorizontal className="size-2.5" />
@@ -115,8 +115,8 @@ export default function FilterBar({
             <Select
               value={dayFilter}
               onValueChange={(value) => {
-                setDayFilter(value)
-                onChange()
+                setDayFilter(value);
+                onChange();
               }}
             >
               <SelectTrigger className="h-6 w-[4.5rem] text-[11px]">
@@ -125,20 +125,20 @@ export default function FilterBar({
               <SelectContent>
                 <SelectItem value="all">All days</SelectItem>
                 {Array.from({ length: 31 }, (_, i) => {
-                  const d = String(i + 1).padStart(2, "0")
+                  const d = String(i + 1).padStart(2, "0");
                   return (
                     <SelectItem key={d} value={d}>
                       {d}
                     </SelectItem>
-                  )
+                  );
                 })}
               </SelectContent>
             </Select>
             <Select
               value={monthFilter}
               onValueChange={(value) => {
-                setMonthFilter(value)
-                onChange()
+                setMonthFilter(value);
+                onChange();
               }}
             >
               <SelectTrigger className="h-6 w-[5.5rem] text-[11px]">
@@ -169,8 +169,8 @@ export default function FilterBar({
             <Select
               value={yearFilter}
               onValueChange={(value) => {
-                setYearFilter(value)
-                onChange()
+                setYearFilter(value);
+                onChange();
               }}
             >
               <SelectTrigger className="h-6 w-[4.5rem] text-[11px]">
@@ -179,12 +179,12 @@ export default function FilterBar({
               <SelectContent>
                 <SelectItem value="all">All years</SelectItem>
                 {Array.from({ length: 5 }, (_, i) => {
-                  const y = String(new Date().getFullYear() - i)
+                  const y = String(new Date().getFullYear() - i);
                   return (
                     <SelectItem key={y} value={y}>
                       {y}
                     </SelectItem>
-                  )
+                  );
                 })}
               </SelectContent>
             </Select>
@@ -201,11 +201,7 @@ export default function FilterBar({
           {backendFilters.map((filter) => (
             <Button
               key={filter.label}
-              variant={
-                backendFilter === filter.value && !fallbackOnly
-                  ? "default"
-                  : "outline"
-              }
+              variant={backendFilter === filter.value && !fallbackOnly ? "default" : "outline"}
               size="sm"
               className={cn(
                 "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
@@ -214,9 +210,9 @@ export default function FilterBar({
                   : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
               )}
               onClick={() => {
-                setBackendFilter(filter.value)
-                setFallbackOnly(false)
-                onChange()
+                setBackendFilter(filter.value);
+                setFallbackOnly(false);
+                onChange();
               }}
             >
               {filter.label}
@@ -232,9 +228,9 @@ export default function FilterBar({
                 : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
             )}
             onClick={() => {
-              setFallbackOnly(!fallbackOnly)
-              setBackendFilter("")
-              onChange()
+              setFallbackOnly(!fallbackOnly);
+              setBackendFilter("");
+              onChange();
             }}
           >
             Fallback
@@ -251,9 +247,7 @@ export default function FilterBar({
           {statusFilters.map((filter) => (
             <Button
               key={filter.label}
-              variant={
-                statusFilter === filter.value ? "default" : "outline"
-              }
+              variant={statusFilter === filter.value ? "default" : "outline"}
               size="sm"
               className={cn(
                 "h-6 border-white/[0.08] px-2.5 text-[11px] shadow-none transition-colors",
@@ -262,8 +256,8 @@ export default function FilterBar({
                   : "bg-surface-1 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
               )}
               onClick={() => {
-                setStatusFilter(filter.value)
-                onChange()
+                setStatusFilter(filter.value);
+                onChange();
               }}
             >
               {filter.label}
@@ -271,7 +265,6 @@ export default function FilterBar({
           ))}
         </div>
       </div>
-
     </div>
-  )
+  );
 }

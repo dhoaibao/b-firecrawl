@@ -7,5 +7,8 @@ import { SettingsModule } from "../settings/settings.module";
 import { ProxyRoutes } from "./proxy.routes";
 import { ProxyService } from "./proxy.service";
 
-@Module({ imports: [AuditModule, ApiKeysModule, AuthModule, SettingsModule, CreditsModule], providers: [ProxyService, ProxyRoutes] })
+@Module({
+  imports: [AuditModule, ApiKeysModule, AuthModule, SettingsModule, CreditsModule],
+  providers: [ProxyService, ProxyRoutes],
+})
 export class ProxyModule {}

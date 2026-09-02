@@ -1,15 +1,9 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
-function Skeleton({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn(
-        "relative overflow-hidden rounded-md bg-[hsl(230_9%_16%)]",
-        className,
-      )}
+      className={cn("relative overflow-hidden rounded-md bg-[hsl(230_9%_16%)]", className)}
       {...props}
     >
       <div
@@ -17,7 +11,7 @@ function Skeleton({
         aria-hidden="true"
       />
     </div>
-  )
+  );
 }
 
-export { Skeleton }
+export { Skeleton };

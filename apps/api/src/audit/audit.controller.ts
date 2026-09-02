@@ -11,11 +11,13 @@ export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   @Get("logs")
-  async logs() { return { data: await this.audit.readAuditEntries(500) }; }
+  async logs() {
+    return { data: await this.audit.readAuditEntries(500) };
+  }
 
   @Delete("logs/:id")
   async deleteOne(@Param("id") id: string) {
-    if (!await this.audit.deleteAuditEntry(id)) apiError(404, "Audit entry not found");
+    if (!(await this.audit.deleteAuditEntry(id))) apiError(404, "Audit entry not found");
     return { success: true };
   }
 
@@ -23,12 +25,14 @@ export class AuditController {
   async delete(@Query("filter") filter: string | undefined, @Body() body: { ids?: unknown }) {
     if (body?.ids !== undefined) {
       if (!Array.isArray(body.ids)) apiError(400, "ids must be an array");
-      if (body.ids.some((id) => typeof id !== "string" || id.trim().length === 0)) apiError(400, "ids must contain only non-empty strings");
+      if (body.ids.some((id) => typeof id !== "string" || id.trim().length === 0))
+        apiError(400, "ids must contain only non-empty strings");
       const ids = [...new Set((body.ids as string[]).map((id) => id.trim()))];
       if (ids.length === 0) apiError(400, "At least one log id is required");
       return { success: true, deleted: await this.audit.deleteAuditEntriesByIds(ids) };
     }
-    if (!validFilters.includes(filter as typeof validFilters[number])) apiError(400, "Invalid filter. Use: today, week, month, or all");
+    if (!validFilters.includes(filter as (typeof validFilters)[number]))
+      apiError(400, "Invalid filter. Use: today, week, month, or all");
     return { success: true, deleted: await this.audit.deleteAuditEntries(filter as DeleteFilter) };
   }
 
@@ -39,7 +43,8 @@ export class AuditController {
       // Strict ISO-8601 UTC datetime, exactly the format the API emits via
       // toISOString() (the dashboard cursor depends on it). Loose forms such
       // as "2026-01-01" or "Jan 1 2026" are rejected.
-      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(since)) apiError(400, "since must be a valid ISO timestamp");
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(since))
+        apiError(400, "since must be a valid ISO timestamp");
       sinceDate = new Date(since);
       if (Number.isNaN(sinceDate.getTime())) apiError(400, "since must be a valid ISO timestamp");
     }

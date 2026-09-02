@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+exec bunx --no-install lint-staged --concurrent false

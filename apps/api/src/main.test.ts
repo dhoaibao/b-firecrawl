@@ -7,7 +7,8 @@ const capturedRawBodyOptions: Array<Record<string, unknown> | undefined> = [];
 
 vi.mock("fastify-raw-body", async (importOriginal) => {
   const actual = await importOriginal<typeof import("fastify-raw-body")>();
-  const realPlugin = actual.default as unknown as ((...pluginArgs: unknown[]) => unknown) & Record<PropertyKey, unknown>;
+  const realPlugin = actual.default as unknown as ((...pluginArgs: unknown[]) => unknown) &
+    Record<PropertyKey, unknown>;
   const plugin = (...args: unknown[]) => {
     capturedRawBodyOptions.push(args[1] as Record<string, unknown> | undefined);
     return realPlugin(...args);
@@ -26,7 +27,8 @@ const savedEnv = vi.hoisted(() => {
   Object.assign(process.env, {
     DATABASE_URL: "postgresql://user:password@localhost:5432/firecrawl_gateway_test",
     // Prisma connects lazily on first query, so a non-listening URL is safe here.
-    FIRECRAWL_KEYS_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    FIRECRAWL_KEYS_ENCRYPTION_KEY:
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     AUTH_ENABLED: "false",
     LOG_LEVEL: "silent",
     VERCEL: "1", // prevent main.ts from auto-bootstrapping and listening
@@ -59,7 +61,7 @@ describe("raw request body handling", () => {
       method: "POST",
       url: "/v1/test",
       headers: { "content-type": "application/json" },
-      payload: "{\"x\":",
+      payload: '{"x":',
     });
 
     expect(response.statusCode).toBe(400);

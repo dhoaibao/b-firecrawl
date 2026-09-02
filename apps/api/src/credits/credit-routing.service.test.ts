@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CreditRoutingService, extractCreditsUsed, observeCreditsUsedStream } from "./credit-routing.service";
+import {
+  CreditRoutingService,
+  extractCreditsUsed,
+  observeCreditsUsedStream,
+} from "./credit-routing.service";
 
 const config = {
   cloudBaseUrl: "https://cloud.test",
@@ -26,13 +30,26 @@ afterEach(() => {
 
 describe("CreditRoutingService", () => {
   it("uses atomic Redis selection when available and passes only opaque key IDs", async () => {
-    const ledger = makeLedger({ reserve: vi.fn().mockResolvedValue({ kind: "reserved", index: 1, sequence: 7, reservationKey: "opaque-reservation" }) });
+    const ledger = makeLedger({
+      reserve: vi.fn().mockResolvedValue({
+        kind: "reserved",
+        index: 1,
+        sequence: 7,
+        reservationKey: "opaque-reservation",
+      }),
+    });
     const service = new CreditRoutingService(config as never, ledger as never);
     const keys = ["fc_first_secret_key", "fc_second_secret_key"];
 
     const reservation = await service.reserve(keys, 1);
 
-    expect(reservation).toEqual({ key: keys[1], keyId: expect.any(String), amount: 1, source: "redis", reservationKey: "opaque-reservation" });
+    expect(reservation).toEqual({
+      key: keys[1],
+      keyId: expect.any(String),
+      amount: 1,
+      source: "redis",
+      reservationKey: "opaque-reservation",
+    });
     expect(reservation?.keyId).not.toBe(keys[1]);
     expect(ledger.reserve).toHaveBeenCalledWith(
       keys.map((key) => service.keyId(key)),
@@ -53,7 +70,10 @@ describe("CreditRoutingService", () => {
     expect(first?.key).toBe(keys[0]);
     expect(second?.key).toBe(keys[1]);
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(ledger.reserve).toHaveBeenCalledWith(keys.map((key) => service.keyId(key)), 1);
+    expect(ledger.reserve).toHaveBeenCalledWith(
+      keys.map((key) => service.keyId(key)),
+      1,
+    );
   });
 
   it("treats 402 as a disabled pool and 429 as a temporary cooldown", async () => {
@@ -84,7 +104,12 @@ describe("CreditRoutingService", () => {
     const cooledDown = await service.reserve(keys, 1);
     await service.recordResponse(cooledDown!, 429);
 
-    ledger.reserve.mockResolvedValue({ kind: "reserved", index: 0, sequence: 3, reservationKey: "opaque-recovered-reservation" });
+    ledger.reserve.mockResolvedValue({
+      kind: "reserved",
+      index: 0,
+      sequence: 3,
+      reservationKey: "opaque-recovered-reservation",
+    });
     vi.advanceTimersByTime(5_001);
     const recovered = await service.reserve(keys, 1);
 
@@ -93,43 +118,107 @@ describe("CreditRoutingService", () => {
   });
 
   it("settles Redis reservations differently for 402 and 429", async () => {
-    const ledger = makeLedger({ reserve: vi.fn().mockResolvedValue({ kind: "reserved", index: 0, sequence: 1, reservationKey: "opaque-reservation" }) });
+    const ledger = makeLedger({
+      reserve: vi.fn().mockResolvedValue({
+        kind: "reserved",
+        index: 0,
+        sequence: 1,
+        reservationKey: "opaque-reservation",
+      }),
+    });
     const service = new CreditRoutingService(config as never, ledger as never);
     const reservation = await service.reserve(["fc_secret_key"], 1);
 
     await service.recordResponse(reservation!, 402);
-    await service.recordResponse({ ...reservation!, keyId: "another-opaque-id", reservationKey: "opaque-reservation-2" }, 429);
+    await service.recordResponse(
+      { ...reservation!, keyId: "another-opaque-id", reservationKey: "opaque-reservation-2" },
+      429,
+    );
 
-    expect(ledger.settle).toHaveBeenNthCalledWith(1, expect.any(String), "opaque-reservation", "disabled");
-    expect(ledger.settle).toHaveBeenNthCalledWith(2, "another-opaque-id", "opaque-reservation-2", "cooldown", expect.any(Number));
+    expect(ledger.settle).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      "opaque-reservation",
+      "disabled",
+    );
+    expect(ledger.settle).toHaveBeenNthCalledWith(
+      2,
+      "another-opaque-id",
+      "opaque-reservation-2",
+      "cooldown",
+      expect.any(Number),
+    );
   });
 
   it("adjusts Redis reservations to zero and higher actual usage", async () => {
-    const ledger = makeLedger({ reserve: vi.fn().mockResolvedValue({ kind: "reserved", index: 0, sequence: 1, reservationKey: "opaque-reservation" }) });
+    const ledger = makeLedger({
+      reserve: vi.fn().mockResolvedValue({
+        kind: "reserved",
+        index: 0,
+        sequence: 1,
+        reservationKey: "opaque-reservation",
+      }),
+    });
     const service = new CreditRoutingService(config as never, ledger as never);
     const reservation = await service.reserve(["fc_secret_key"], 1);
 
     await service.recordResponse(reservation!, 200, 0);
-    await service.recordResponse({ ...reservation!, reservationKey: "opaque-reservation-2" }, 201, 4);
+    await service.recordResponse(
+      { ...reservation!, reservationKey: "opaque-reservation-2" },
+      201,
+      4,
+    );
 
-    expect(ledger.settleActualUsage).toHaveBeenNthCalledWith(1, expect.any(String), "opaque-reservation", 0);
-    expect(ledger.settleActualUsage).toHaveBeenNthCalledWith(2, expect.any(String), "opaque-reservation-2", 4);
+    expect(ledger.settleActualUsage).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      "opaque-reservation",
+      0,
+    );
+    expect(ledger.settleActualUsage).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      "opaque-reservation-2",
+      4,
+    );
   });
 
   it("extracts only direct metadata creditsUsed values", () => {
-    expect(extractCreditsUsed(new TextEncoder().encode('{"data":{"creditsUsed":2},"metadata":{"creditsUsed":7}}'))).toBe(7);
-    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"nested":{"creditsUsed":2},"creditsUsed":7}}'))).toBe(7);
-    expect(extractCreditsUsed(new TextEncoder().encode('{"message":"\\"creditsUsed\\": 99","metadata":{"creditsUsed":3}}'))).toBe(3);
-    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"creditsUsed":-1}}'))).toBeNull();
-    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"creditsUsed":1.5}}'))).toBeNull();
+    expect(
+      extractCreditsUsed(
+        new TextEncoder().encode('{"data":{"creditsUsed":2},"metadata":{"creditsUsed":7}}'),
+      ),
+    ).toBe(7);
+    expect(
+      extractCreditsUsed(
+        new TextEncoder().encode('{"metadata":{"nested":{"creditsUsed":2},"creditsUsed":7}}'),
+      ),
+    ).toBe(7);
+    expect(
+      extractCreditsUsed(
+        new TextEncoder().encode(
+          '{"message":"\\"creditsUsed\\": 99","metadata":{"creditsUsed":3}}',
+        ),
+      ),
+    ).toBe(3);
+    expect(
+      extractCreditsUsed(new TextEncoder().encode('{"metadata":{"creditsUsed":-1}}')),
+    ).toBeNull();
+    expect(
+      extractCreditsUsed(new TextEncoder().encode('{"metadata":{"creditsUsed":1.5}}')),
+    ).toBeNull();
     expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"other":2}}'))).toBeNull();
-    expect(extractCreditsUsed(new TextEncoder().encode('{"metadata":{"credits\\uUsed":2}}'))).toBeNull();
+    expect(
+      extractCreditsUsed(new TextEncoder().encode('{"metadata":{"credits\\uUsed":2}}')),
+    ).toBeNull();
   });
 
   it("observes streamed creditsUsed across chunks without awaiting settlement", async () => {
     let settleStarted = false;
     let resolveSettlement!: () => void;
-    const settlement = new Promise<void>((resolve) => { resolveSettlement = resolve; });
+    const settlement = new Promise<void>((resolve) => {
+      resolveSettlement = resolve;
+    });
     const source = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('{"metadata":{"cred'));
@@ -150,10 +239,17 @@ describe("CreditRoutingService", () => {
 
   it("reconciles successful authoritative refreshes but retains state after failed refreshes", async () => {
     vi.useFakeTimers();
-    const ledger = makeLedger({ capture: vi.fn().mockResolvedValue({ available: true, sequence: 12 }) });
+    const ledger = makeLedger({
+      capture: vi.fn().mockResolvedValue({ available: true, sequence: 12 }),
+    });
     const service = new CreditRoutingService(config as never, ledger as never);
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { remainingCredits: 425, planCredits: 1000 } }), { status: 200 }))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { remainingCredits: 425, planCredits: 1000 } }), {
+          status: 200,
+        }),
+      )
       .mockResolvedValueOnce(new Response("upstream unavailable", { status: 503 }));
     vi.stubGlobal("fetch", fetchMock);
     const key = "fc_refresh_secret_key";
@@ -162,7 +258,9 @@ describe("CreditRoutingService", () => {
     expect(ledger.reconcile).toHaveBeenCalledWith(service.keyId(key), 425, 12);
     vi.advanceTimersByTime(30_001);
 
-    await expect(service.refreshCreditUsage(key)).resolves.toMatchObject({ error: "HTTP 503: upstream unavailable" });
+    await expect(service.refreshCreditUsage(key)).resolves.toMatchObject({
+      error: "HTTP 503: upstream unavailable",
+    });
     expect(ledger.reconcile).toHaveBeenCalledTimes(1);
   });
 
@@ -170,7 +268,9 @@ describe("CreditRoutingService", () => {
     const ledger = makeLedger();
     const service = new CreditRoutingService(config as never, ledger as never);
     let resolveFetch!: (response: Response) => void;
-    const fetchPromise = new Promise<Response>((resolve) => { resolveFetch = resolve; });
+    const fetchPromise = new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
     const fetchMock = vi.fn().mockReturnValue(fetchPromise);
     vi.stubGlobal("fetch", fetchMock);
     const key = "fc_refresh_secret_key";
@@ -181,7 +281,9 @@ describe("CreditRoutingService", () => {
     await Promise.resolve();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    resolveFetch(new Response(JSON.stringify({ data: { remainingCredits: 100 } }), { status: 200 }));
+    resolveFetch(
+      new Response(JSON.stringify({ data: { remainingCredits: 100 } }), { status: 200 }),
+    );
     await Promise.all([promise1, promise2]);
     await service.refreshCreditUsage(key);
     expect(fetchMock).toHaveBeenCalledTimes(1);

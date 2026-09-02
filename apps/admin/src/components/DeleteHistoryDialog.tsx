@@ -1,21 +1,21 @@
-import { Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const deleteOptions: Array<{ value: "today" | "week" | "month" | "all"; label: string }> = [
   { value: "today", label: "Today" },
   { value: "week", label: "This Week" },
   { value: "month", label: "This Month" },
   { value: "all", label: "All History" },
-]
+];
 
 interface DeleteHistoryDialogProps {
-  open: boolean
-  filter: "today" | "week" | "month" | "all"
-  setFilter: (value: "today" | "week" | "month" | "all") => void
-  onClose: () => void
-  onConfirm: () => void
-  deleting: boolean
+  open: boolean;
+  filter: "today" | "week" | "month" | "all";
+  setFilter: (value: "today" | "week" | "month" | "all") => void;
+  onClose: () => void;
+  onConfirm: () => void;
+  deleting: boolean;
 }
 
 export default function DeleteHistoryDialog({
@@ -26,13 +26,13 @@ export default function DeleteHistoryDialog({
   onConfirm,
   deleting,
 }: DeleteHistoryDialogProps) {
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) onClose();
       }}
       role="dialog"
       aria-modal="true"
@@ -47,9 +47,7 @@ export default function DeleteHistoryDialog({
             <h3 id="delete-history-title" className="text-base font-semibold text-foreground">
               Delete History
             </h3>
-            <p className="text-xs text-muted-foreground">
-              Choose a time range to delete
-            </p>
+            <p className="text-xs text-muted-foreground">Choose a time range to delete</p>
           </div>
         </div>
 
@@ -69,9 +67,7 @@ export default function DeleteHistoryDialog({
               <span
                 className={cn(
                   "size-4 rounded-full border-2",
-                  filter === option.value
-                    ? "border-foreground bg-foreground"
-                    : "border-white/20",
+                  filter === option.value ? "border-foreground bg-foreground" : "border-white/20",
                 )}
               >
                 {filter === option.value && (
@@ -105,5 +101,5 @@ export default function DeleteHistoryDialog({
         </div>
       </div>
     </div>
-  )
+  );
 }

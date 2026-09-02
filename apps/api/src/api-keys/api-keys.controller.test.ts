@@ -33,7 +33,9 @@ describe("ApiKeysController", () => {
     ];
 
     for (const response of responses) {
-      expect(response).toEqual(expect.objectContaining({ id: "key-1", name: "production", key_prefix: "fc_test" }));
+      expect(response).toEqual(
+        expect.objectContaining({ id: "key-1", name: "production", key_prefix: "fc_test" }),
+      );
       expect(response).not.toHaveProperty("key");
       expect(response).not.toHaveProperty("key_value");
       expect(response).not.toHaveProperty("key_hash");

@@ -77,14 +77,14 @@ Source of truth is `apps/admin/src/index.css` using Tailwind CSS v4 `@theme`.
 
 ### Base surfaces
 
-| Role | Variable | Value | Usage |
-|------|----------|-------|-------|
-| Background | `--color-background` | `hsl(230 14% 6%)` | Page background |
-| Foreground | `--color-foreground` | `hsl(210 30% 96%)` | Primary text |
-| Surface 1 | `--color-surface-1` | `hsl(230 12% 8%)` | Sidebar |
-| Surface 2 | `--color-surface-2` | `hsl(230 11% 10%)` | Cards, input backgrounds |
-| Surface 3 | `--color-surface-3` | `hsl(230 10% 13%)` | Card headers, table headers |
-| Surface 4 | `--color-surface-4` | `hsl(230 9% 16%)` | Elevated headers, hover states |
+| Role       | Variable             | Value              | Usage                          |
+| ---------- | -------------------- | ------------------ | ------------------------------ |
+| Background | `--color-background` | `hsl(230 14% 6%)`  | Page background                |
+| Foreground | `--color-foreground` | `hsl(210 30% 96%)` | Primary text                   |
+| Surface 1  | `--color-surface-1`  | `hsl(230 12% 8%)`  | Sidebar                        |
+| Surface 2  | `--color-surface-2`  | `hsl(230 11% 10%)` | Cards, input backgrounds       |
+| Surface 3  | `--color-surface-3`  | `hsl(230 10% 13%)` | Card headers, table headers    |
+| Surface 4  | `--color-surface-4`  | `hsl(230 9% 16%)`  | Elevated headers, hover states |
 
 ### shadcn-compatible tokens
 
@@ -92,12 +92,12 @@ Source of truth is `apps/admin/src/index.css` using Tailwind CSS v4 `@theme`.
 
 ### Semantic palette
 
-| Role | Default | Muted background | Foreground |
-|------|---------|------------------|------------|
+| Role    | Default           | Muted background        | Foreground           |
+| ------- | ----------------- | ----------------------- | -------------------- |
 | Success | `--color-success` | `--color-success-muted` | `--color-success-fg` |
 | Warning | `--color-warning` | `--color-warning-muted` | `--color-warning-fg` |
-| Info | `--color-info` | `--color-info-muted` | `--color-info-fg` |
-| Danger | `--color-danger` | `--color-danger-muted` | `--color-danger-fg` |
+| Info    | `--color-info`    | `--color-info-muted`    | `--color-info-fg`    |
+| Danger  | `--color-danger`  | `--color-danger-muted`  | `--color-danger-fg`  |
 
 Use muted/foreground pairs for badges, pills, alerts, toasts, and status indicators.
 
@@ -113,22 +113,22 @@ Use muted/foreground pairs for badges, pills, alerts, toasts, and status indicat
 
 Defined in `index.css` and referenced via `shadow-[var(--shadow-*)]`:
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--shadow-card` | `0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2)` | Default card elevation |
-| `--shadow-card-hover` | `0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3)` | Card hover lift |
-| `--shadow-modal` | `0 25px 50px -12px rgb(0 0 0 / 0.5)` | Dialogs, login panel |
-| `--shadow-glow` | `0 0 20px -5px hsl(215 90% 56% / 0.15)` | Subtle glow accents (rare) |
+| Token                 | Value                                                                | Usage                      |
+| --------------------- | -------------------------------------------------------------------- | -------------------------- |
+| `--shadow-card`       | `0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2)`      | Default card elevation     |
+| `--shadow-card-hover` | `0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3)` | Card hover lift            |
+| `--shadow-modal`      | `0 25px 50px -12px rgb(0 0 0 / 0.5)`                                 | Dialogs, login panel       |
+| `--shadow-glow`       | `0 0 20px -5px hsl(215 90% 56% / 0.15)`                              | Subtle glow accents (rare) |
 
 ## Animation Tokens
 
-| Token | Keyframes | Duration | Usage |
-|-------|-----------|----------|-------|
-| `--animate-pulse-soft` | pulse-soft | 2s | Loading glows, live indicators |
-| `--animate-shimmer` | shimmer | 2s | Skeleton loaders |
-| `--animate-fade-in` | fade-in | 0.3s | Page loads, toasts, empty states |
-| `--animate-slide-up` | slide-up | 0.25s | Modals, metric grids |
-| `--animate-shake` | shake | 0.5s | Form errors (login) |
+| Token                  | Keyframes  | Duration | Usage                            |
+| ---------------------- | ---------- | -------- | -------------------------------- |
+| `--animate-pulse-soft` | pulse-soft | 2s       | Loading glows, live indicators   |
+| `--animate-shimmer`    | shimmer    | 2s       | Skeleton loaders                 |
+| `--animate-fade-in`    | fade-in    | 0.3s     | Page loads, toasts, empty states |
+| `--animate-slide-up`   | slide-up   | 0.25s    | Modals, metric grids             |
+| `--animate-shake`      | shake      | 0.5s     | Form errors (login)              |
 
 Respect `prefers-reduced-motion: reduce` in `index.css`; do not add unbounded animations.
 

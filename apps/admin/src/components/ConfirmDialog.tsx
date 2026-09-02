@@ -31,9 +31,7 @@ export function ConfirmDialog({
       previouslyFocusedRef.current = document.activeElement;
       // Focus the first focusable element (cancel button) after mount
       const timer = setTimeout(() => {
-        const focusable = dialogRef.current?.querySelector<HTMLElement>(
-          'button:not([disabled])'
-        );
+        const focusable = dialogRef.current?.querySelector<HTMLElement>("button:not([disabled])");
         focusable?.focus();
       }, 0);
       return () => clearTimeout(timer);
@@ -57,7 +55,7 @@ export function ConfirmDialog({
       // Tab cycling
       if (e.key === "Tab") {
         const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
         );
         if (!focusable || focusable.length === 0) return;
         const first = focusable[0];
@@ -93,12 +91,20 @@ export function ConfirmDialog({
         className="w-full max-w-md rounded-lg border border-white/[0.06] bg-surface-2 p-6 shadow-xl animate-slide-up"
       >
         <div className="flex items-start gap-4">
-          <div className={`rounded-full p-2 ${variant === "danger" ? "bg-danger-muted/50" : "bg-warning-muted/50"}`}>
-            <AlertTriangle className={`size-5 ${variant === "danger" ? "text-danger-fg" : "text-warning-fg"}`} />
+          <div
+            className={`rounded-full p-2 ${variant === "danger" ? "bg-danger-muted/50" : "bg-warning-muted/50"}`}
+          >
+            <AlertTriangle
+              className={`size-5 ${variant === "danger" ? "text-danger-fg" : "text-warning-fg"}`}
+            />
           </div>
           <div className="flex-1">
-            <h3 id="confirm-title" className="text-lg font-semibold text-foreground">{title}</h3>
-            <p id="confirm-desc" className="mt-1 text-sm text-muted-foreground">{message}</p>
+            <h3 id="confirm-title" className="text-lg font-semibold text-foreground">
+              {title}
+            </h3>
+            <p id="confirm-desc" className="mt-1 text-sm text-muted-foreground">
+              {message}
+            </p>
           </div>
           <button
             onClick={onCancel}
@@ -109,11 +115,7 @@ export function ConfirmDialog({
           </button>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCancel}
-          >
+          <Button variant="outline" size="sm" onClick={onCancel}>
             {cancelLabel}
           </Button>
           <Button
@@ -147,13 +149,10 @@ export function useConfirmDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<ConfirmConfig | null>(null);
 
-  const confirm = useCallback(
-    (options: ConfirmConfig) => {
-      setConfig(options);
-      setIsOpen(true);
-    },
-    []
-  );
+  const confirm = useCallback((options: ConfirmConfig) => {
+    setConfig(options);
+    setIsOpen(true);
+  }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);

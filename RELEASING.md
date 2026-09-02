@@ -22,6 +22,7 @@ This document is a lightweight checklist for an authorized maintainer preparing 
   ```
 
   If a check is not relevant or cannot run in the release environment, record that fact rather than implying it passed.
+
 - Update `CHANGELOG.md` by changing `## [Unreleased]` to a verified version heading such as `## [X.Y.Z] - YYYY-MM-DD`, keeping only changes included in that version, then add a fresh empty `Unreleased` section above it.
 - Decide the version deliberately. If package manifest versions are changed for the release, keep the relevant workspace manifests consistent and include that change in the release notes.
 - Re-read the release notes for unsupported claims, secrets, customer data, private URLs, or unverified deployment statements.

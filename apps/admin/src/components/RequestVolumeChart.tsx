@@ -1,22 +1,19 @@
-import { useState } from "react"
+import { useState } from "react";
 
 interface Bucket {
-  index: number
-  success: number
-  error: number
+  index: number;
+  success: number;
+  error: number;
 }
 
 interface RequestVolumeChartProps {
-  buckets: Bucket[]
+  buckets: Bucket[];
 }
 
 export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const maxBucketValue = Math.max(
-    1,
-    ...buckets.map((bucket) => bucket.success + bucket.error),
-  )
+  const maxBucketValue = Math.max(1, ...buckets.map((bucket) => bucket.success + bucket.error));
 
   return (
     <div className="relative h-36 overflow-hidden rounded-lg border border-white/5 bg-surface-2 px-4 py-3">
@@ -44,12 +41,12 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
           const successHeight = Math.max(
             bucket.success ? 10 : 0,
             (bucket.success / maxBucketValue) * 100,
-          )
+          );
           const errorHeight = Math.max(
             bucket.error ? 10 : 0,
             (bucket.error / maxBucketValue) * 100,
-          )
-          const delay = i * 20
+          );
+          const delay = i * 20;
 
           return (
             <div
@@ -75,9 +72,9 @@ export function RequestVolumeChart({ buckets }: RequestVolumeChartProps) {
                 )}
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

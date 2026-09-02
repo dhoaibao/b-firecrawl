@@ -14,7 +14,9 @@ export default function Login() {
   const [shake, setShake] = useState(false);
   const { login } = useAuth();
 
-  useEffect(() => { document.title = "Sign in — Firecrawl Gateway" }, [])
+  useEffect(() => {
+    document.title = "Sign in — Firecrawl Gateway";
+  }, []);
   const navigate = useNavigate();
 
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
@@ -38,19 +40,22 @@ export default function Login() {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-20 -top-20 size-[500px] rounded-full bg-info/8 blur-[100px] animate-pulse-soft"></div>
-        <div className="absolute -right-20 top-1/3 size-[400px] rounded-full bg-success/6 blur-[80px] animate-pulse-soft" style={{ animationDelay: "1s" }}></div>
-        <div className="absolute -bottom-20 left-1/3 size-[450px] rounded-full bg-warning/5 blur-[90px] animate-pulse-soft" style={{ animationDelay: "0.5s" }}></div>
+        <div
+          className="absolute -right-20 top-1/3 size-[400px] rounded-full bg-success/6 blur-[80px] animate-pulse-soft"
+          style={{ animationDelay: "1s" }}
+        ></div>
+        <div
+          className="absolute -bottom-20 left-1/3 size-[450px] rounded-full bg-warning/5 blur-[90px] animate-pulse-soft"
+          style={{ animationDelay: "0.5s" }}
+        ></div>
       </div>
 
       <div className={`relative w-full max-w-sm animate-slide-up ${shake ? "animate-shake" : ""}`}>
         <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent opacity-60 blur-sm"></div>
 
-        <div className="relative rounded-2xl border border-white/[0.08] bg-surface-2/80 p-8 shadow-[var(--shadow-modal)] backdrop-blur-xl"
-        >
-          <div className="mb-8 flex flex-col items-center gap-4"
-          >
-            <div className="relative flex size-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.08] to-white/[0.02] shadow-[var(--shadow-card)]"
-            >
+        <div className="relative rounded-2xl border border-white/[0.08] bg-surface-2/80 p-8 shadow-[var(--shadow-modal)] backdrop-blur-xl">
+          <div className="mb-8 flex flex-col items-center gap-4">
+            <div className="relative flex size-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.08] to-white/[0.02] shadow-[var(--shadow-card)]">
               <Shield className="size-7 text-foreground" />
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-info/10 to-transparent"></div>
             </div>
@@ -62,8 +67,9 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5" aria-label="Sign in">
             {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-danger-muted bg-danger-muted/50 px-3 py-2.5 text-sm text-danger-fg animate-fade-in"
-              role="alert"
+              <div
+                className="flex items-center gap-2 rounded-lg border border-danger-muted bg-danger-muted/50 px-3 py-2.5 text-sm text-danger-fg animate-fade-in"
+                role="alert"
               >
                 <AlertCircle className="size-4 shrink-0" />
                 {error}
@@ -71,7 +77,9 @@ export default function Login() {
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium text-foreground">Email</label>
+              <label htmlFor="email" className="text-sm font-medium text-foreground">
+                Email
+              </label>
               <Input
                 id="email"
                 type="email"
@@ -84,7 +92,9 @@ export default function Login() {
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium text-foreground">Password</label>
+              <label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </label>
               <div className="relative">
                 <Input
                   id="password"
@@ -107,11 +117,7 @@ export default function Login() {
               </div>
             </div>
 
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="h-11 w-full"
-            >
+            <Button type="submit" disabled={submitting} className="h-11 w-full">
               {submitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>

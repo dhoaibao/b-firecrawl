@@ -1,20 +1,20 @@
-import { type ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export interface Column<T> {
-  key: string
-  header: string
-  align?: "left" | "right" | "center"
-  className?: string
-  render: (item: T) => ReactNode
+  key: string;
+  header: string;
+  align?: "left" | "right" | "center";
+  className?: string;
+  render: (item: T) => ReactNode;
 }
 
 interface DataTableProps<T> {
-  columns: Column<T>[]
-  data: T[]
-  keyExtractor: (item: T) => string
-  emptyState: ReactNode
-  className?: string
+  columns: Column<T>[];
+  data: T[];
+  keyExtractor: (item: T) => string;
+  emptyState: ReactNode;
+  className?: string;
 }
 
 export default function DataTable<T>({
@@ -79,5 +79,5 @@ export default function DataTable<T>({
         </tbody>
       </table>
     </div>
-  )
+  );
 }

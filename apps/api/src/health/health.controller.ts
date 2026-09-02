@@ -7,7 +7,9 @@ export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get("health")
-  health() { return { status: "ok" }; }
+  health() {
+    return { status: "ok" };
+  }
 
   @Get("ready")
   async ready(@Res() reply: FastifyReply) {

@@ -11,7 +11,9 @@ describe("RedisCreditLedgerStore", () => {
       isOpen: true,
       connect: vi.fn(),
       quit: vi.fn(),
-      eval: vi.fn().mockResolvedValue([2, 7, "firecrawl-gateway:credit-ledger:v1:reservation:opaque"]),
+      eval: vi
+        .fn()
+        .mockResolvedValue([2, 7, "firecrawl-gateway:credit-ledger:v1:reservation:opaque"]),
     };
     const store = new RedisCreditLedgerStore(config as never, client as never);
 
@@ -48,12 +50,16 @@ describe("RedisCreditLedgerStore", () => {
       isOpen: true,
       connect: vi.fn(),
       quit: vi.fn(),
-      eval: vi.fn()
+      eval: vi
+        .fn()
         .mockResolvedValueOnce([1, 1, "reservation-key"])
         .mockResolvedValueOnce(1)
         .mockResolvedValueOnce(1),
     };
-    const store = new RedisCreditLedgerStore({ ...config, requestTimeoutMs: 120_000 } as never, client as never);
+    const store = new RedisCreditLedgerStore(
+      { ...config, requestTimeoutMs: 120_000 } as never,
+      client as never,
+    );
 
     await store.reserve(["opaque-key"], 1);
     await store.settle("opaque-key", "reservation-key", "disabled");
@@ -74,8 +80,13 @@ describe("RedisCreditLedgerStore", () => {
     };
     const store = new RedisCreditLedgerStore(config as never, client as never);
 
-    await expect(store.settleActualUsage("opaque-key", "opaque-reservation", 4)).resolves.toBe(true);
-    const [script, options] = client.eval.mock.calls[0] as [string, { keys: string[]; arguments: string[] }];
+    await expect(store.settleActualUsage("opaque-key", "opaque-reservation", 4)).resolves.toBe(
+      true,
+    );
+    const [script, options] = client.eval.mock.calls[0] as [
+      string,
+      { keys: string[]; arguments: string[] },
+    ];
     expect(script).toContain("math.min");
     expect(script).toContain("HINCRBY");
     expect(script).toContain("DEL");
@@ -87,7 +98,8 @@ describe("RedisCreditLedgerStore", () => {
       isOpen: true,
       connect: vi.fn(),
       quit: vi.fn(),
-      eval: vi.fn()
+      eval: vi
+        .fn()
         .mockResolvedValueOnce("4")
         .mockResolvedValueOnce("425")
         .mockResolvedValueOnce(1),
@@ -96,7 +108,9 @@ describe("RedisCreditLedgerStore", () => {
 
     await expect(store.capture("opaque-key")).resolves.toEqual({ available: true, sequence: 4 });
     await expect(store.reconcile("opaque-key", 425, 4)).resolves.toBe(true);
-    await expect(store.settle("opaque-key", "opaque-reservation", "cooldown", 123)).resolves.toBe(true);
+    await expect(store.settle("opaque-key", "opaque-reservation", "cooldown", 123)).resolves.toBe(
+      true,
+    );
     expect(client.eval).toHaveBeenCalledTimes(3);
   });
 });

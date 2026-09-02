@@ -26,7 +26,11 @@ function makeRequest(overrides: Record<string, unknown> = {}): RequestWithContex
 }
 
 function makeReply(events: string[] = []) {
-  const raw = new Writable({ write(_chunk, _encoding, callback) { callback(); } }) as Writable & { writeHead: ReturnType<typeof vi.fn> };
+  const raw = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  }) as Writable & { writeHead: ReturnType<typeof vi.fn> };
   raw.writeHead = vi.fn();
   const reply = {
     code: vi.fn(),
@@ -47,9 +51,13 @@ function makeReply(events: string[] = []) {
 function makeSettings() {
   return {
     getDefaultRouteMode: vi.fn().mockResolvedValue("self-hosted-only"),
-    getSetting: vi.fn().mockImplementation(async (key: string) => key === "self_hosted_firecrawl_url"
-      ? { key, value: "https://self.test/", updated_at: "2026-01-01T00:00:00.000Z" }
-      : null),
+    getSetting: vi
+      .fn()
+      .mockImplementation(async (key: string) =>
+        key === "self_hosted_firecrawl_url"
+          ? { key, value: "https://self.test/", updated_at: "2026-01-01T00:00:00.000Z" }
+          : null,
+      ),
   };
 }
 
@@ -84,7 +92,9 @@ describe("ProxyService", () => {
   it("sends the response before the audit insert settles, but waits for the insert", async () => {
     const events: string[] = [];
     let resolveAudit!: () => void;
-    const auditDone = new Promise<void>((resolve) => { resolveAudit = resolve; });
+    const auditDone = new Promise<void>((resolve) => {
+      resolveAudit = resolve;
+    });
     const audit = {
       appendAudit: vi.fn(async () => {
         events.push("audit-started");
@@ -101,7 +111,9 @@ describe("ProxyService", () => {
 
     expect(events).toEqual(["audit-started", "reply-sent"]);
     let returned = false;
-    void handled.then(() => { returned = true; });
+    void handled.then(() => {
+      returned = true;
+    });
     await Promise.resolve();
     expect(returned).toBe(false);
 
@@ -128,20 +140,28 @@ describe("ProxyService", () => {
     const track = () => {
       inFlight++;
       peakInFlight = Math.max(peakInFlight, inFlight);
-      return () => { inFlight--; };
+      return () => {
+        inFlight--;
+      };
     };
     const settings = {
       getDefaultRouteMode: vi.fn(() => {
         const done = track();
         return new Promise<string>((resolve) => {
-          resolveMode = (value) => { done(); resolve(value); };
+          resolveMode = (value) => {
+            done();
+            resolve(value);
+          };
         });
       }),
       getSetting: vi.fn((key: string) => {
         if (key !== "self_hosted_firecrawl_url") return Promise.resolve(null);
         const done = track();
         return new Promise<{ key: string; value: string; updated_at: string }>((resolve) => {
-          resolveUrl = (value) => { done(); resolve(value); };
+          resolveUrl = (value) => {
+            done();
+            resolve(value);
+          };
         });
       }),
     };
@@ -160,11 +180,20 @@ describe("ProxyService", () => {
     expect(peakInFlight).toBe(2);
 
     resolveMode("self-hosted-only");
-    resolveUrl({ key: "self_hosted_firecrawl_url", value: "https://self.test/", updated_at: "2026-01-01T00:00:00.000Z" });
+    resolveUrl({
+      key: "self_hosted_firecrawl_url",
+      value: "https://self.test/",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    });
     await handled;
 
-    expect(fetchMock).toHaveBeenCalledWith("https://self.test/v1/test", expect.objectContaining({ method: "POST" }));
-    expect(audit.appendAudit).toHaveBeenCalledWith(expect.objectContaining({ route_mode: "self-hosted-only" }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://self.test/v1/test",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(audit.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ route_mode: "self-hosted-only" }),
+    );
   });
 
   it("reserves a configured cloud key before proxying and never fetches credit usage on a normal request", async () => {
@@ -172,7 +201,11 @@ describe("ProxyService", () => {
     const encrypted = encryptSettingValue(JSON.stringify([key]), config.firecrawlKeysEncryptionKey);
     const settings = {
       getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-first"),
-      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+      getSetting: vi
+        .fn()
+        .mockImplementation(async (name: string) =>
+          name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null,
+        ),
     };
     const credits = makeCredits();
     credits.reserve.mockResolvedValue({ key, keyId: "opaque-key-id", amount: 1, source: "local" });
@@ -184,10 +217,15 @@ describe("ProxyService", () => {
 
     expect(credits.reserve).toHaveBeenCalledWith([key], 1, expect.any(Set));
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("https://cloud.test/v1/test", expect.objectContaining({
-      headers: expect.objectContaining({ authorization: `Bearer ${key}` }),
-    }));
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/v2/team/credit-usage"))).toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://cloud.test/v1/test",
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: `Bearer ${key}` }),
+      }),
+    );
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/v2/team/credit-usage")),
+    ).toBe(false);
   });
 
   it("observes streamed actual credits without delaying the client response", async () => {
@@ -195,13 +233,28 @@ describe("ProxyService", () => {
     const encrypted = encryptSettingValue(JSON.stringify([key]), config.firecrawlKeysEncryptionKey);
     const settings = {
       getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-only"),
-      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+      getSetting: vi
+        .fn()
+        .mockImplementation(async (name: string) =>
+          name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null,
+        ),
     };
     const credits = makeCredits();
-    credits.reserve.mockResolvedValue({ key, keyId: "opaque-key-id", amount: 1, source: "redis", reservationKey: "reservation-key" });
+    credits.reserve.mockResolvedValue({
+      key,
+      keyId: "opaque-key-id",
+      amount: 1,
+      source: "redis",
+      reservationKey: "reservation-key",
+    });
     let resolveSettlement!: () => void;
-    const settlement = new Promise<void>((resolve) => { resolveSettlement = resolve; });
-    credits.recordResponse.mockImplementation((_reservation: unknown, _status: number, actualCreditsUsed?: number) => actualCreditsUsed === 3 ? settlement : Promise.resolve());
+    const settlement = new Promise<void>((resolve) => {
+      resolveSettlement = resolve;
+    });
+    credits.recordResponse.mockImplementation(
+      (_reservation: unknown, _status: number, actualCreditsUsed?: number) =>
+        actualCreditsUsed === 3 ? settlement : Promise.resolve(),
+    );
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('{"metadata":{"cred'));
@@ -209,7 +262,14 @@ describe("ProxyService", () => {
         controller.close();
       },
     });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream, { status: 200, headers: { "content-type": "application/json" } })));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(stream, { status: 200, headers: { "content-type": "application/json" } }),
+        ),
+    );
 
     const service = makeService(settings, undefined, credits);
     const handled = service.handle(makeRequest(), makeReply() as never);
@@ -219,7 +279,11 @@ describe("ProxyService", () => {
     ]);
 
     expect(outcome).toBe("handled");
-    expect(credits.recordResponse).toHaveBeenCalledWith(expect.objectContaining({ keyId: "opaque-key-id" }), 200, 3);
+    expect(credits.recordResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ keyId: "opaque-key-id" }),
+      200,
+      3,
+    );
     resolveSettlement();
   });
 
@@ -228,17 +292,34 @@ describe("ProxyService", () => {
     const encrypted = encryptSettingValue(JSON.stringify([key]), config.firecrawlKeysEncryptionKey);
     const settings = {
       getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-only"),
-      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+      getSetting: vi
+        .fn()
+        .mockImplementation(async (name: string) =>
+          name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null,
+        ),
     };
     const credits = makeCredits();
-    credits.reserve.mockResolvedValue({ key, keyId: "opaque-key-id", amount: 1, source: "redis", reservationKey: "reservation-key" });
+    credits.reserve.mockResolvedValue({
+      key,
+      keyId: "opaque-key-id",
+      amount: 1,
+      source: "redis",
+      reservationKey: "reservation-key",
+    });
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('{"metadata":{"creditsUsed":3}}'));
         controller.close();
       },
     });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream, { status: 200, headers: { "content-type": "text/plain" } })));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(stream, { status: 200, headers: { "content-type": "text/plain" } }),
+        ),
+    );
 
     const service = makeService(settings, undefined, credits);
     await service.handle(makeRequest(), makeReply() as never);
@@ -251,13 +332,18 @@ describe("ProxyService", () => {
     const encrypted = encryptSettingValue(JSON.stringify(keys), config.firecrawlKeysEncryptionKey);
     const settings = {
       getDefaultRouteMode: vi.fn().mockResolvedValue("cloud-only"),
-      getSetting: vi.fn().mockImplementation(async (name: string) => name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null),
+      getSetting: vi
+        .fn()
+        .mockImplementation(async (name: string) =>
+          name === "firecrawl_api_keys" ? { key: name, value: encrypted } : null,
+        ),
     };
     const credits = makeCredits();
     credits.reserve
       .mockResolvedValueOnce({ key: keys[0], keyId: "opaque-1", amount: 1, source: "local" })
       .mockResolvedValueOnce({ key: keys[1], keyId: "opaque-2", amount: 1, source: "local" });
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(new Response("credits exhausted", { status: 402 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -266,8 +352,19 @@ describe("ProxyService", () => {
     await service.handle(makeRequest(), makeReply() as never);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ headers: expect.objectContaining({ authorization: `Bearer ${keys[0]}` }) }));
-    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ headers: expect.objectContaining({ authorization: `Bearer ${keys[1]}` }) }));
-    expect(credits.recordResponse).toHaveBeenCalledWith(expect.objectContaining({ keyId: "opaque-1" }), 402);
+    expect(fetchMock.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: `Bearer ${keys[0]}` }),
+      }),
+    );
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: `Bearer ${keys[1]}` }),
+      }),
+    );
+    expect(credits.recordResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ keyId: "opaque-1" }),
+      402,
+    );
   });
 });

@@ -1,19 +1,19 @@
-import { useState } from "react"
-import { SlidersHorizontal, Code } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import { useState } from "react";
+import { SlidersHorizontal, Code } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface PlaygroundCardProps {
-  inputSection: React.ReactNode
-  toolbarExtras?: React.ReactNode
-  advanced?: React.ReactNode
-  submitLabel: string
-  submitLoadingLabel: string
-  loading: boolean
-  disabled?: boolean
-  onSubmit: (e: React.SubmitEvent<HTMLFormElement>) => void
-  onGetCode?: () => void
+  inputSection: React.ReactNode;
+  toolbarExtras?: React.ReactNode;
+  advanced?: React.ReactNode;
+  submitLabel: string;
+  submitLoadingLabel: string;
+  loading: boolean;
+  disabled?: boolean;
+  onSubmit: (e: React.SubmitEvent<HTMLFormElement>) => void;
+  onGetCode?: () => void;
 }
 
 export default function PlaygroundCard({
@@ -27,7 +27,7 @@ export default function PlaygroundCard({
   onSubmit,
   onGetCode,
 }: PlaygroundCardProps) {
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   return (
     <Card className="gap-0 overflow-hidden rounded-2xl border-white/[0.06] bg-surface-2 p-0 shadow-[var(--shadow-card)]">
@@ -81,5 +81,5 @@ export default function PlaygroundCard({
         )}
       </form>
     </Card>
-  )
+  );
 }

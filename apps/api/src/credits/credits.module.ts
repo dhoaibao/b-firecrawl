@@ -3,7 +3,11 @@ import { createClient } from "redis";
 import { API_CONFIG } from "../common/config.provider";
 import type { ApiConfig } from "../common/config";
 import { CreditRoutingService } from "./credit-routing.service";
-import { REDIS_CLIENT, RedisCreditLedgerStore, type RedisCommandClient } from "./credit-ledger.store";
+import {
+  REDIS_CLIENT,
+  RedisCreditLedgerStore,
+  type RedisCommandClient,
+} from "./credit-ledger.store";
 
 const redisClientProvider = {
   provide: REDIS_CLIENT,

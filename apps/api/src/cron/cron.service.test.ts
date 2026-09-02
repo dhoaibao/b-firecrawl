@@ -12,10 +12,22 @@ function makeService(queryRaw: ReturnType<typeof vi.fn>) {
   const prisma = { $queryRaw: queryRaw };
   const settings = { getSetting: vi.fn().mockResolvedValue(null) };
   const credits = { refreshCreditUsageForKeys: vi.fn().mockResolvedValue([]) };
-  return new CronService(prisma as never, settings as never, { cronSecret: "secret", firecrawlKeysEncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" } as never, credits as never);
+  return new CronService(
+    prisma as never,
+    settings as never,
+    {
+      cronSecret: "secret",
+      firecrawlKeysEncryptionKey:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    } as never,
+    credits as never,
+  );
 }
 
-interface FakeAuditRow { id: string; created_at: Date }
+interface FakeAuditRow {
+  id: string;
+  created_at: Date;
+}
 
 /**
  * Fake for the audit prune: applies the actual comparison operator that the
@@ -41,7 +53,12 @@ function makeAuditFake(rows: FakeAuditRow[]) {
   };
 }
 
-function makeDispatchPrisma(options: { onRateLimits?: () => Promise<unknown[]>; onAudit?: (sql: Sql) => Promise<unknown[]>; auditSqls?: Sql[]; rateLimitSqls?: Sql[] }) {
+function makeDispatchPrisma(options: {
+  onRateLimits?: () => Promise<unknown[]>;
+  onAudit?: (sql: Sql) => Promise<unknown[]>;
+  auditSqls?: Sql[];
+  rateLimitSqls?: Sql[];
+}) {
   return vi.fn((sql: Sql) => {
     if (sql.text.includes("audit_logs")) {
       options.auditSqls?.push(sql);
@@ -57,26 +74,43 @@ describe("CronService", () => {
     const key = "fc_cron_key_12345678";
     const encryptionKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const settings = {
-      getSetting: vi.fn()
-        .mockResolvedValueOnce({ key: "firecrawl_api_keys", value: encryptSettingValue(JSON.stringify([key]), encryptionKey) })
+      getSetting: vi
+        .fn()
+        .mockResolvedValueOnce({
+          key: "firecrawl_api_keys",
+          value: encryptSettingValue(JSON.stringify([key]), encryptionKey),
+        })
         .mockResolvedValueOnce(null),
       setSetting: vi.fn(),
     };
-    const credits = { refreshCreditUsageForKeys: vi.fn().mockResolvedValue([{ remainingCredits: 100 }]) };
+    const credits = {
+      refreshCreditUsageForKeys: vi.fn().mockResolvedValue([{ remainingCredits: 100 }]),
+    };
     const queryRaw = vi.fn().mockResolvedValue([]);
-    const service = new CronService({ $queryRaw: queryRaw } as never, settings as never, { cronSecret: "secret", firecrawlKeysEncryptionKey: encryptionKey } as never, credits as never);
+    const service = new CronService(
+      { $queryRaw: queryRaw } as never,
+      settings as never,
+      { cronSecret: "secret", firecrawlKeysEncryptionKey: encryptionKey } as never,
+      credits as never,
+    );
 
     await expect(service.runMaintenance()).resolves.toMatchObject({ creditUsageRefreshed: 1 });
     expect(credits.refreshCreditUsageForKeys).toHaveBeenCalledWith([key]);
   });
 
   it("cleans a drained batch of expired rate-limit rows and reports both prune totals", async () => {
-    const queryRaw = vi.fn()
+    const queryRaw = vi
+      .fn()
       .mockResolvedValueOnce([{ key: "expired-1" }, { key: "expired-2" }])
       .mockResolvedValue([]);
     const service = makeService(queryRaw);
 
-    await expect(service.runMaintenance()).resolves.toEqual({ revoked: 0, rateLimitsDeleted: 2, auditLogsDeleted: 0, creditUsageRefreshed: 0 });
+    await expect(service.runMaintenance()).resolves.toEqual({
+      revoked: 0,
+      rateLimitsDeleted: 2,
+      auditLogsDeleted: 0,
+      creditUsageRefreshed: 0,
+    });
     expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
@@ -88,7 +122,9 @@ describe("CronService", () => {
       { id: "fresh-1", created_at: new Date(now - 1 * 24 * 60 * 60 * 1000) },
       { id: "boundary-fresh", created_at: new Date(now) },
     ];
-    const queryRaw = vi.fn((sql: Sql) => (sql.text.includes("audit_logs") ? makeAuditFake(rows)(sql) : Promise.resolve([])));
+    const queryRaw = vi.fn((sql: Sql) =>
+      sql.text.includes("audit_logs") ? makeAuditFake(rows)(sql) : Promise.resolve([]),
+    );
     const service = makeService(queryRaw);
 
     const result = await service.runMaintenance();

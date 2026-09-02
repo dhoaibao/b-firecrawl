@@ -29,7 +29,8 @@ const METADATA_KEY = "metadata";
 const MAX_SAFE_CREDITS_USED = Number.MAX_SAFE_INTEGER;
 const MAX_SCANNED_KEY_LENGTH = Math.max(CREDITS_USED_KEY.length, METADATA_KEY.length);
 
-type CreditsUsedScanState = "outside" | "string" | "after-key" | "after-colon" | "digits" | "after-digits";
+type CreditsUsedScanState =
+  "outside" | "string" | "after-key" | "after-colon" | "digits" | "after-digits";
 
 class CreditsUsedScanner {
   private state: CreditsUsedScanState = "outside";
@@ -104,7 +105,11 @@ class CreditsUsedScanner {
     if (this.state === "after-colon") {
       if (isJsonWhitespace(byte)) return false;
       if (byte === 123 || byte === 91) {
-        const metadataValue = this.pendingKey === METADATA_KEY && this.objectDepth === 1 && this.arrayDepth === 0 && byte === 123;
+        const metadataValue =
+          this.pendingKey === METADATA_KEY &&
+          this.objectDepth === 1 &&
+          this.arrayDepth === 0 &&
+          byte === 123;
         this.updateContainerDepth(byte);
         if (metadataValue) {
           this.metadataObjectDepth = this.objectDepth;
@@ -114,8 +119,13 @@ class CreditsUsedScanner {
         this.state = "outside";
         return false;
       }
-      if (byte >= 48 && byte <= 57 && this.pendingKey === CREDITS_USED_KEY
-        && this.metadataObjectDepth === this.objectDepth && this.metadataArrayDepth === this.arrayDepth) {
+      if (
+        byte >= 48 &&
+        byte <= 57 &&
+        this.pendingKey === CREDITS_USED_KEY &&
+        this.metadataObjectDepth === this.objectDepth &&
+        this.metadataArrayDepth === this.arrayDepth
+      ) {
         this.state = "digits";
         this.value = byte - 48;
         this.overflow = false;
@@ -190,7 +200,9 @@ function isJsonDelimiter(byte: number): boolean {
 
 export function extractCreditsUsed(body: Uint8Array): number | null {
   let creditsUsed: number | null = null;
-  new CreditsUsedScanner((value) => { creditsUsed = value; }).push(body);
+  new CreditsUsedScanner((value) => {
+    creditsUsed = value;
+  }).push(body);
   return creditsUsed;
 }
 
@@ -199,23 +211,32 @@ export function observeCreditsUsedStream(
   onCreditsUsed: (creditsUsed: number) => Promise<void> | void,
 ): ReadableStream<Uint8Array> {
   const scanner = new CreditsUsedScanner((value) => {
-    queueMicrotask(() => { void Promise.resolve().then(() => onCreditsUsed(value)).catch(() => undefined); });
+    queueMicrotask(() => {
+      void Promise.resolve()
+        .then(() => onCreditsUsed(value))
+        .catch(() => undefined);
+    });
   });
-  return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      scanner.push(chunk);
-      controller.enqueue(chunk);
-    },
-    flush() {
-      scanner.finish();
-    },
-  }));
+  return stream.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        scanner.push(chunk);
+        controller.enqueue(chunk);
+      },
+      flush() {
+        scanner.finish();
+      },
+    }),
+  );
 }
 
 @Injectable()
 export class CreditRoutingService {
   private readonly creditUsageInFlight = new Map<string, Promise<CreditUsageDetails>>();
-  private readonly creditUsageCache = new Map<string, { details: CreditUsageDetails; expiresAt: number }>();
+  private readonly creditUsageCache = new Map<
+    string,
+    { details: CreditUsageDetails; expiresAt: number }
+  >();
   private readonly localCooldownUntil = new Map<string, number>();
   private readonly localDisabled = new Set<string>();
   private localCursor = 0;
@@ -227,24 +248,43 @@ export class CreditRoutingService {
   ) {}
 
   keyId(apiKey: string): string {
-    return crypto.createHmac("sha256", Buffer.from(this.config.firecrawlKeysEncryptionKey, "hex")).update(apiKey).digest("hex");
+    return crypto
+      .createHmac("sha256", Buffer.from(this.config.firecrawlKeysEncryptionKey, "hex"))
+      .update(apiKey)
+      .digest("hex");
   }
 
-  async reserve(apiKeys: string[], amount: number, excludedKeyIds: ReadonlySet<string> = new Set()): Promise<CreditReservation | null> {
+  async reserve(
+    apiKeys: string[],
+    amount: number,
+    excludedKeyIds: ReadonlySet<string> = new Set(),
+  ): Promise<CreditReservation | null> {
     const normalizedAmount = Math.max(1, Math.ceil(amount));
     const now = Date.now();
     const candidates = apiKeys
       .map((key) => ({ key, keyId: this.keyId(key) }))
       .filter(({ keyId }) => !excludedKeyIds.has(keyId))
-      .filter(({ keyId }) => !this.localDisabled.has(keyId) && (this.localCooldownUntil.get(keyId) || 0) <= now);
+      .filter(
+        ({ keyId }) =>
+          !this.localDisabled.has(keyId) && (this.localCooldownUntil.get(keyId) || 0) <= now,
+      );
     if (!candidates.length) return null;
 
     if (Date.now() >= this.redisUnavailableUntil) {
-      const result = await this.ledger.reserve(candidates.map(({ keyId }) => keyId), normalizedAmount);
+      const result = await this.ledger.reserve(
+        candidates.map(({ keyId }) => keyId),
+        normalizedAmount,
+      );
       if (result.kind === "reserved") {
         this.redisUnavailableUntil = 0;
         const selected = candidates[result.index];
-        if (selected) return { ...selected, amount: normalizedAmount, source: "redis", reservationKey: result.reservationKey };
+        if (selected)
+          return {
+            ...selected,
+            amount: normalizedAmount,
+            source: "redis",
+            reservationKey: result.reservationKey,
+          };
       } else if (result.kind === "no-capacity") {
         return null;
       } else {
@@ -255,7 +295,11 @@ export class CreditRoutingService {
     return this.reserveLocally(candidates, normalizedAmount);
   }
 
-  async recordResponse(reservation: CreditReservation, status: number, actualCreditsUsed?: number): Promise<void> {
+  async recordResponse(
+    reservation: CreditReservation,
+    status: number,
+    actualCreditsUsed?: number,
+  ): Promise<void> {
     if (status === 402) {
       this.localDisabled.add(reservation.keyId);
       this.localCooldownUntil.delete(reservation.keyId);
@@ -269,7 +313,12 @@ export class CreditRoutingService {
       const cooldownUntil = Date.now() + CREDIT_KEY_COOLDOWN_MS;
       this.localCooldownUntil.set(reservation.keyId, cooldownUntil);
       if (reservation.source === "redis" && reservation.reservationKey) {
-        await this.ledger.settle(reservation.keyId, reservation.reservationKey, "cooldown", cooldownUntil);
+        await this.ledger.settle(
+          reservation.keyId,
+          reservation.reservationKey,
+          "cooldown",
+          cooldownUntil,
+        );
       }
       return;
     }
@@ -277,14 +326,29 @@ export class CreditRoutingService {
     // Authentication failures are rejected before useful work is performed;
     // return their estimate to the pool. Other responses remain reserved until
     // the next authoritative refresh because the upstream may have consumed it.
-    if ((status === 401 || status === 403) && reservation.source === "redis" && reservation.reservationKey) {
+    if (
+      (status === 401 || status === 403) &&
+      reservation.source === "redis" &&
+      reservation.reservationKey
+    ) {
       await this.ledger.settle(reservation.keyId, reservation.reservationKey, "refund");
       return;
     }
 
-    if (status >= 200 && status < 300 && reservation.source === "redis" && reservation.reservationKey
-      && actualCreditsUsed !== undefined && Number.isSafeInteger(actualCreditsUsed) && actualCreditsUsed >= 0) {
-      await this.ledger.settleActualUsage(reservation.keyId, reservation.reservationKey, actualCreditsUsed);
+    if (
+      status >= 200 &&
+      status < 300 &&
+      reservation.source === "redis" &&
+      reservation.reservationKey &&
+      actualCreditsUsed !== undefined &&
+      Number.isSafeInteger(actualCreditsUsed) &&
+      actualCreditsUsed >= 0
+    ) {
+      await this.ledger.settleActualUsage(
+        reservation.keyId,
+        reservation.reservationKey,
+        actualCreditsUsed,
+      );
     }
   }
 
@@ -318,31 +382,41 @@ export class CreditRoutingService {
             planCredits: null,
             billingPeriodStart: null,
             billingPeriodEnd: null,
-            error: `HTTP ${response.status}: ${await response.text() || response.statusText}`,
+            error: `HTTP ${response.status}: ${(await response.text()) || response.statusText}`,
           };
         }
 
-        const json = await response.json() as { data?: {
-          remainingCredits?: number;
-          planCredits?: number;
-          billingPeriodStart?: string | null;
-          billingPeriodEnd?: string | null;
-        } };
+        const json = (await response.json()) as {
+          data?: {
+            remainingCredits?: number;
+            planCredits?: number;
+            billingPeriodStart?: string | null;
+            billingPeriodEnd?: string | null;
+          };
+        };
         const remainingCredits = json.data?.remainingCredits;
         const details: CreditUsageDetails = {
-          remainingCredits: typeof remainingCredits === "number" && Number.isFinite(remainingCredits) ? remainingCredits : null,
-          planCredits: typeof json.data?.planCredits === "number" && Number.isFinite(json.data.planCredits) ? json.data.planCredits : null,
+          remainingCredits:
+            typeof remainingCredits === "number" && Number.isFinite(remainingCredits)
+              ? remainingCredits
+              : null,
+          planCredits:
+            typeof json.data?.planCredits === "number" && Number.isFinite(json.data.planCredits)
+              ? json.data.planCredits
+              : null,
           billingPeriodStart: json.data?.billingPeriodStart ?? null,
           billingPeriodEnd: json.data?.billingPeriodEnd ?? null,
         };
-        if (details.remainingCredits === null) return { ...details, error: "Credit usage response did not include remainingCredits" };
+        if (details.remainingCredits === null)
+          return { ...details, error: "Credit usage response did not include remainingCredits" };
 
         if (snapshot.available) {
           await this.ledger.reconcile(keyId, details.remainingCredits, snapshot.sequence);
         }
         if (details.remainingCredits > 0) {
           this.localDisabled.delete(keyId);
-          if ((this.localCooldownUntil.get(keyId) || 0) <= Date.now()) this.localCooldownUntil.delete(keyId);
+          if ((this.localCooldownUntil.get(keyId) || 0) <= Date.now())
+            this.localCooldownUntil.delete(keyId);
         } else {
           this.localDisabled.add(keyId);
         }
@@ -360,7 +434,11 @@ export class CreditRoutingService {
     this.creditUsageInFlight.set(apiKey, request);
     try {
       const details = await request;
-      if (!details.error) this.creditUsageCache.set(apiKey, { details, expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS });
+      if (!details.error)
+        this.creditUsageCache.set(apiKey, {
+          details,
+          expiresAt: Date.now() + CREDIT_USAGE_CACHE_TTL_MS,
+        });
       return details;
     } finally {
       if (this.creditUsageInFlight.get(apiKey) === request) this.creditUsageInFlight.delete(apiKey);
@@ -371,7 +449,10 @@ export class CreditRoutingService {
     return Promise.all(apiKeys.map((apiKey) => this.refreshCreditUsage(apiKey)));
   }
 
-  private async reserveLocally(candidates: Array<{ key: string; keyId: string }>, amount: number): Promise<CreditReservation | null> {
+  private async reserveLocally(
+    candidates: Array<{ key: string; keyId: string }>,
+    amount: number,
+  ): Promise<CreditReservation | null> {
     const now = Date.now();
     for (let offset = 0; offset < candidates.length; offset += 1) {
       const index = (this.localCursor + offset) % candidates.length;
@@ -395,11 +476,16 @@ export function estimateCreditCost(_pathname: string, _body: unknown): number {
   return 1;
 }
 
-export function parseCreditKeys(value: string, encryptionKey: string): { keys: string[]; encrypted: boolean } {
+export function parseCreditKeys(
+  value: string,
+  encryptionKey: string,
+): { keys: string[]; encrypted: boolean } {
   const decrypted = decryptSettingValue(value, encryptionKey);
   const parsed = JSON.parse(decrypted.value) as unknown;
   return {
-    keys: Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === "string" && key.length > 0) : [],
+    keys: Array.isArray(parsed)
+      ? parsed.filter((key): key is string => typeof key === "string" && key.length > 0)
+      : [],
     encrypted: decrypted.encrypted,
   };
 }
@@ -407,4 +493,3 @@ export function parseCreditKeys(value: string, encryptionKey: string): { keys: s
 export function creditKeyPrefix(apiKey: string): string {
   return `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
 }
-

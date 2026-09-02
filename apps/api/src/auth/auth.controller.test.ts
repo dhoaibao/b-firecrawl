@@ -2,10 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 import { AuthController } from "./auth.controller";
 
 function reply() {
-  const value: { status: number; body?: unknown; code: (status: number) => typeof value; send: (body: unknown) => typeof value } = {
+  const value: {
+    status: number;
+    body?: unknown;
+    code: (status: number) => typeof value;
+    send: (body: unknown) => typeof value;
+  } = {
     status: 200,
-    code(status) { value.status = status; return value; },
-    send(body) { value.body = body; return value; },
+    code(status) {
+      value.status = status;
+      return value;
+    },
+    send(body) {
+      value.body = body;
+      return value;
+    },
   };
   return value;
 }
@@ -13,16 +24,29 @@ function reply() {
 describe("AuthController", () => {
   it("authenticates only the configured environment admin", async () => {
     const sessions = { setAdmin: vi.fn(), clearAdmin: vi.fn() };
-    const controller = new AuthController({ authEnabled: true, adminEmail: "admin@example.com", adminPassword: "correct-password" } as never, sessions as never);
+    const controller = new AuthController(
+      {
+        authEnabled: true,
+        adminEmail: "admin@example.com",
+        adminPassword: "correct-password",
+      } as never,
+      sessions as never,
+    );
 
     const wrong = reply();
-    await controller.login({ email: "admin@example.com", password: "wrong-password" }, wrong as never);
+    await controller.login(
+      { email: "admin@example.com", password: "wrong-password" },
+      wrong as never,
+    );
     expect(wrong.status).toBe(401);
     expect(wrong.body).toEqual({ success: false, error: "Invalid email or password" });
     expect(sessions.setAdmin).not.toHaveBeenCalled();
 
     const right = reply();
-    await controller.login({ email: " ADMIN@EXAMPLE.COM ", password: "correct-password" }, right as never);
+    await controller.login(
+      { email: " ADMIN@EXAMPLE.COM ", password: "correct-password" },
+      right as never,
+    );
     expect(right.status).toBe(200);
     expect(right.body).toEqual({ success: true, data: { email: "admin@example.com" } });
     expect(sessions.setAdmin).toHaveBeenCalledOnce();

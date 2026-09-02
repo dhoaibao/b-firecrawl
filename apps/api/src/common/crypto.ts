@@ -15,10 +15,18 @@ export function encryptSettingValue(value: string, key: string): string {
   const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(key), iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [ENCRYPTION_PREFIX, iv.toString("base64url"), tag.toString("base64url"), ciphertext.toString("base64url")].join(":");
+  return [
+    ENCRYPTION_PREFIX,
+    iv.toString("base64url"),
+    tag.toString("base64url"),
+    ciphertext.toString("base64url"),
+  ].join(":");
 }
 
-export function decryptSettingValue(value: string, key: string): { value: string; encrypted: boolean } {
+export function decryptSettingValue(
+  value: string,
+  key: string,
+): { value: string; encrypted: boolean } {
   if (!value.startsWith(`${ENCRYPTION_PREFIX}:`)) {
     return { value, encrypted: false };
   }

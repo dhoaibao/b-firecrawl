@@ -21,8 +21,15 @@ export interface ApiKeyRecord {
 }
 
 function toKey(key: {
-  id: string; name: string; keyHash: string; keyValue: string | null; keyPrefix: string;
-  revoked: boolean; createdAt: Date; updatedAt: Date; lastUsedAt: Date | null;
+  id: string;
+  name: string;
+  keyHash: string;
+  keyValue: string | null;
+  keyPrefix: string;
+  revoked: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  lastUsedAt: Date | null;
 }): ApiKeyRecord {
   return {
     id: key.id,
@@ -40,20 +47,31 @@ function toKey(key: {
 @Injectable()
 export class ApiKeysService {
   private readonly lastTouchById = new Map<string, number>();
-  private readonly validationCache = new Map<string, { value: ApiKeyRecord | null; expiresAt: number }>();
+  private readonly validationCache = new Map<
+    string,
+    { value: ApiKeyRecord | null; expiresAt: number }
+  >();
   private readonly validationInFlight = new Map<string, Promise<ApiKeyRecord | null>>();
   private readonly validationCacheMaxSize = 10_000;
   private readonly touchDebounceMs = 60_000;
   private readonly touchTrackerMaxSize = 10_000;
 
-  constructor(private readonly prisma: PrismaService, @Inject(API_CONFIG) private readonly config: ApiConfig) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
+  ) {}
 
   async createApiKey(name: string) {
     const key = `fc_${crypto.randomBytes(32).toString("base64url")}`;
-    const row = await this.prisma.apiKey.create({ data: {
-      id: crypto.randomUUID(), name, keyHash: this.hashApiKey(key),
-      keyValue: encryptSettingValue(key, this.config.firecrawlKeysEncryptionKey), keyPrefix: key.slice(0, 8),
-    } });
+    const row = await this.prisma.apiKey.create({
+      data: {
+        id: crypto.randomUUID(),
+        name,
+        keyHash: this.hashApiKey(key),
+        keyValue: encryptSettingValue(key, this.config.firecrawlKeysEncryptionKey),
+        keyPrefix: key.slice(0, 8),
+      },
+    });
     const { key_value: _keyValue, ...keyData } = toKey(row);
     return { ...keyData, key };
   }
@@ -70,12 +88,17 @@ export class ApiKeysService {
 
   async revokeApiKey(id: string): Promise<ApiKeyRecord | null> {
     try {
-      const revoked = toKey(await this.prisma.apiKey.update({ where: { id }, data: { revoked: true } }));
+      const revoked = toKey(
+        await this.prisma.apiKey.update({ where: { id }, data: { revoked: true } }),
+      );
       this.validationCache.delete(revoked.key_hash);
       this.validationInFlight.delete(revoked.key_hash);
       return revoked;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025")
+        return null;
+      throw error;
     }
-    catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return null; throw error; }
   }
 
   async validateApiKey(key: string): Promise<ApiKeyRecord | null> {
@@ -85,31 +108,42 @@ export class ApiKeysService {
     this.validationCache.delete(keyHash);
     const existing = this.validationInFlight.get(keyHash);
     if (existing) return existing;
-    const request = this.prisma.apiKey.findFirst({ where: { keyHash, revoked: false } }).then((row) => row ? toKey(row) : null);
+    const request = this.prisma.apiKey
+      .findFirst({ where: { keyHash, revoked: false } })
+      .then((row) => (row ? toKey(row) : null));
     this.validationInFlight.set(keyHash, request);
     try {
       const value = await request;
       if (this.validationInFlight.get(keyHash) === request) this.recordValidation(keyHash, value);
       return value;
-    } finally { if (this.validationInFlight.get(keyHash) === request) this.validationInFlight.delete(keyHash); }
+    } finally {
+      if (this.validationInFlight.get(keyHash) === request) this.validationInFlight.delete(keyHash);
+    }
   }
 
   async touchApiKey(id: string): Promise<void> {
     const now = Date.now();
     const last = this.lastTouchById.get(id);
-    if (last && now - last < this.touchDebounceMs) { this.recordTouch(id, last); return; }
+    if (last && now - last < this.touchDebounceMs) {
+      this.recordTouch(id, last);
+      return;
+    }
     await this.prisma.apiKey.update({ where: { id }, data: { lastUsedAt: new Date(now) } });
     this.recordTouch(id, now);
   }
 
-  clearTouchDebouncer(): void { this.lastTouchById.clear(); }
+  clearTouchDebouncer(): void {
+    this.lastTouchById.clear();
+  }
 
   clearValidationCache(): void {
     this.validationCache.clear();
     this.validationInFlight.clear();
   }
 
-  hashApiKey(key: string): string { return crypto.createHash("sha256").update(key).digest("hex"); }
+  hashApiKey(key: string): string {
+    return crypto.createHash("sha256").update(key).digest("hex");
+  }
 
   private recordValidation(keyHash: string, value: ApiKeyRecord | null): void {
     if (this.validationCache.has(keyHash)) this.validationCache.delete(keyHash);
@@ -117,7 +151,10 @@ export class ApiKeysService {
       const oldest = this.validationCache.keys().next().value;
       if (oldest) this.validationCache.delete(oldest);
     }
-    this.validationCache.set(keyHash, { value, expiresAt: Date.now() + API_KEY_VALIDATION_CACHE_TTL_MS });
+    this.validationCache.set(keyHash, {
+      value,
+      expiresAt: Date.now() + API_KEY_VALIDATION_CACHE_TTL_MS,
+    });
   }
 
   private recordTouch(id: string, timestamp: number): void {

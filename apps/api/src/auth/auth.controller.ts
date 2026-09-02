@@ -24,11 +24,19 @@ export class AuthController {
   @Post("login")
   @HttpCode(200)
   async login(@Body() body: { email?: unknown; password?: unknown }, @Res() reply: FastifyReply) {
-    if (!this.config.authEnabled) return reply.code(404).send({ success: false, error: "Admin API is unavailable when AUTH_ENABLED=false." });
+    if (!this.config.authEnabled)
+      return reply
+        .code(404)
+        .send({ success: false, error: "Admin API is unavailable when AUTH_ENABLED=false." });
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const configuredEmail = this.config.adminEmail.trim().toLowerCase();
-    if (!configuredEmail || !this.config.adminPassword || !secureEqual(email, configuredEmail) || !secureEqual(password, this.config.adminPassword)) {
+    if (
+      !configuredEmail ||
+      !this.config.adminPassword ||
+      !secureEqual(email, configuredEmail) ||
+      !secureEqual(password, this.config.adminPassword)
+    ) {
       return reply.code(401).send({ success: false, error: "Invalid email or password" });
     }
     this.sessions.setAdmin(reply);

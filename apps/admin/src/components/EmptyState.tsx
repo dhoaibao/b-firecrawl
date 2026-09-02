@@ -1,15 +1,15 @@
-import { cn } from "@/lib/utils"
-import type { LucideIcon } from "lucide-react"
+import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 
 interface EmptyStateProps {
-  icon: LucideIcon
-  title: string
-  description: string
+  icon: LucideIcon;
+  title: string;
+  description: string;
   action?: {
-    label: string
-    onClick: () => void
-  }
-  className?: string
+    label: string;
+    onClick: () => void;
+  };
+  className?: string;
 }
 
 export default function EmptyState({
@@ -43,5 +43,5 @@ export default function EmptyState({
         </button>
       )}
     </div>
-  )
+  );
 }

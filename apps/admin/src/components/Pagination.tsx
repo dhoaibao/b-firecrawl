@@ -30,18 +30,16 @@ export default function Pagination({
     totalPages <= maxVisiblePages
       ? Array.from({ length: totalPages }, (_, i) => i + 1)
       : currentPage <= 3
-        ? [1, 2, 3, 4, '...', totalPages]
+        ? [1, 2, 3, 4, "...", totalPages]
         : currentPage >= totalPages - 2
-          ? [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
-          : [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+          ? [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+          : [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-white/[0.06] bg-surface-2">
       <div className="text-sm text-muted-foreground">
-        Showing <span className="font-medium text-foreground">{startItem}</span>
-        {" "}-{` `}
-        <span className="font-medium text-foreground">{endItem}</span>
-        {" "}of{" "}
+        Showing <span className="font-medium text-foreground">{startItem}</span> -{` `}
+        <span className="font-medium text-foreground">{endItem}</span> of{" "}
         <span className="font-medium text-foreground">{totalItems}</span>
       </div>
 
@@ -79,8 +77,10 @@ export default function Pagination({
           </button>
 
           {visiblePages.map((page, idx) =>
-            page === '...' ? (
-              <span key={`ellipsis-${idx}`} className="px-1 text-xs text-muted-foreground">...</span>
+            page === "..." ? (
+              <span key={`ellipsis-${idx}`} className="px-1 text-xs text-muted-foreground">
+                ...
+              </span>
             ) : (
               <button
                 key={page}
@@ -94,7 +94,7 @@ export default function Pagination({
               >
                 {page}
               </button>
-            )
+            ),
           )}
 
           <button

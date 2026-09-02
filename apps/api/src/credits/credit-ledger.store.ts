@@ -166,7 +166,16 @@ function asNumber(value: unknown): number | null {
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Redis operation timed out")), timeoutMs);
-    promise.then((value) => { clearTimeout(timeout); resolve(value); }, (error) => { clearTimeout(timeout); reject(error); });
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
   });
 }
 
@@ -185,10 +194,12 @@ export class RedisCreditLedgerStore implements OnModuleDestroy {
     const poolKeys = keyIds.map((keyId) => this.poolKey(keyId));
     const reservationKeys = keyIds.map(() => this.reservationKey());
     const reservationSetKeys = keyIds.map((keyId) => this.reservationSetKey(keyId));
-    const result = await this.run((client) => client.eval(RESERVE_SCRIPT, {
-      keys: [...poolKeys, ...reservationSetKeys, ...reservationKeys],
-      arguments: [String(Date.now()), String(amount), String(this.reservationTtlSeconds())],
-    }));
+    const result = await this.run((client) =>
+      client.eval(RESERVE_SCRIPT, {
+        keys: [...poolKeys, ...reservationSetKeys, ...reservationKeys],
+        arguments: [String(Date.now()), String(amount), String(this.reservationTtlSeconds())],
+      }),
+    );
     if (!result.available) return { kind: "unavailable" };
     const values = Array.isArray(result.value) ? result.value : [];
     const index = asNumber(values[0]);
@@ -203,45 +214,78 @@ export class RedisCreditLedgerStore implements OnModuleDestroy {
 
   async capture(keyId: string): Promise<LedgerSnapshot> {
     if (!this.client) return { available: false, sequence: 0 };
-    const result = await this.run((client) => client.eval(CAPTURE_SCRIPT, { keys: [this.poolKey(keyId)], arguments: [] }));
+    const result = await this.run((client) =>
+      client.eval(CAPTURE_SCRIPT, { keys: [this.poolKey(keyId)], arguments: [] }),
+    );
     if (!result.available) return { available: false, sequence: 0 };
     return { available: true, sequence: asNumber(result.value) ?? 0 };
   }
 
-  async settleActualUsage(keyId: string, reservationKey: string, actualCredits: number): Promise<boolean> {
+  async settleActualUsage(
+    keyId: string,
+    reservationKey: string,
+    actualCredits: number,
+  ): Promise<boolean> {
     if (!this.client || !Number.isSafeInteger(actualCredits) || actualCredits < 0) return false;
-    const result = await this.run((client) => client.eval(ACTUAL_USAGE_SCRIPT, {
-      keys: [this.poolKey(keyId), reservationKey, this.reservationSetKey(keyId)],
-      arguments: [String(actualCredits)],
-    }));
+    const result = await this.run((client) =>
+      client.eval(ACTUAL_USAGE_SCRIPT, {
+        keys: [this.poolKey(keyId), reservationKey, this.reservationSetKey(keyId)],
+        arguments: [String(actualCredits)],
+      }),
+    );
     return result.available && asNumber(result.value) === 1;
   }
 
-  async reconcile(keyId: string, remainingCredits: number, snapshotSequence: number): Promise<boolean> {
+  async reconcile(
+    keyId: string,
+    remainingCredits: number,
+    snapshotSequence: number,
+  ): Promise<boolean> {
     if (!this.client) return false;
-    const result = await this.run((client) => client.eval(RECONCILE_SCRIPT, {
-      keys: [this.poolKey(keyId), this.reservationSetKey(keyId)],
-      arguments: [String(Math.max(0, remainingCredits)), String(snapshotSequence), String(Date.now())],
-    }));
+    const result = await this.run((client) =>
+      client.eval(RECONCILE_SCRIPT, {
+        keys: [this.poolKey(keyId), this.reservationSetKey(keyId)],
+        arguments: [
+          String(Math.max(0, remainingCredits)),
+          String(snapshotSequence),
+          String(Date.now()),
+        ],
+      }),
+    );
     return result.available && asNumber(result.value) !== null;
   }
 
-  async settle(keyId: string, reservationKey: string, action: "refund" | "cooldown" | "disabled", cooldownUntil = 0): Promise<boolean> {
+  async settle(
+    keyId: string,
+    reservationKey: string,
+    action: "refund" | "cooldown" | "disabled",
+    cooldownUntil = 0,
+  ): Promise<boolean> {
     if (!this.client) return false;
-    const result = await this.run((client) => client.eval(SETTLE_SCRIPT, {
-      keys: [this.poolKey(keyId), reservationKey, this.reservationSetKey(keyId)],
-      arguments: [action, String(cooldownUntil)],
-    }));
+    const result = await this.run((client) =>
+      client.eval(SETTLE_SCRIPT, {
+        keys: [this.poolKey(keyId), reservationKey, this.reservationSetKey(keyId)],
+        arguments: [action, String(cooldownUntil)],
+      }),
+    );
     return result.available && asNumber(result.value) === 1;
   }
 
   async onModuleDestroy(): Promise<void> {
     if (!this.client?.isOpen) return;
-    try { await withTimeout(this.client.quit(), 500); } catch { /* best effort during shutdown */ }
+    try {
+      await withTimeout(this.client.quit(), 500);
+    } catch {
+      /* best effort during shutdown */
+    }
   }
 
-  private poolKey(keyId: string): string { return `${this.keyPrefix}:pool:${keyId}`; }
-  private reservationSetKey(keyId: string): string { return `${this.keyPrefix}:reservations:${keyId}`; }
+  private poolKey(keyId: string): string {
+    return `${this.keyPrefix}:pool:${keyId}`;
+  }
+  private reservationSetKey(keyId: string): string {
+    return `${this.keyPrefix}:reservations:${keyId}`;
+  }
   private reservationKey(reservationId?: string): string {
     return `${this.keyPrefix}:reservation:${reservationId || randomUUID()}`;
   }
@@ -251,11 +295,16 @@ export class RedisCreditLedgerStore implements OnModuleDestroy {
     return Math.max(300, Math.ceil((requestTimeoutMs + 60_000) / 1000));
   }
 
-  private async run<T>(operation: (client: RedisCommandClient) => Promise<T>): Promise<{ available: boolean; value?: T }> {
+  private async run<T>(
+    operation: (client: RedisCommandClient) => Promise<T>,
+  ): Promise<{ available: boolean; value?: T }> {
     if (!this.client || !this.config.redisUrl) return { available: false };
     try {
       if (!this.client.isOpen) {
-        if (!this.connecting) this.connecting = withTimeout(this.client.connect(), 750).finally(() => { this.connecting = undefined; });
+        if (!this.connecting)
+          this.connecting = withTimeout(this.client.connect(), 750).finally(() => {
+            this.connecting = undefined;
+          });
         await this.connecting;
       }
       return { available: true, value: await withTimeout(operation(this.client), 750) };
@@ -264,4 +313,3 @@ export class RedisCreditLedgerStore implements OnModuleDestroy {
     }
   }
 }
-

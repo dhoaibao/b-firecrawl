@@ -21,24 +21,28 @@ describe("SettingsController creditUsage", () => {
       setSetting: vi.fn().mockResolvedValue(undefined),
     };
     const credits = {
-      refreshCreditUsageForKeys: vi.fn().mockResolvedValue([{
-        remainingCredits: 500,
-        planCredits: 1000,
-        billingPeriodStart: "2026-08-01T00:00:00Z",
-        billingPeriodEnd: "2026-09-01T00:00:00Z",
-      }]),
+      refreshCreditUsageForKeys: vi.fn().mockResolvedValue([
+        {
+          remainingCredits: 500,
+          planCredits: 1000,
+          billingPeriodStart: "2026-08-01T00:00:00Z",
+          billingPeriodEnd: "2026-09-01T00:00:00Z",
+        },
+      ]),
     };
 
     const controller = new SettingsController(settings as never, config as never, credits as never);
     await expect(controller.creditUsage()).resolves.toEqual({
-      data: [{
-        keyIndex: 0,
-        keyPrefix: "fc_test_...cdef",
-        remainingCredits: 500,
-        planCredits: 1000,
-        billingPeriodStart: "2026-08-01T00:00:00Z",
-        billingPeriodEnd: "2026-09-01T00:00:00Z",
-      }],
+      data: [
+        {
+          keyIndex: 0,
+          keyPrefix: "fc_test_...cdef",
+          remainingCredits: 500,
+          planCredits: 1000,
+          billingPeriodStart: "2026-08-01T00:00:00Z",
+          billingPeriodEnd: "2026-09-01T00:00:00Z",
+        },
+      ],
     });
     expect(credits.refreshCreditUsageForKeys).toHaveBeenCalledWith(rawKeys);
     expect(settings.setSetting).not.toHaveBeenCalled();
@@ -47,23 +51,30 @@ describe("SettingsController creditUsage", () => {
   it("encrypts a legacy plaintext key setting before refreshing it", async () => {
     const rawKeys = ["fc_test_key_1234567890abcdef"];
     const settings = {
-      getSetting: vi.fn().mockResolvedValue({ key: "firecrawl_api_keys", value: JSON.stringify(rawKeys) }),
+      getSetting: vi
+        .fn()
+        .mockResolvedValue({ key: "firecrawl_api_keys", value: JSON.stringify(rawKeys) }),
       setSetting: vi.fn().mockResolvedValue(undefined),
     };
     const credits = {
-      refreshCreditUsageForKeys: vi.fn().mockResolvedValue([{
-        remainingCredits: null,
-        planCredits: null,
-        billingPeriodStart: null,
-        billingPeriodEnd: null,
-        error: "upstream unavailable",
-      }]),
+      refreshCreditUsageForKeys: vi.fn().mockResolvedValue([
+        {
+          remainingCredits: null,
+          planCredits: null,
+          billingPeriodStart: null,
+          billingPeriodEnd: null,
+          error: "upstream unavailable",
+        },
+      ]),
     };
 
     const controller = new SettingsController(settings as never, config as never, credits as never);
     await controller.creditUsage();
 
-    expect(settings.setSetting).toHaveBeenCalledWith("firecrawl_api_keys", expect.stringMatching(/^enc:v1:/));
+    expect(settings.setSetting).toHaveBeenCalledWith(
+      "firecrawl_api_keys",
+      expect.stringMatching(/^enc:v1:/),
+    );
     expect(credits.refreshCreditUsageForKeys).toHaveBeenCalledWith(rawKeys);
   });
 

@@ -1,11 +1,11 @@
-import { type LucideIcon } from "lucide-react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { type LucideIcon } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 interface MetricCardProps {
-  label: string
-  value: string | number
-  detail: string
-  icon: LucideIcon
+  label: string;
+  value: string | number;
+  detail: string;
+  icon: LucideIcon;
 }
 
 export function MetricCard({ label, value, detail, icon: Icon }: MetricCardProps) {
@@ -26,5 +26,5 @@ export function MetricCard({ label, value, detail, icon: Icon }: MetricCardProps
         <p className="text-[11px] text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>
-  )
+  );
 }

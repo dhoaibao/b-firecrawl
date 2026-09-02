@@ -1,12 +1,12 @@
-import { type ReactNode } from "react"
-import type { LucideIcon } from "lucide-react"
+import { type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
 interface PageLayoutProps {
-  title: string
-  icon: LucideIcon
-  count?: { filtered: number; total: number }
-  actions?: ReactNode
-  children: ReactNode
+  title: string;
+  icon: LucideIcon;
+  count?: { filtered: number; total: number };
+  actions?: ReactNode;
+  children: ReactNode;
 }
 
 export default function PageLayout({
@@ -36,11 +36,13 @@ export default function PageLayout({
               <p className="mt-0.5 text-xs text-muted-foreground">Manage your gateway workspace</p>
             </div>
           </div>
-          {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
+          {actions && (
+            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>
+          )}
         </header>
 
         {children}
       </div>
     </div>
-  )
+  );
 }
